@@ -59,6 +59,14 @@ siyuan-sisyphus block replace --id '<block-id>' --edit-json '{"old":"draft","new
 
 ## Metadata and daily notes
 
+Prefer the `dailynote` tool over `document create_daily_note` / `block add_to_daily_note` whenever a date is involved: it resolves the note through the notebook `dailyNoteSavePath` template, so `create`/`get`/`read`/`append`/`prepend`/`delete` all accept `date=YYYY-MM-DD` and work for past or future days, not only today. `dailynote list` enumerates existing notes under the configured prefix and filters by `from`/`to`.
+
+For `date` values other than today, `append` and `prepend` create the note first if it does not exist; no separate `create` call is needed. When the notebook `dailyNoteSavePath` contains unsupported template expressions, only today's note can be resolved — fall back to `document create_daily_note` for that case.
+
+{{call dn_create}}
+{{call dn_append}}
+{{call dn_list}}
+
 ## Structural constraints
 
 `query_embed` blocks and other structural block types cannot be inserted inside a `NodeList` or `NodeListItem`. Insert them as top-level siblings in the document body — for example, after the parent list block rather than after an individual list item.

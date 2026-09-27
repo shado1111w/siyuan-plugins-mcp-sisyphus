@@ -10,6 +10,7 @@ import {
     type SystemAction,
     type TagAction,
     type TimelineAction,
+    type DailynoteAction,
     type MascotAction,
     type FeedbackAction,
     type FsAction,
@@ -122,6 +123,16 @@ export const TIMELINE_GUIDANCE: string[] = [
     'compare_node creates an untagged current-state workspace snapshot before calculating the document diff; use its opaque changeKey for rollback_block.',
     'delete_node removes only the protective tag and retains the underlying snapshot. delete_node, rollback_document, and rollback_block require explicit user confirmation.',
     'Document reads and comparisons respect notebook read permission; document node creation requires write permission; all document node deletion and rollback actions require rwd.',
+];
+
+export const DAILYNOTE_GUIDANCE: string[] = [
+    'dailynote manages per-notebook daily notes with explicit date support, layered on top of SiYuan dailyNoteSavePath configuration.',
+    'create/get/read/list resolve the daily note document for a notebook + date. create makes it if missing; get returns existed=false without creating.',
+    'append/prepend add content to the daily note for a date. For today they use the native appendDailyNoteBlock; for other dates they create the note via the notebook dailyNoteSavePath template then write through block append/prepend on the document.',
+    'Daily note paths come from the notebook dailyNoteSavePath Go template; common {{now | date "..."}} placeholders are rendered against the target date. Complex template functions that cannot be rendered locally fall back to the native createDailyNote API for today only.',
+    'list renders the static prefix of dailyNoteSavePath (the part before the first template variable) and walks documents beneath it; entries whose basename parses as a date are filtered by from/to.',
+    'delete removes the daily note document for one date and requires explicit user confirmation.',
+    'Writing to a daily note owned by a closed or read-only notebook is rejected by the normal permission checks; open the notebook first if a create fails with a notebook-closed error.',
 ];
 
 export const SYSTEM_GUIDANCE: string[] = [
@@ -335,6 +346,16 @@ export const FLASHCARD_ACTION_HINTS: Partial<Record<FlashcardAction, string>> = 
     remove_card: 'Use deckID + blockIDs to remove flashcard bindings from a deck. This does not delete the underlying note blocks. This action requires explicit user confirmation.',
 };
 
+export const DAILYNOTE_ACTION_HINTS: Partial<Record<DailynoteAction, string>> = {
+    create: 'Creates the daily note for the given date if missing and returns its id + hPath. For today this matches document(action="create_daily_note"); for other dates the notebook dailyNoteSavePath template is rendered against the target date.',
+    get: 'Resolves the daily note id/hPath for a date without creating it. Returns existed=false when no note exists yet.',
+    list: 'Lists daily notes under the notebook dailyNoteSavePath static prefix, optionally filtered by from/to dates with pagination.',
+    read: 'Reads the daily note document content for a date. Returns existed=false when the note does not exist.',
+    append: 'Appends markdown/dom content to the daily note for a date, creating the note first when missing.',
+    prepend: 'Prepends markdown/dom content to the daily note for a date, creating the note first when missing.',
+    delete: 'Deletes the daily note document for one date. Requires confirmation; the underlying blocks are removed with the document.',
+};
+
 export const MASCOT_ACTION_HINTS: Partial<Record<MascotAction, string>> = {
     get_balance: 'Returns the cat’s current balance and lifetime earned count. Each successful MCP tool call adds 1 coin and increments the lifetime count.',
     shop: 'Returns the current mascot shop inventory including stable item IDs, labels, cost, type, and emoji.',
@@ -359,6 +380,7 @@ export const TOOL_GUIDANCE_BY_CATEGORY: Record<ToolCategory, string[]> = {
     search: SEARCH_GUIDANCE,
     tag: TAG_GUIDANCE,
     timeline: TIMELINE_GUIDANCE,
+    dailynote: DAILYNOTE_GUIDANCE,
     system: SYSTEM_GUIDANCE,
     flashcard: FLASHCARD_GUIDANCE,
     extension: EXTENSION_GUIDANCE,
@@ -376,6 +398,7 @@ export const TOOL_ACTION_HINTS: Record<ToolCategory, Partial<Record<string, stri
     search: SEARCH_ACTION_HINTS,
     tag: TAG_ACTION_HINTS,
     timeline: TIMELINE_ACTION_HINTS,
+    dailynote: DAILYNOTE_ACTION_HINTS,
     system: SYSTEM_ACTION_HINTS,
     flashcard: FLASHCARD_ACTION_HINTS,
     extension: EXTENSION_ACTION_HINTS,
@@ -630,6 +653,30 @@ export const TOOL_ACTION_EXAMPLES: Record<ToolCategory, Partial<Record<string, H
     },
     mascot: {},
     feedback: {},
+    dailynote: {
+        create: [
+            {
+                title: 'Create (or open) today\'s daily note',
+                mcp: { action: 'create', notebook: '20210808180117-czj9bvb' },
+            },
+            {
+                title: 'Create a daily note for a specific date',
+                mcp: { action: 'create', notebook: '20210808180117-czj9bvb', date: '2026-09-27' },
+            },
+        ],
+        append: [
+            {
+                title: 'Append a line to today\'s daily note',
+                mcp: { action: 'append', notebook: '20210808180117-czj9bvb', dataType: 'markdown', data: '- 完成周报' },
+            },
+        ],
+        list: [
+            {
+                title: 'List daily notes in a date range',
+                mcp: { action: 'list', notebook: '20210808180117-czj9bvb', from: '2026-09-01', to: '2026-09-30' },
+            },
+        ],
+    },
 };
 
 export { ACTIONS_BY_CATEGORY } from './config';

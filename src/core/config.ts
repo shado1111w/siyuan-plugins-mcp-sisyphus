@@ -1,6 +1,6 @@
 import type { SiYuanClient } from '../api/client';
 
-export const TOOL_CATEGORIES = ['fs', 'notebook', 'document', 'block', 'av', 'file', 'search', 'tag', 'timeline', 'system', 'flashcard', 'extension', 'mascot', 'feedback'] as const;
+export const TOOL_CATEGORIES = ['fs', 'notebook', 'document', 'block', 'av', 'file', 'search', 'tag', 'timeline', 'dailynote', 'system', 'flashcard', 'extension', 'mascot', 'feedback'] as const;
 
 export type ToolCategory = typeof TOOL_CATEGORIES[number];
 
@@ -13,6 +13,7 @@ export const FILE_ACTIONS = ['upload_asset', 'list_templates', 'read_template', 
 export const SEARCH_ACTIONS = ['fulltext', 'semantic', 'query_sql', 'get_backlinks', 'search_refs', 'find_replace', 'search_assets', 'fulltext_asset_content', 'list_invalid_refs'] as const;
 export const TAG_ACTIONS = ['list', 'rename', 'remove'] as const;
 export const TIMELINE_ACTIONS = ['list_nodes', 'create_node', 'compare_node', 'delete_node', 'rollback_document', 'rollback_block'] as const;
+export const DAILYNOTE_ACTIONS = ['create', 'get', 'list', 'read', 'append', 'prepend', 'delete'] as const;
 export const TIMELINE_APP_ACTIONS = TIMELINE_ACTIONS;
 export const FLASHCARD_REVIEW_APP_ACTIONS = ['review_card'] as const;
 export const MASCOT_SHOP_APP_ACTIONS = ['get_balance', 'shop', 'buy'] as const;
@@ -31,6 +32,7 @@ export type FileAction = typeof FILE_ACTIONS[number];
 export type SearchAction = typeof SEARCH_ACTIONS[number];
 export type TagAction = typeof TAG_ACTIONS[number];
 export type TimelineAction = typeof TIMELINE_ACTIONS[number];
+export type DailynoteAction = typeof DAILYNOTE_ACTIONS[number];
 export type TimelineAppAction = typeof TIMELINE_APP_ACTIONS[number];
 export type FlashcardReviewAppAction = typeof FLASHCARD_REVIEW_APP_ACTIONS[number];
 export type MascotShopAppAction = typeof MASCOT_SHOP_APP_ACTIONS[number];
@@ -50,6 +52,7 @@ export type ToolActionMap = {
     search: SearchAction;
     tag: TagAction;
     timeline: TimelineAction;
+    dailynote: DailynoteAction;
     system: SystemAction;
     flashcard: FlashcardAction;
     extension: ExtensionAction;
@@ -108,6 +111,7 @@ export type ToolConfig = {
     search: CategoryToolConfig<SearchAction>;
     tag: CategoryToolConfig<TagAction>;
     timeline: TimelineCategoryToolConfig;
+    dailynote: CategoryToolConfig<DailynoteAction>;
     system: CategoryToolConfig<SystemAction>;
     flashcard: CategoryToolConfig<FlashcardAction>;
     extension: ExtensionCategoryToolConfig;
@@ -145,6 +149,7 @@ export const ACTIONS_BY_CATEGORY: { [Category in ToolCategory]: readonly ToolAct
     search: SEARCH_ACTIONS,
     tag: TAG_ACTIONS,
     timeline: TIMELINE_ACTIONS,
+    dailynote: DAILYNOTE_ACTIONS,
     system: SYSTEM_ACTIONS,
     flashcard: FLASHCARD_ACTIONS,
     extension: EXTENSION_ACTIONS,
@@ -222,6 +227,11 @@ const ACTION_TIERS: Record<ToolCategory, Record<string, ActionTier>> = {
         list_nodes: 'basic', create_node: 'basic', compare_node: 'basic',
         delete_node: 'advanced', rollback_document: 'advanced', rollback_block: 'advanced',
     },
+    dailynote: {
+        create: 'basic', get: 'basic', list: 'basic', read: 'basic',
+        append: 'basic', prepend: 'basic',
+        delete: 'advanced',
+    },
     system: {
         get_version: 'basic', get_current_time: 'basic', conf: 'basic', changelog: 'basic',
         workspace_info: 'advanced', network: 'advanced', notify: 'advanced', perform_sync: 'advanced',
@@ -258,6 +268,7 @@ export const DANGEROUS_ACTIONS: Record<ToolCategory, Set<string>> = {
     search: new Set(['find_replace']),
     tag: new Set(['remove']),
     timeline: new Set(['delete_node', 'rollback_document', 'rollback_block']),
+    dailynote: new Set(['delete']),
     system: new Set(['workspace_info', 'perform_sync']),
     flashcard: new Set(['remove_card']),
     extension: new Set(),
@@ -314,6 +325,10 @@ export function buildDefaultToolConfig(): ToolConfig {
         timeline: {
             enabled: true,
             actions: createActionsRecord(TIMELINE_ACTIONS, ['list_nodes', 'create_node', 'compare_node']),
+        },
+        dailynote: {
+            enabled: true,
+            actions: createActionsRecord(DAILYNOTE_ACTIONS, ['create', 'get', 'list', 'read', 'append', 'prepend', 'delete']),
         },
         system: {
             enabled: true,

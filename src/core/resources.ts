@@ -18,6 +18,7 @@ import { renderChangelogResource } from './changelog';
 import {
     AV_VARIANTS,
     BLOCK_VARIANTS,
+    DAILYNOTE_VARIANTS,
     DOCUMENT_VARIANTS,
     EXTENSION_VARIANTS,
     FEEDBACK_VARIANTS,
@@ -71,6 +72,7 @@ const VARIANTS_BY_CATEGORY: Record<ToolCategory, ActionVariant<string>[]> = {
     search: SEARCH_VARIANTS,
     tag: TAG_VARIANTS,
     timeline: TIMELINE_VARIANTS,
+    dailynote: DAILYNOTE_VARIANTS,
     system: SYSTEM_VARIANTS,
     flashcard: FLASHCARD_VARIANTS,
     extension: EXTENSION_VARIANTS,

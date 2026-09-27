@@ -45,6 +45,10 @@ function createAllEnabledConfig(): ToolConfig {
             enabled: true,
             actions: Object.fromEntries(ACTIONS_BY_CATEGORY.timeline.map((action) => [action, true])) as ToolConfig['timeline']['actions'],
         },
+        dailynote: {
+            enabled: true,
+            actions: Object.fromEntries(ACTIONS_BY_CATEGORY.dailynote.map((action) => [action, true])) as ToolConfig['dailynote']['actions'],
+        },
         system: {
             enabled: true,
             actions: Object.fromEntries(ACTIONS_BY_CATEGORY.system.map((action) => [action, true])) as ToolConfig['system']['actions'],

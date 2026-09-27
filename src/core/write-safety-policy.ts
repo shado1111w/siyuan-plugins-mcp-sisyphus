@@ -85,6 +85,10 @@ export const ACTION_SAFETY_POLICIES: {
         list_nodes: read(), compare_node: read(), create_node: mutation(), delete_node: mutation('state'),
         rollback_document: mutation('state'), rollback_block: mutation('state'),
     },
+    dailynote: {
+        create: mutation(), get: read(), list: read(), read: read(),
+        append: mutation(), prepend: mutation(), delete: mutation('state'),
+    },
     system: {
         workspace_info: read(), network: read(), conf: read(), changelog: read(), get_version: read(),
         get_current_time: read(), notify: external(), perform_sync: external(),

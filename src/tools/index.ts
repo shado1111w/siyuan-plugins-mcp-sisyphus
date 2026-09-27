@@ -7,6 +7,7 @@
 
 export { callAvTool, listAvTools, AV_VARIANTS } from './av';
 export { callBlockTool, listBlockTools, BLOCK_VARIANTS } from './block';
+export { callDailynoteTool, listDailynoteTools, DAILYNOTE_VARIANTS } from './dailynote';
 export { callDocumentTool, listDocumentTools, DOCUMENT_VARIANTS } from './document';
 export { callFileTool, listFileTools, FILE_VARIANTS } from './file';
 export { callFeedbackTool, listFeedbackTools, FEEDBACK_VARIANTS } from './feedback';

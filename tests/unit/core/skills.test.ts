@@ -21,6 +21,7 @@ import {
     SYSTEM_VARIANTS,
     TAG_VARIANTS,
     TIMELINE_VARIANTS,
+    DAILYNOTE_VARIANTS,
 } from '@/tools/index';
 import { scenarios } from '../../../skills/source/scenarios.mjs';
 
@@ -37,6 +38,7 @@ const variantsByTool: Record<string, Array<{ action: string; schema: Record<stri
     system: SYSTEM_VARIANTS,
     tag: TAG_VARIANTS,
     timeline: TIMELINE_VARIANTS,
+    dailynote: DAILYNOTE_VARIANTS,
 };
 
 describe('core/skills', () => {

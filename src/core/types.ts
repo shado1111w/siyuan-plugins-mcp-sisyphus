@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { AV_ACTIONS, BLOCK_ACTIONS, DOCUMENT_ACTIONS, FEEDBACK_ACTIONS, FILE_ACTIONS, FLASHCARD_ACTIONS, FS_ACTIONS, MASCOT_ACTIONS, NOTEBOOK_ACTIONS, SEARCH_ACTIONS, SYSTEM_ACTIONS, TAG_ACTIONS, TIMELINE_ACTIONS } from "./config";
+import { AV_ACTIONS, BLOCK_ACTIONS, DAILYNOTE_ACTIONS, DOCUMENT_ACTIONS, FEEDBACK_ACTIONS, FILE_ACTIONS, FLASHCARD_ACTIONS, FS_ACTIONS, MASCOT_ACTIONS, NOTEBOOK_ACTIONS, SEARCH_ACTIONS, SYSTEM_ACTIONS, TAG_ACTIONS, TIMELINE_ACTIONS } from "./config";
 import type { NotebookConf } from "../types/shared";
 
 const NotebookConfSchema: z.ZodType<Partial<NotebookConf>> = z.object({
@@ -1583,4 +1583,68 @@ export const SystemGetVersionSchema = z.object({
 
 export const SystemGetCurrentTimeSchema = z.object({
     action: z.literal("get_current_time"),
+});
+
+// --- Dailynote schemas ---
+
+const DailynoteDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD").optional().describe("Target date in YYYY-MM-DD; defaults to today");
+
+export const DailynoteActionSchema = z.enum(DAILYNOTE_ACTIONS);
+
+export const DailynoteCreateSchema = z.object({
+    action: z.literal("create"),
+    notebook: z.string().describe("Notebook ID"),
+    date: DailynoteDateSchema,
+    app: z.string().optional().describe("Optional app identifier passed through to SiYuan"),
+});
+
+export const DailynoteGetSchema = z.object({
+    action: z.literal("get"),
+    notebook: z.string().describe("Notebook ID"),
+    date: DailynoteDateSchema,
+    app: z.string().optional().describe("Optional app identifier passed through to SiYuan"),
+});
+
+export const DailynoteListSchema = z.object({
+    action: z.literal("list"),
+    notebook: z.string().describe("Notebook ID"),
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Start date YYYY-MM-DD (inclusive)"),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("End date YYYY-MM-DD (inclusive)"),
+    page: z.number().int().min(1).optional().describe("Page number (default 1)"),
+    pageSize: z.number().int().min(1).max(200).optional().describe("Items per page (default 50)"),
+    app: z.string().optional().describe("Optional app identifier passed through to SiYuan"),
+});
+
+export const DailynoteReadSchema = z.object({
+    action: z.literal("read"),
+    notebook: z.string().describe("Notebook ID"),
+    date: DailynoteDateSchema,
+    mode: z.number().optional().describe("SiYuan getDoc mode"),
+    size: z.number().optional().describe("SiYuan getDoc size hint"),
+    app: z.string().optional().describe("Optional app identifier passed through to SiYuan"),
+});
+
+export const DailynoteAppendSchema = z.object({
+    action: z.literal("append"),
+    notebook: z.string().describe("Notebook ID"),
+    date: DailynoteDateSchema,
+    dataType: z.enum(["markdown", "dom"]).default("markdown").describe("Content type"),
+    data: z.string().describe("Content to append"),
+    app: z.string().optional().describe("Optional app identifier passed through to SiYuan"),
+});
+
+export const DailynotePrependSchema = z.object({
+    action: z.literal("prepend"),
+    notebook: z.string().describe("Notebook ID"),
+    date: DailynoteDateSchema,
+    dataType: z.enum(["markdown", "dom"]).default("markdown").describe("Content type"),
+    data: z.string().describe("Content to prepend"),
+    app: z.string().optional().describe("Optional app identifier passed through to SiYuan"),
+});
+
+export const DailynoteDeleteSchema = z.object({
+    action: z.literal("delete"),
+    notebook: z.string().describe("Notebook ID"),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("Date YYYY-MM-DD of the daily note to delete"),
+    app: z.string().optional().describe("Optional app identifier passed through to SiYuan"),
 });

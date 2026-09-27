@@ -9,6 +9,7 @@ import { PRECONDITION_FIELD, getPossibleActionSafetyPolicies } from './write-saf
 import {
     callAvTool,
     callBlockTool,
+    callDailynoteTool,
     callDocumentTool,
     callExtensionTool,
     callFileTool,
@@ -23,6 +24,7 @@ import {
     callTimelineTool,
     listAvTools,
     listBlockTools,
+    listDailynoteTools,
     listDocumentTools,
     listExtensionTools,
     listFileTools,
@@ -76,6 +78,7 @@ const TOOL_TITLES: Record<ToolCategory, string> = {
     search: 'SiYuan Search',
     tag: 'SiYuan Tags',
     timeline: 'SiYuan History',
+    dailynote: 'SiYuan Daily Notes',
     system: 'SiYuan System',
     flashcard: 'SiYuan Flashcards',
     extension: 'SiYuan Extension Tools',
@@ -118,6 +121,7 @@ export const TOOL_REGISTRY: Record<ToolCategory, ToolModule> = {
     search: { category: 'search', listTools: listSearchTools as ToolModule['listTools'], callTool: callSearchTool as ToolModule['callTool'] },
     tag: { category: 'tag', listTools: listTagTools as ToolModule['listTools'], callTool: callTagTool as ToolModule['callTool'] },
     timeline: { category: 'timeline', listTools: listTimelineTools as ToolModule['listTools'], callTool: callTimelineTool as ToolModule['callTool'] },
+    dailynote: { category: 'dailynote', listTools: listDailynoteTools as ToolModule['listTools'], callTool: callDailynoteTool as ToolModule['callTool'] },
     system: { category: 'system', listTools: listSystemTools as ToolModule['listTools'], callTool: callSystemTool as ToolModule['callTool'] },
     flashcard: { category: 'flashcard', listTools: listFlashcardTools as ToolModule['listTools'], callTool: callFlashcardTool as ToolModule['callTool'] },
     extension: {

@@ -21,6 +21,7 @@
 | `flashcard` | `ACTIONS_BY_CATEGORY.flashcard` | `tests/unit/tools/flashcard.test.ts` 对每个 action 有直接调用覆盖 |
 | `extension` | `ACTIONS_BY_CATEGORY.extension` + 动态官方注册表 | `tests/unit/core/official-mcp-bridge.test.ts` 与 `tests/unit/tools/extension.test.ts` 覆盖发现、schema、屏蔽和转发 |
 | `tag` | `ACTIONS_BY_CATEGORY.tag` | `tests/unit/tools/action-contract.test.ts` 对每个 action 做最小运行时契约调用 |
+| `dailynote` | `ACTIONS_BY_CATEGORY.dailynote` | `tests/unit/tools/action-contract.test.ts` 对每个 action 做最小运行时契约调用 |
 | `timeline` | `ACTIONS_BY_CATEGORY.timeline` | `tests/unit/tools/timeline.test.ts` 覆盖默认开关、节点创建/删除、diff、块回档与 `rwd` 权限 |
 | `mascot` | `ACTIONS_BY_CATEGORY.mascot` | `tests/unit/tools/mascot.test.ts` 对每个 action 有直接调用覆盖 |
 | `feedback` | `ACTIONS_BY_CATEGORY.feedback` | `tests/unit/core/feedback.test.ts` 和 `tests/unit/tools/feedback.test.ts` 覆盖 WPS payload 与工具路由 |

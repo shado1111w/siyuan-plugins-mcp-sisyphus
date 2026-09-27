@@ -106,7 +106,7 @@ describe("SKILL.md content evaluation", () => {
     });
 
     it("every scenario call references a valid tool and action", () => {
-        const validTools = new Set(["notebook", "document", "block", "fs", "file", "search", "av", "tag", "timeline", "system", "flashcard", "extension", "mascot", "feedback"]);
+        const validTools = new Set(["notebook", "document", "block", "fs", "file", "search", "av", "tag", "timeline", "dailynote", "system", "flashcard", "extension", "mascot", "feedback"]);
         for (const s of scenarios) {
             for (const [key, call] of Object.entries(s.calls)) {
                 expect(validTools.has(call.tool)).toBe(true);
