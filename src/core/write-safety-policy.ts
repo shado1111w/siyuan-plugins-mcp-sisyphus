@@ -47,6 +47,10 @@ export const ACTION_SAFETY_POLICIES: {
         create: mutation(), ensure_link_targets: mutation('structure'), create_daily_note: mutation(), duplicate: mutation('state'), copy: mutation('state'), rename: mutation('state'),
         remove: mutation('state'), move: mutation('structure'), reorder: mutation('structure'), set_attr: mutation('state'), get_attr: read(),
         heading_to_doc: mutation('structure'), doc_to_heading: mutation('structure'),
+        find_replace: mutation('manifest'),
+        // archive marks custom-archived (content-level) and optionally relocates.
+        // Structure when --to is supplied; otherwise a content mutation.
+        archive: mutation('state'),
     },
     block: {
         get_kramdown: read(), batch_kramdown: read(), get_children: read(), get_attrs: read(), info: read(),

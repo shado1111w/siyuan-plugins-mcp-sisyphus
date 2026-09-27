@@ -251,6 +251,8 @@ describe('tool action contract coverage', () => {
             { action: 'copy', args: { action: 'copy', id: 'doc-1', toID: 'doc-parent' }, expectedEndpoint: '/api/filetree/duplicateDoc' },
             { action: 'heading_to_doc', args: { action: 'heading_to_doc', headingID: 'doc-1', targetNotebook: 'nb-1' }, expectedEndpoint: '/api/filetree/heading2Doc' },
             { action: 'doc_to_heading', args: { action: 'doc_to_heading', srcID: 'doc-1', targetID: 'doc-2' }, expectedEndpoint: '/api/filetree/doc2Heading' },
+            { action: 'find_replace', args: { action: 'find_replace', id: 'doc-1', k: 'old', r: 'new' }, expectedEndpoint: '/api/search/findReplace' },
+            { action: 'archive', args: { action: 'archive', id: 'doc-1' }, expectedEndpoint: '/api/transactions' },
         ]);
     });
 

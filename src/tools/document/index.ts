@@ -27,6 +27,8 @@ import {
     DocumentSearchDocsSchema,
     DocumentGetAttrSchema,
     DocumentSetAttrSchema,
+    DocumentFindReplaceSchema,
+    DocumentArchiveSchema,
 } from '../../core/types';
 import { defineTool } from '../internal/define-tool';
 import { createZodActionVariant, type ActionVariant, type ToolResult } from '../internal/shared';
@@ -58,6 +60,8 @@ export const DOCUMENT_VARIANTS: ActionVariant<DocumentAction>[] = [
     createZodActionVariant('copy', DocumentCopySchema, 'Duplicate a document then move the copy under toID or toNotebook + toPath, with an optional new title.'),
     createZodActionVariant('heading_to_doc', DocumentHeadingToDocSchema, 'Convert a heading to a separate document'),
     createZodActionVariant('doc_to_heading', DocumentDocToHeadingSchema, 'Merge a document into another as a heading'),
+    createZodActionVariant('find_replace', DocumentFindReplaceSchema, 'Find and replace text scoped to a single document. Expands the document to its block IDs and calls the kernel findReplace, so only blocks inside this document are touched. Defaults to plain-text replacement; use replaceTypes to widen.'),
+    createZodActionVariant('archive', DocumentArchiveSchema, 'Soft-archive a document: sets custom-archived=true (reversible via set_attr) and optionally moves it under an archive path. Unlike remove, nothing is deleted.'),
 ];
 
 DOCUMENT_VARIANTS.find((variant) => variant.action === 'create')!.schema.oneOf = [

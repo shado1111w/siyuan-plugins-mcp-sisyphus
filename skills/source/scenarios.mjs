@@ -223,6 +223,16 @@ Behavior to rely on: \`create\` is idempotent — \`created:true\` only when a n
 For document metadata (icon, cover, custom attributes) prefer the single-attribute \`key\` + \`value\` shorthand over assembling an attrs map. An empty \`value\` clears the attribute. \`key\`/\`value\` and \`attrs\` are mutually exclusive; \`customAttrs\` merges an arbitrary map including \`custom-*\` keys.
 {{call daily}}
 
+## Scoped find-replace and archive
+
+To change wording inside one document only, use \`document find_replace --id <doc> --old <text> --new <text>\`. It expands the document to its block IDs so the replacement never leaks into other documents (unlike the global \`search find_replace\`, which needs an explicit ids/paths scope). Pass \`--limit N\` to stop after the first N matched blocks, and \`replaceTypes\` to widen beyond plain text. This is a content mutation - show the scope and confirm before running.
+
+To archive a document without deleting it, use \`document archive --id <doc>\`. It sets \`custom-archived=true\` (visible to \`document get_attr\` and SQL/tag filters) and optionally moves the doc under \`--to /Archive\` in the same notebook. Reverse with \`document archive --id <doc> --unarchive true\` - it clears the marker but does not move the document back. Prefer this over \`document remove\` when the content should stay recoverable.
+
+\`dailynote create --template <name>\` renders a workspace template (Sprig, same engine as \`document create --template\`) into the daily-note body when the note is first materialized - one call instead of create-then-append.
+
+When you need the real on-disk file for an external editor or diff, pass \`--print-path\` on \`fs read\` or \`document read\`; the result's \`diskPath\` is the absolute \`.sy\` path under the workspace data dir.
+
 ## Heading/document conversion
 
 \`document heading_to_doc\` and \`document doc_to_heading\` operate on SiYuan's internal blocktree index. Heading blocks created through \`fs write\` or \`block append\` may not be registered in blocktrees immediately, causing \`heading2Doc\` to return "block not found". If conversion fails, verify the heading exists via \`block get_kramdown\`, allow a brief indexing delay, and retry. Document-level operations such as \`document move\` and \`document rename\` are not affected.

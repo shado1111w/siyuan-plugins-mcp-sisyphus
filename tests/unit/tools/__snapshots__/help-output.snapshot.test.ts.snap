@@ -2555,7 +2555,7 @@ Common actions: create, get, list, read, append, prepend. Required fields: creat
 Additional actions: delete. Read siyuan://help/action/dailynote/{action} for details, or call action="help" if resources are unavailable.
 
 Parameter contract per action (fields outside the action's optional list should not be sent):
-dailynote.create: required [notebook] | optional [date, app]
+dailynote.create: required [notebook] | optional [date, app, template]
 dailynote.get: required [notebook] | optional [date, app]
 dailynote.list: required [notebook] | optional [from, to, page, pageSize, app]
 dailynote.read: required [notebook] | optional [date, mode, size, app]
@@ -2676,6 +2676,42 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
         "requiresConfirmation": false,
         "shapes": [
           "dataType + data",
+        ],
+        "tool": "document",
+      },
+      "archive": {
+        "action": "archive",
+        "example": {
+          "action": "archive",
+          "id": "20240318112233-abc123",
+        },
+        "fullDocResource": "siyuan://help/action/document/archive",
+        "guidance": [
+          "For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"write"|"search") because it accepts human-readable paths and hides storage paths and IDs.",
+          "document(action="create") creates both non-empty and empty documents. Prefer path for child documents; path is a notebook-local human-readable hpath such as /Folder/Parent/New Child, not /Notebook/Folder/... and not a .sy storage path.",
+          "Do not put # Title at the start of document(action="create") markdown. SiYuan renders the document title as H1 automatically, and MCP strips a matching leading H1 to avoid duplicate titles.",
+          "document(action="create", parentPath=..., title=...) is also supported. parentPath accepts either a notebook-local human-readable parent hpath such as /Folder/Parent, or a storage path ending in .sy returned by document(action="lookup").",
+          "fs(action="write", path="/Notebook/Folder/Doc") uses a workspace path and should include the notebook name for unambiguous resolution; omission works only for a unique existing document or parent. document(action="create", notebook=..., path="/Folder/Doc") uses a notebook-local hpath and must omit the notebook name. Do not mix these two path formats.",
+          "For document(action="lookup"), path means a storage path such as /20240318112233-abc123.sy; use hpath/hPath for human-readable paths, which are notebook-local and MUST NOT include the notebook name (e.g., /Folder/Weekly Note, not /NotebookName/Folder/Weekly Note).",
+          "Other document actions that use notebook + path expect storage paths returned by document(action="lookup").",
+          "If document(action="create") reports a duplicate-name error, verify the intended child with document(action="lookup", notebook=..., hpath="/Folder/Parent/New Child", include=["id","path","hpath"]) or document(action="get_child_docs", id=<parent-doc-id>). New create results may take a short indexing delay before lookup/search sees them.",
+          "document(action="ensure_link_targets") is the bounded import-link provisioner: scope it with notebook + parentId, reuse only explicit child document IDs, and use create only for explicit new titles. It never guesses an existing target from a title; same-title children are unresolved and require an ID decision.",
+          "A safe path-based workflow is lookup -> rename/remove/move.",
+          "document(action="reorder") applies a complete manual order to every visible direct child under parentID and switches the notebook to custom sorting. Read the current child documents first and include each child ID exactly once.",
+          "document(action="get_child_blocks") and document(action="get_child_docs") return direct children for a document ID.",
+          "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
+          "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
+          "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
+          "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
+        ],
+        "hint": "Soft-archive a document: sets custom-archived="true" and optionally moves it under --to (a human-readable path such as /Archive in the same notebook; --toNotebook overrides). Nothing is deleted — reverse with unarchive=true (clears the marker; does not move back).",
+        "requiredFields": [
+          "id",
+        ],
+        "requiresConfirmation": false,
+        "shapes": [
+          "id",
         ],
         "tool": "document",
       },
@@ -2945,6 +2981,46 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
         "requiresConfirmation": false,
         "shapes": [
           "notebook + parentId + mode + targets",
+        ],
+        "tool": "document",
+      },
+      "find_replace": {
+        "action": "find_replace",
+        "example": {
+          "action": "find_replace",
+          "id": "20240318112233-abc123",
+          "k": "todo",
+          "r": "<r>",
+        },
+        "fullDocResource": "siyuan://help/action/document/find_replace",
+        "guidance": [
+          "For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"write"|"search") because it accepts human-readable paths and hides storage paths and IDs.",
+          "document(action="create") creates both non-empty and empty documents. Prefer path for child documents; path is a notebook-local human-readable hpath such as /Folder/Parent/New Child, not /Notebook/Folder/... and not a .sy storage path.",
+          "Do not put # Title at the start of document(action="create") markdown. SiYuan renders the document title as H1 automatically, and MCP strips a matching leading H1 to avoid duplicate titles.",
+          "document(action="create", parentPath=..., title=...) is also supported. parentPath accepts either a notebook-local human-readable parent hpath such as /Folder/Parent, or a storage path ending in .sy returned by document(action="lookup").",
+          "fs(action="write", path="/Notebook/Folder/Doc") uses a workspace path and should include the notebook name for unambiguous resolution; omission works only for a unique existing document or parent. document(action="create", notebook=..., path="/Folder/Doc") uses a notebook-local hpath and must omit the notebook name. Do not mix these two path formats.",
+          "For document(action="lookup"), path means a storage path such as /20240318112233-abc123.sy; use hpath/hPath for human-readable paths, which are notebook-local and MUST NOT include the notebook name (e.g., /Folder/Weekly Note, not /NotebookName/Folder/Weekly Note).",
+          "Other document actions that use notebook + path expect storage paths returned by document(action="lookup").",
+          "If document(action="create") reports a duplicate-name error, verify the intended child with document(action="lookup", notebook=..., hpath="/Folder/Parent/New Child", include=["id","path","hpath"]) or document(action="get_child_docs", id=<parent-doc-id>). New create results may take a short indexing delay before lookup/search sees them.",
+          "document(action="ensure_link_targets") is the bounded import-link provisioner: scope it with notebook + parentId, reuse only explicit child document IDs, and use create only for explicit new titles. It never guesses an existing target from a title; same-title children are unresolved and require an ID decision.",
+          "A safe path-based workflow is lookup -> rename/remove/move.",
+          "document(action="reorder") applies a complete manual order to every visible direct child under parentID and switches the notebook to custom sorting. Read the current child documents first and include each child ID exactly once.",
+          "document(action="get_child_blocks") and document(action="get_child_docs") return direct children for a document ID.",
+          "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
+          "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
+          "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
+          "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
+        ],
+        "hint": "Scope a find-and-replace to ONE document via id. The document expands to its block IDs so only this doc is touched (never the whole workspace). Defaults to plain-text replacement; pass replaceTypes to widen (code, docTitle, blockRef). limit caps how many blocks are rewritten. This action requires explicit user confirmation.",
+        "requiredFields": [
+          "id",
+          "k",
+          "r",
+        ],
+        "requiresConfirmation": true,
+        "shapes": [
+          "id + k + r",
         ],
         "tool": "document",
       },
@@ -3527,9 +3603,9 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
     },
     "description": "📝 Grouped document operations. Use the "action" field to select the operation.
 
-Common actions: create, lookup, rename, get_child_blocks, get_child_docs, get_attr, search_docs, get_doc, read, append, prepend, get_outline. Required fields: create: notebook, path | notebook, parentPath, title; lookup: no additional fields; rename: title; get_child_blocks: id; get_child_docs: id; get_attr: id; search_docs: notebook, query; get_doc: id; append: dataType, data; prepend: dataType, data; read: id; get_outline: id.
+Common actions: create, lookup, rename, get_child_blocks, get_child_docs, get_attr, search_docs, get_doc, read, append, prepend, get_outline, archive. Required fields: create: notebook, path | notebook, parentPath, title; lookup: no additional fields; rename: title; get_child_blocks: id; get_child_docs: id; get_attr: id; search_docs: notebook, query; get_doc: id; append: dataType, data; prepend: dataType, data; read: id; get_outline: id; archive: id.
 
-Additional actions: ensure_link_targets, remove, move, reorder, set_attr, list_tree, create_daily_note, duplicate, copy, heading_to_doc, doc_to_heading. Read siyuan://help/action/document/{action} for details, or call action="help" if resources are unavailable.
+Additional actions: ensure_link_targets, remove, move, reorder, set_attr, list_tree, create_daily_note, duplicate, copy, heading_to_doc, doc_to_heading, find_replace. Read siyuan://help/action/document/{action} for details, or call action="help" if resources are unavailable.
 
 Parameter contract per action (fields outside the action's optional list should not be sent):
 document.create: required [notebook, path] OR [notebook, parentPath, title] | optional [markdown, file, template, copyFrom, sorts, icon]
@@ -3548,24 +3624,28 @@ document.search_docs: required [notebook, query] | optional [path]
 document.get_doc: required [id] | optional [mode, size, blockStart, blockLimit, tokenBudget, includeBlockIds]
 document.append: required [dataType, data] | optional [id, notebook, hpath, hPath, file]
 document.prepend: required [dataType, data] | optional [id, notebook, hpath, hPath, file]
-document.read: required [id] | optional [scope, anchor, startId, endId, pattern, contextBefore, contextAfter, maxDepth, tokenBudget, includeBlockIds]
+document.read: required [id] | optional [scope, anchor, startId, endId, pattern, contextBefore, contextAfter, maxDepth, tokenBudget, includeBlockIds, printPath]
 document.get_outline: required [id] | optional [preview]
 document.create_daily_note: required [notebook] | optional [app]
 document.duplicate: required [id] | optional []
 document.copy: required [id] | optional [toID, toNotebook, toPath, title]
 document.heading_to_doc: required [headingID, targetNotebook] | optional [targetPath, previousPath]
 document.doc_to_heading: required [srcID, targetID] | optional [after]
+document.find_replace: required [id, k, r] | optional [limit, method, methodName, replaceTypes]
+document.archive: required [id] | optional [to, toNotebook, unarchive]
 
-For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"write"|"search") because it accepts human-readable paths and hides storage paths and IDs. document(action="create") creates both non-empty and empty documents. Prefer path for child documents; path is a notebook-local human-readable hpath such as /Folder/Parent/New Child, not /Notebook/Folder/... and not a .sy storage path. Requires user confirmation before: remove, move.",
+For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"write"|"search") because it accepts human-readable paths and hides storage paths and IDs. document(action="create") creates both non-empty and empty documents. Prefer path for child documents; path is a notebook-local human-readable hpath such as /Folder/Parent/New Child, not /Notebook/Folder/... and not a .sy storage path. Requires user confirmation before: remove, move, find_replace.",
     "overview": {
       "actionSummaries": {
         "append": "requires: dataType, data",
+        "archive": "Soft-archive a document: sets custom-archived="true" and optionally moves it under --to (a human-readable path such as /Archive in the same notebook; --toNotebook overrides). Nothing is deleted — reverse with unarchive=true (clears the marker; does not move back).",
         "copy": "Duplicate a document then relocate the copy. Pass id + toID (target parent document) or id + toNotebook + toPath (target storage path). Optional title renames the copy; otherwise it keeps the duplicated name. Returns copyID and its hPath for follow-up edits.",
         "create": "Use notebook + path for the most direct child-document flow. path is a notebook-local hpath like /Folder/Parent/New Child, not /Notebook/... and not .sy. parentPath + title is also supported. markdown is optional and must not start with # Title; a matching leading H1 is stripped to avoid duplicate titles.",
         "create_daily_note": "Use a notebook ID and optionally pass app for downstream SiYuan event routing. When the user asks for a diary, journal entry, daily log, or today’s note in a notebook, prefer this action over manually creating a path and then appending content.",
         "doc_to_heading": "requires: srcID, targetID",
         "duplicate": "requires: id",
         "ensure_link_targets": "Scope every request with an explicit notebook ID and parent document ID. resolve/reuse require existing child document IDs and never fall back to titles. create accepts explicit new titles only; if a same-title child already exists, it is returned as unresolved rather than guessed or reused. dryRun performs zero writes only for create. resolve/reuse are read-only; create uses strict validateOnly preflight, then one commit with the server-issued requestId plus expectedStructureHash. Responses contain exact ID/path/HPath readback and resolved/created/reused/unresolved accounting.",
+        "find_replace": "Scope a find-and-replace to ONE document via id. The document expands to its block IDs so only this doc is touched (never the whole workspace). Defaults to plain-text replacement; pass replaceTypes to widen (code, docTitle, blockRef). limit caps how many blocks are rewritten. This action requires explicit user confirmation.",
         "get_attr": "Read document attributes as JSON. key narrows to one attribute; omitted returns the full set (icon, cover, custom-*).",
         "get_child_blocks": "Use a document ID. Returns direct child blocks only.",
         "get_child_docs": "Use a document ID. Returns direct child documents only.",
@@ -3585,6 +3665,10 @@ For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"writ
       },
       "actions": {
         "append": {
+          "requiresConfirmation": false,
+        },
+        "archive": {
+          "hint": "Soft-archive a document: sets custom-archived="true" and optionally moves it under --to (a human-readable path such as /Archive in the same notebook; --toNotebook overrides). Nothing is deleted — reverse with unarchive=true (clears the marker; does not move back).",
           "requiresConfirmation": false,
         },
         "copy": {
@@ -3608,6 +3692,10 @@ For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"writ
         "ensure_link_targets": {
           "hint": "Scope every request with an explicit notebook ID and parent document ID. resolve/reuse require existing child document IDs and never fall back to titles. create accepts explicit new titles only; if a same-title child already exists, it is returned as unresolved rather than guessed or reused. dryRun performs zero writes only for create. resolve/reuse are read-only; create uses strict validateOnly preflight, then one commit with the server-issued requestId plus expectedStructureHash. Responses contain exact ID/path/HPath readback and resolved/created/reused/unresolved accounting.",
           "requiresConfirmation": false,
+        },
+        "find_replace": {
+          "hint": "Scope a find-and-replace to ONE document via id. The document expands to its block IDs so only this doc is touched (never the whole workspace). Defaults to plain-text replacement; pass replaceTypes to widen (code, docTitle, blockRef). limit caps how many blocks are rewritten. This action requires explicit user confirmation.",
+          "requiresConfirmation": true,
         },
         "get_attr": {
           "hint": "Read document attributes as JSON. key narrows to one attribute; omitted returns the full set (icon, cover, custom-*).",
@@ -3683,6 +3771,7 @@ For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"writ
         "copy",
         "heading_to_doc",
         "doc_to_heading",
+        "find_replace",
       ],
       "commonActions": [
         "create",
@@ -3697,6 +3786,7 @@ For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"writ
         "append",
         "prepend",
         "get_outline",
+        "archive",
       ],
       "detailsHint": "Call document(action="help", topic="<actionName>") for required fields, shapes, and a minimal example.",
       "guidance": [
@@ -3727,6 +3817,7 @@ For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"writ
       "requiresConfirmation": [
         "remove",
         "move",
+        "find_replace",
       ],
       "sharedTopics": [
         "ai-layout-guide",
@@ -5570,7 +5661,7 @@ Additional actions: rm, mv. Read siyuan://help/action/fs/{action} for details, o
 Parameter contract per action (fields outside the action's optional list should not be sent):
 fs.ls: required [path] | optional []
 fs.tree: required [path] | optional [maxDepth]
-fs.read: required [path] | optional [blockStart, blockLimit, tokenBudget, includeBlockIds]
+fs.read: required [path] | optional [blockStart, blockLimit, tokenBudget, includeBlockIds, printPath]
 fs.write: required [path, markdown] | optional [overwrite]
 fs.replace: required [path, edit] | optional []
 fs.rm: required [path] | optional []

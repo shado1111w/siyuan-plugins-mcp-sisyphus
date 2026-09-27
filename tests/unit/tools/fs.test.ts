@@ -274,6 +274,31 @@ describe('fs tool', () => {
         });
     });
 
+    it('includes the on-disk .sy path when printPath is set', async () => {
+        const baseClient = createFsClient();
+        const client = createMockClient({
+            request: vi.fn(async (endpoint: string, body?: Record<string, unknown>) => {
+                if (endpoint === '/api/system/getWorkspaceInfo') {
+                    return { workspaceDir: '/ws/siyuan' };
+                }
+                return baseClient.request(endpoint, body);
+            }),
+        });
+        const result = await callFsTool(client, {
+            action: 'read', path: '/Notebook/Doc 1', printPath: true,
+        }, fsConfig(), createPermMgr());
+        const parsed = parseResult(result);
+        expect(parsed.diskPath).toBe('/ws/siyuan/data/nb-1/doc-1.sy');
+    });
+
+    it('omits diskPath when printPath is not set', async () => {
+        const result = await callFsTool(createFsClient(), {
+            action: 'read', path: '/Notebook/Doc 1',
+        }, fsConfig(), createPermMgr());
+        const parsed = parseResult(result);
+        expect(parsed.diskPath).toBeUndefined();
+    });
+
     it('rejects removed page/pageSize character pagination', async () => {
         const result = await callFsTool(
             createFsClient(),

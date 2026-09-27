@@ -223,6 +223,8 @@ export const DOCUMENT_ACTION_HINTS: Partial<Record<DocumentAction, string>> = {
     get_outline: 'Use a document ID to return SiYuan’s native heading tree without reading the document body. preview defaults to false. The response includes heading block IDs, nesting, and headingCount.',
     create_daily_note: 'Use a notebook ID and optionally pass app for downstream SiYuan event routing. When the user asks for a diary, journal entry, daily log, or today’s note in a notebook, prefer this action over manually creating a path and then appending content.',
     copy: 'Duplicate a document then relocate the copy. Pass id + toID (target parent document) or id + toNotebook + toPath (target storage path). Optional title renames the copy; otherwise it keeps the duplicated name. Returns copyID and its hPath for follow-up edits.',
+    find_replace: 'Scope a find-and-replace to ONE document via id. The document expands to its block IDs so only this doc is touched (never the whole workspace). Defaults to plain-text replacement; pass replaceTypes to widen (code, docTitle, blockRef). limit caps how many blocks are rewritten. This action requires explicit user confirmation.',
+    archive: 'Soft-archive a document: sets custom-archived="true" and optionally moves it under --to (a human-readable path such as /Archive in the same notebook; --toNotebook overrides). Nothing is deleted — reverse with unarchive=true (clears the marker; does not move back).',
 };
 
 export const BLOCK_ACTION_HINTS: Partial<Record<BlockAction, string>> = {

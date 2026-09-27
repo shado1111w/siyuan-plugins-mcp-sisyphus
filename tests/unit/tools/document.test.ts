@@ -934,3 +934,148 @@ describe('document.copy', () => {
         expect(payload.error?.type).toBe('validation_error');
     });
 });
+
+describe('document.find_replace', () => {
+    function permMgr() {
+        return {
+            reload: vi.fn(async () => undefined),
+            canRead: () => true,
+            canWrite: () => true,
+            canDelete: () => true,
+            get: () => 'rwd',
+        } as never;
+    }
+
+    function clientWithDoc(blockIds: string[], onFindReplace?: (body: any) => void) {
+        return createMockClient({
+            request: async (endpoint: string, body?: any) => {
+                if (endpoint === '/api/query/sql') {
+                    return [{ id: 'doc-1', root_id: 'doc-1', box: 'nb-1', path: '/doc.sy', type: 'd' }];
+                }
+                if (endpoint === '/api/block/getBlockInfo') return { id: 'doc-1', rootID: 'doc-1' };
+                if (endpoint === '/api/block/getChildBlocks') {
+                    if (body.id === 'doc-1') return blockIds.map((id) => ({ id, type: 'p' }));
+                    return [];
+                }
+                if (endpoint === '/api/search/findReplace') {
+                    onFindReplace?.(body);
+                    return null;
+                }
+                return null;
+            },
+        });
+    }
+
+    it('scopes the replacement to the document block IDs', async () => {
+        let body: any;
+        const client = clientWithDoc(['b-1', 'b-2', 'b-3'], (b) => { body = b; });
+        const result = await callDocumentTool(client, {
+            action: 'find_replace', id: 'doc-1', k: 'old', r: 'new',
+        }, buildDefaultToolConfig().document, permMgr());
+        expect(body.ids).toEqual(['b-1', 'b-2', 'b-3']);
+        expect(body.replaceTypes).toEqual({ text: true });
+        expect(parseResult(result)).toMatchObject({ success: true, id: 'doc-1', scopedBlockCount: 3 });
+    });
+
+    it('respects --limit by truncating the block list', async () => {
+        let body: any;
+        const client = clientWithDoc(['b-1', 'b-2', 'b-3'], (b) => { body = b; });
+        const result = await callDocumentTool(client, {
+            action: 'find_replace', id: 'doc-1', k: 'old', r: 'new', limit: 1,
+        }, buildDefaultToolConfig().document, permMgr());
+        expect(body.ids).toEqual(['b-1']);
+        expect(parseResult(result)).toMatchObject({ limit: 1, scopedBlockCount: 1 });
+    });
+
+    it('never sends an empty ids array (workspace-wide scope guard)', async () => {
+        let body: any;
+        const client = clientWithDoc([], (b) => { body = b; });
+        await callDocumentTool(client, {
+            action: 'find_replace', id: 'doc-1', k: 'old', r: 'new',
+        }, buildDefaultToolConfig().document, permMgr());
+        expect(body.ids).toEqual(['doc-1']);
+    });
+
+    it('includes the doc id when docTitle replacement is requested', async () => {
+        let body: any;
+        const client = clientWithDoc(['b-1'], (b) => { body = b; });
+        await callDocumentTool(client, {
+            action: 'find_replace', id: 'doc-1', k: 'old', r: 'new', replaceTypes: { text: true, docTitle: true },
+        }, buildDefaultToolConfig().document, permMgr());
+        expect(body.ids).toEqual(['doc-1', 'b-1']);
+    });
+});
+
+describe('document.archive', () => {
+    function permMgr() {
+        return {
+            reload: vi.fn(async () => undefined),
+            canRead: () => true,
+            canWrite: () => true,
+            canDelete: () => true,
+            get: () => 'rwd',
+        } as never;
+    }
+
+    it('sets custom-archived=true without moving when --to is omitted', async () => {
+        const calls: Array<{ endpoint: string; body: any }> = [];
+        const client = createMockClient({
+            request: async (endpoint: string, body?: any) => {
+                calls.push({ endpoint, body });
+                if (endpoint === '/api/query/sql') {
+                    return [{ id: 'doc-1', root_id: 'doc-1', box: 'nb-1', path: '/doc.sy', type: 'd' }];
+                }
+                return null;
+            },
+        });
+        const result = await callDocumentTool(client, {
+            action: 'archive', id: 'doc-1',
+        }, buildDefaultToolConfig().document, permMgr());
+        expect(parseResult(result)).toMatchObject({ success: true, id: 'doc-1', archived: true, attr: 'custom-archived' });
+        const tx = calls.find((c) => c.endpoint === '/api/transactions');
+        expect(tx).toBeDefined();
+        expect(JSON.stringify(tx?.body)).toContain('custom-archived');
+        expect(calls.find((c) => c.endpoint === '/api/filetree/moveDocsByID')).toBeUndefined();
+    });
+
+    it('moves under --to and sets the archived attr', async () => {
+        const calls: Array<{ endpoint: string; body: any }> = [];
+        const client = createMockClient({
+            request: async (endpoint: string, body?: any) => {
+                calls.push({ endpoint, body });
+                if (endpoint === '/api/query/sql') {
+                    // First call resolves doc-1 context; later calls resolve the archive hpath.
+                    if (String(body?.statements?.[0]?.stmt ?? body?.stmt ?? '').includes("hpath = '/Archive'")) {
+                        return [{ id: 'archive-doc', root_id: 'archive-doc', box: 'nb-1', path: '/archive.sy', type: 'd' }];
+                    }
+                    return [{ id: 'doc-1', root_id: 'doc-1', box: 'nb-1', path: '/doc.sy', type: 'd' }];
+                }
+                if (endpoint === '/api/filetree/getIDsByHPath') return ['archive-doc'];
+                return null;
+            },
+        });
+        const result = await callDocumentTool(client, {
+            action: 'archive', id: 'doc-1', to: '/Archive',
+        }, buildDefaultToolConfig().document, permMgr());
+        expect(parseResult(result)).toMatchObject({ success: true, archived: true, movedTo: { notebook: 'nb-1', hPath: '/Archive' } });
+        const move = calls.find((c) => c.endpoint === '/api/filetree/moveDocsByID');
+        expect(move?.body).toMatchObject({ fromIDs: ['doc-1'], toID: 'archive-doc' });
+    });
+
+    it('clears the marker with unarchive=true', async () => {
+        const calls: Array<{ endpoint: string; body: any }> = [];
+        const client = createMockClient({
+            request: async (endpoint: string, body?: any) => {
+                calls.push({ endpoint, body });
+                if (endpoint === '/api/query/sql') {
+                    return [{ id: 'doc-1', root_id: 'doc-1', box: 'nb-1', path: '/doc.sy', type: 'd' }];
+                }
+                return null;
+            },
+        });
+        const result = await callDocumentTool(client, {
+            action: 'archive', id: 'doc-1', unarchive: true,
+        }, buildDefaultToolConfig().document, permMgr());
+        expect(parseResult(result)).toMatchObject({ success: true, archived: false, cleared: true });
+    });
+});

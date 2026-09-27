@@ -2,6 +2,7 @@ import type { SiYuanClient } from '../../../api/client';
 import * as documentApi from '../../../api/document';
 import * as notebookApi from '../../../api/notebook';
 import * as searchApi from '../../../api/search';
+import * as systemApi from '../../../api/system';
 import type { PermissionManager } from '../../../core/permissions';
 import { escapeSqlString } from '../context';
 
@@ -285,4 +286,24 @@ export async function resolveFsDestinationTarget(
     inputPath: string,
 ): Promise<FsCreateTarget> {
     return resolveFsCreateTarget(client, permMgr, inputPath);
+}
+
+/**
+ * Resolve the absolute on-disk .sy path for a document: <workspaceDir>/data/<notebook><storagePath>.
+ * Returns null when the kernel does not report a workspaceDir (remote/degraded).
+ * Used by --print-path so an agent can hand the real file to an external editor or diff tool.
+ */
+export async function resolveDocumentDiskPath(
+    client: SiYuanClient,
+    notebook: string,
+    storagePath: string,
+): Promise<string | null> {
+    const info = await systemApi.getWorkspaceInfo(client).catch(() => null);
+    const workspaceDir = info && typeof info === 'object'
+        ? (info as Record<string, unknown>).workspaceDir
+        : undefined;
+    if (typeof workspaceDir !== 'string' || workspaceDir.trim().length === 0) return null;
+    const base = workspaceDir.replace(/[\\/]+$/, '');
+    const rel = storagePath.startsWith('/') ? storagePath : '/' + storagePath;
+    return base + '/data/' + notebook + rel;
 }

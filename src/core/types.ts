@@ -101,6 +101,7 @@ export const FsReadSchema = z.object({
     blockLimit: z.number().int().min(1).max(200).optional().describe("Optional maximum complete display blocks. Omit to try full text, subject to the 256 KiB hard content limit."),
     tokenBudget: z.number().int().min(1).max(32000).optional().describe("Optional soft token budget. Complete blocks may exceed it, but never the 256 KiB hard content limit."),
     includeBlockIds: z.boolean().optional().describe("Include a sidecar blockRefs mapping without adding block IDs to Markdown content (default false)"),
+    printPath: z.boolean().optional().describe("Include the on-disk .sy file path (workspace data dir + storage path) in the result for handoff to external editors/diff tools (default false)"),
 }).passthrough().superRefine((value, ctx) => {
     for (const key of ["page", "pageSize"] as const) {
         if (value[key] !== undefined) {
@@ -503,6 +504,7 @@ export const DocumentReadSchema = z.object({
     maxDepth: z.number().int().optional().describe('For scope="outline": cap heading level (e.g. 2 keeps h1+h2). -1 = unlimited (default -1).'),
     tokenBudget: z.number().int().min(1).max(32000).optional().describe("Optional soft token budget. Complete blocks may exceed it, but never the 256 KiB hard content limit."),
     includeBlockIds: z.boolean().optional().describe("Include a sidecar blockRefs mapping (default false)"),
+    printPath: z.boolean().optional().describe("Include the on-disk .sy file path in the result for handoff to external editors/diff tools (default false)"),
 }).passthrough().superRefine((value, ctx) => {
     if (value.scope === "section" && !value.anchor) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["anchor"], message: 'scope="section" requires --anchor.' });
@@ -1651,6 +1653,25 @@ export const SearchFindReplaceSchema = z.object({
     replaceTypes: z.record(z.string(), z.boolean()).optional().describe("Replace target kinds such as text, code, docTitle, blockRef"),
 });
 
+export const DocumentFindReplaceSchema = z.object({
+    action: z.literal("find_replace"),
+    id: z.string().describe("Document ID to scope the replacement to. Only blocks inside this document are touched."),
+    k: z.string().describe("Find keyword"),
+    r: z.string().describe("Replacement text; use empty string to delete matches"),
+    limit: z.number().int().min(1).optional().describe("Replace at most this many matched blocks (counted by block, not occurrence). Omit to replace all matches in the document."),
+    method: z.number().optional().describe("Search method: 0=keyword, 1=query syntax, 2=SQL, 3=regex"),
+    methodName: SearchMethodNameSchema.optional().describe('Semantic alias for method: "keyword" | "query_syntax" | "sql" | "regex". The short alias "query" also maps to query syntax and overrides method when both are provided.'),
+    replaceTypes: z.record(z.string(), z.boolean()).optional().describe('Replace target kinds such as text, code, docTitle, blockRef. Defaults to { text: true } — plain text only.'),
+});
+
+export const DocumentArchiveSchema = z.object({
+    action: z.literal("archive"),
+    id: z.string().describe("Document ID to archive"),
+    to: z.string().optional().describe("Optional human-readable archive path (e.g. /Archive). When set, the document is also moved under this path in the same notebook."),
+    toNotebook: z.string().optional().describe("Optional notebook ID for --to when it should resolve against a different notebook than the source."),
+    unarchive: z.boolean().optional().describe("Set true to clear the archived marker instead of setting it (does not move the document back)."),
+});
+
 export const SearchAssetsSchema = z.object({
     action: z.literal("search_assets"),
     k: z.string().optional().describe("Legacy asset filename keyword field"),
@@ -1836,6 +1857,7 @@ export const DailynoteCreateSchema = z.object({
     notebook: z.string().describe("Notebook ID"),
     date: DailynoteDateSchema,
     app: z.string().optional().describe("Optional app identifier passed through to SiYuan"),
+    template: z.string().optional().describe("Render a workspace template (Sprig, same as document create --template) into the daily note body when the note is first created. Ignored when the note already exists. Accepts a path from file(action='list_templates')."),
 });
 
 export const DailynoteGetSchema = z.object({

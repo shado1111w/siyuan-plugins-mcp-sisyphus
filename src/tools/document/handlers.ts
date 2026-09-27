@@ -32,6 +32,8 @@ import {
     DocumentSearchDocsSchema,
     DocumentGetAttrSchema,
     DocumentSetAttrSchema,
+    DocumentFindReplaceSchema,
+    DocumentArchiveSchema,
 } from '../../core/types';
 import {
     findScopedLinkTarget,
@@ -42,6 +44,7 @@ import {
     type LinkTargetDocumentIdentity,
     type LinkTargetScope,
 } from '../../core/document-link-targets';
+import { resolveDocumentDiskPath } from '../internal/helpers/fs-path';
 import {
     ensurePermissionForDocumentId,
     ensurePermissionForNotebook,
@@ -58,7 +61,9 @@ import { applyUiRefresh, type UiRefreshOperation } from '../internal/ui-refresh'
 import { sleep } from '../../shared/async';
 import { stripRedundantTitleHeading } from '../internal/kramdown-safe';
 import { readDocumentBlockWindow, readDocumentEditableMarkdown } from '../internal/document-kramdown';
+import { listDocumentBlocksInTreeOrder } from '../internal/document-kramdown';
 import { normalizeDomInlineRefsAndTags } from '../internal/kramdown-safe';
+import { resolveSearchMethod } from '../../core/normalize';
 import { readDocumentScoped } from './read-scope';
 import { createFootnoteReferenceHint, createSiyuanBlockLinkHint, createUnresolvedBlockRefHint, hasBlockRefIdFallbackAnchors, hasFootnoteReferences, hasSiyuanBlockLinks } from '../internal/kramdown-safe';
 import { normalizeMarkdownInputRefs } from '../internal/markdown-input';
@@ -1174,6 +1179,7 @@ const handleRead: DocumentActionHandler = async ({ client, permMgr, rawArgs }) =
         notebook: context.notebook,
         ...(notebookName ? { notebookName } : {}),
         hPath: await getHPathByIdWithRetry(client, context.documentId),
+        ...(parsed.printPath === true ? { diskPath: await resolveDocumentDiskPath(client, context.notebook, context.path) } : {}),
         ...result,
     });
 };
@@ -1303,6 +1309,86 @@ const handleGetAttr: DocumentActionHandler = async ({ client, permMgr, rawArgs }
     return createJsonResult({ id: parsed.id, attrs: obj });
 };
 
+// --- document find_replace: scope the workspace findReplace to one document ---
+
+const handleFindReplace: DocumentActionHandler = async ({ client, permMgr, rawArgs }) => {
+    const parsed = DocumentFindReplaceSchema.parse(rawArgs);
+    const { denied, context } = await ensurePermissionForDocumentId(client, permMgr, parsed.id, 'write');
+    if (denied) return denied;
+
+    const replaceTypes = parsed.replaceTypes ?? { text: true };
+    // Expand the document to its block IDs so the kernel only touches this doc.
+    // An empty list would be read by the kernel as a workspace-wide scope, so a
+    // document with no blocks still gets an explicit (empty-result) target.
+    const blocks = await listDocumentBlocksInTreeOrder(client, context.documentId);
+    let targetIDs = blocks.map((block) => block.id);
+    if (parsed.limit !== undefined) {
+        targetIDs = targetIDs.slice(0, parsed.limit);
+    }
+    if (replaceTypes.docTitle) targetIDs = [context.documentId, ...targetIDs];
+    if (targetIDs.length === 0) targetIDs = [context.documentId];
+
+    const resolvedMethod = resolveSearchMethod(parsed.methodName, parsed.method);
+    await searchApi.findReplace(client, {
+        k: parsed.k,
+        r: parsed.r,
+        ids: targetIDs,
+        ...(resolvedMethod !== undefined ? { method: resolvedMethod } : {}),
+        replaceTypes,
+    });
+    return applyUiRefresh(client, createJsonResult({
+        success: true,
+        replaced: true,
+        id: context.documentId,
+        scopedBlockCount: targetIDs.length,
+        ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
+        k: parsed.k,
+        r: parsed.r,
+        replaceTypes,
+    }), [{ type: 'reloadProtyle', id: context.documentId }]);
+};
+
+// --- document archive: soft-archive via custom-archived attr + optional move ---
+
+const ARCHIVE_ATTR = 'custom-archived';
+
+const handleArchive: DocumentActionHandler = async ({ client, permMgr, rawArgs }) => {
+    const parsed = DocumentArchiveSchema.parse(rawArgs);
+    const { denied, context } = await ensurePermissionForDocumentId(client, permMgr, parsed.id, 'write');
+    if (denied) return denied;
+
+    const operations: UiRefreshOperation[] = [{ type: 'reloadProtyle', id: context.documentId }];
+    let movedTo: { notebook: string; hPath: string } | undefined;
+
+    if (parsed.to) {
+        const targetNotebook = parsed.toNotebook ?? context.notebook;
+        const targetDenied = await ensurePermissionForNotebook(permMgr, targetNotebook, 'write');
+        if (targetDenied) return targetDenied;
+        const archiveHPath = parsed.to === '/' ? '/' : parsed.to.replace(/\/+$/, '');
+        // Resolve the archive parent; create it if it does not exist yet.
+        let parentIds = await getDocumentIdsByHPathWithSqlFallback(client, targetNotebook, archiveHPath);
+        if (parentIds.length === 0) {
+            const createdId = await documentApi.createDoc(client, targetNotebook, archiveHPath, '');
+            parentIds = [createdId];
+        }
+        await documentApi.moveDocsByID(client, [context.documentId], parentIds[0]);
+        movedTo = { notebook: targetNotebook, hPath: archiveHPath };
+        operations.push({ type: 'reloadFiletree' });
+    }
+
+    const archived = parsed.unarchive !== true;
+    await setDocumentAttrsViaTransaction(client, context.documentId, { [ARCHIVE_ATTR]: archived ? 'true' : '' });
+
+    return applyUiRefresh(client, createJsonResult({
+        success: true,
+        id: context.documentId,
+        archived,
+        attr: ARCHIVE_ATTR,
+        ...(archived ? {} : { cleared: true }),
+        ...(movedTo ? { movedTo } : {}),
+    }), operations);
+};
+
 export const DOCUMENT_ACTION_HANDLERS: Record<DocumentAction, DocumentActionHandler> = {
     create: handleCreate,
     lookup: handleLookup,
@@ -1327,4 +1413,6 @@ export const DOCUMENT_ACTION_HANDLERS: Record<DocumentAction, DocumentActionHand
     copy: handleCopy,
     heading_to_doc: handleHeadingToDoc,
     doc_to_heading: handleDocToHeading,
+    find_replace: handleFindReplace,
+    archive: handleArchive,
 };

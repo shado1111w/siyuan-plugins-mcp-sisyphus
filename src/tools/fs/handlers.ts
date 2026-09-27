@@ -21,6 +21,7 @@ import {
     resolveFsCreateTarget,
     resolveFsDestinationTarget,
     resolveFsScopePath,
+    resolveDocumentDiskPath,
     type FsDocumentPath,
     type FsScopePath,
 } from '../internal/helpers/fs-path';
@@ -644,6 +645,7 @@ const handleRead: FsActionHandler = async ({ client, permMgr, rawArgs }) => {
     const attributeViews = await listDocumentAttributeViews(client, scope.id, blocks);
     return createJsonResult({
         ...createFsReadWindowPayload(scope.canonicalPath, window, parsed.includeBlockIds ?? false),
+        ...(parsed.printPath === true ? { diskPath: await resolveDocumentDiskPath(client, scope.notebook, scope.storagePath) } : {}),
         ...(attributeViews.length > 0 ? createAttributeViewFsHint(attributeViews) : {}),
         ...createFsNonFidelityHint(blocks),
     });

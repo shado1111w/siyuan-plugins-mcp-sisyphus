@@ -239,4 +239,59 @@ describe("dailynote handlers", () => {
         const text = JSON.stringify(r);
         expect(text).toMatch(/dailyNoteSavePath|error/i);
     });
+
+    it("create --template renders a workspace template into the note body", async () => {
+        const calls: Array<[string, unknown]> = [];
+        const cl = createMockClient({
+            request: vi.fn(async (ep: string, body: unknown) => {
+                calls.push([ep, body]);
+                if (ep === '/api/notebook/getNotebookConf') return CONF;
+                if (ep === '/api/filetree/getIDsByHPath') return [];
+                if (ep === '/api/filetree/createDocWithMd') return 'dn-tpl';
+                if (ep === '/api/filetree/getHPathByID') return '/daily note/2026/09/2026-09-20';
+                if (ep === '/api/search/searchTemplate') {
+                    return { templates: [{ path: '/data/templates/journal.md', content: 'x' }], k: '' };
+                }
+                if (ep === '/api/template/renderSprig') return '## Rendered daily template';
+                return null;
+            }),
+        });
+        // readTemplateSource uses raw fetch, not client.request — stub it.
+        (cl as any).getBaseUrl = () => 'http://127.0.0.1:6806';
+        (cl as any).getAuthHeaders = () => ({});
+        const fetchStub = vi.fn(async () => ({ ok: true, text: async () => '## {{now}} template' }) as unknown as Response);
+        vi.stubGlobal('fetch', fetchStub);
+        try {
+            const r = await callDailynoteTool(cl, {
+                action: 'create', notebook: NB, date: '2026-09-20', template: 'journal.md',
+            }, dc(), permMgr);
+            const p = parseResult(r);
+            expect(p.success).toBe(true);
+            expect(p.template).toBe('journal.md');
+            expect(calls.some(([e]) => e === '/api/template/renderSprig')).toBe(true);
+            expect(calls.some(([e, b]) => e === '/api/block/appendBlock' && (b as any).parentID === 'dn-tpl')).toBe(true);
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it("create --template surfaces a template_error when the template is missing", async () => {
+        const cl = createMockClient({
+            request: vi.fn(async (ep: string, body: unknown) => {
+                if (ep === '/api/notebook/getNotebookConf') return CONF;
+                if (ep === '/api/filetree/getIDsByHPath') return [];
+                if (ep === '/api/filetree/createDocWithMd') return 'dn-new';
+                if (ep === '/api/filetree/getHPathByID') return '/daily note/2026/09/2026-09-21';
+                if (ep === '/api/search/searchTemplate') return { templates: [], k: '' };
+                return null;
+            }),
+        });
+        (cl as any).getBaseUrl = () => 'http://127.0.0.1:6806';
+        (cl as any).getAuthHeaders = () => ({});
+        const r = await callDailynoteTool(cl, {
+            action: 'create', notebook: NB, date: '2026-09-21', template: 'nope.md',
+        }, dc(), permMgr);
+        const p = parseResult(r) as { error?: { type?: string } };
+        expect(p.error?.type).toBe('template_error');
+    });
 });

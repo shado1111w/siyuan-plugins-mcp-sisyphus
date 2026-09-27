@@ -96,6 +96,19 @@ describe('document.read', () => {
         expect(p.truncated).toBe(false);
     });
 
+    it('printPath includes the on-disk .sy path', async () => {
+        const base = makeClient();
+        const cl = createMockClient({
+            request: vi.fn(async (endpoint: string, body?: Record<string, unknown>) => {
+                if (endpoint === '/api/system/getWorkspaceInfo') return { workspaceDir: '/ws/siyuan' };
+                return base.request(endpoint, body);
+            }),
+        });
+        const r = await callDocumentTool(cl, { action: 'read', id: 'doc-1', scope: 'full', printPath: true }, dc(), permMgr);
+        const p = parseResult(r);
+        expect(p.diskPath).toBe('/ws/siyuan/data/nb-1/doc-1.sy');
+    });
+
     it('scope=outline returns only headings with headingCount', async () => {
         const { p } = await read({ scope: 'outline' });
         expect(p.scope).toBe('outline');

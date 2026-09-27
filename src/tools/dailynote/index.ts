@@ -3,6 +3,7 @@ import * as blockApi from '../../api/block';
 import * as documentApi from '../../api/document';
 import * as notebookApi from '../../api/notebook';
 import * as searchApi from '../../api/search';
+import * as templateApi from '../../api/template';
 import type { DailynoteAction } from '../../core/config';
 import { DAILYNOTE_ACTION_HINTS, DAILYNOTE_GUIDANCE } from '../../core/help';
 import type { PermissionManager } from '../../core/permissions';
@@ -264,15 +265,43 @@ const dailynoteTool = defineTool<DailynoteAction>({
             if (denied) return denied;
             const date = parsed.date ?? todayLocalDate();
             const resolved = await resolveDailyNote(client, parsed.notebook, date, { create: true, app: parsed.app });
+            let usedTemplate: string | undefined;
+            let templateSkipped = false;
+            // --template renders a workspace template into the note body, but only when
+            // this call actually created the note. Appending a template onto an existing
+            // note would duplicate content on every repeat invocation.
+            if (parsed.template && !resolved.created) {
+                templateSkipped = true;
+            } else if (parsed.template && resolved.id) {
+                try {
+                    const tpl = await templateApi.resolveTemplate(client, parsed.template);
+                    const source = await templateApi.readTemplateSource(client, tpl.relativePath ?? tpl.path);
+                    const rendered = await templateApi.renderSprig(client, source.markdown);
+                    const markdown = await normalizeMarkdownInputRefs(client, rendered, 'dailynote.create');
+                    await blockApi.appendBlock(client, 'markdown', markdown, resolved.id);
+                    usedTemplate = tpl.relativePath || tpl.path || parsed.template;
+                } catch (error) {
+                    return createJsonResult({
+                        error: {
+                            type: 'template_error',
+                            message: error instanceof Error ? error.message : String(error),
+                            template: parsed.template,
+                            hint: 'Resolve the template with file(action="list_templates") and pass its path or relative path to --template.',
+                        },
+                    });
+                }
+            }
             return applyUiRefresh(client, createJsonResult({
                 success: true,
                 notebook: parsed.notebook,
                 date,
                 ...resolved,
+                ...(usedTemplate ? { template: usedTemplate } : {}),
+                ...(templateSkipped ? { templateSkipped: true, templateNote: 'Note already existed; --template only renders on first creation.' } : {}),
                 ...(resolved.created ? {
                     hint: 'Newly created daily note documents may take a short time to appear in search/list results due to blocktree indexing. Verify via dailynote get before relying on SQL or search-based listing.',
                 } : {}),
-            }), resolved.created ? [{ type: 'reloadFiletree' }] : []);
+            }), (resolved.created || usedTemplate) ? [{ type: 'reloadFiletree' }] : []);
         },
         get: async ({ client, permMgr, rawArgs }) => {
             const parsed = DailynoteGetSchema.parse(rawArgs);

@@ -34,7 +34,7 @@ describe('API audit', () => {
         expect(model.permissionChanges).toHaveLength(11);
         expect(model.production).toHaveLength(38);
         expect(model.plugin.tools).toHaveLength(15);
-        expect(model.actions).toHaveLength(164);
+        expect(model.actions).toHaveLength(166);
         expect(model.backendLiterals.size).toBe(150);
         expect(model.validBackend).toHaveLength(149);
         expect(model.invalidBackend).toEqual(['/api/asset/setImageAlpha']);
