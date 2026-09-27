@@ -900,7 +900,7 @@ const AvAssetItemSchema = z.object({
 });
 
 const AvSetCellValueFieldsBaseSchema = z.object({
-    valueType: AvValueTypeSchema.describe("Cell value type"),
+    valueType: AvValueTypeSchema.optional().describe("Cell value type. Omit to infer it from the target column type; provide a value field matching that type (e.g. option for a select column)."),
     text: z.string().optional().describe("Text value for valueType=text"),
     number: z.number().optional().describe("Number value for valueType=number"),
     numberFormat: z.string().optional().describe("Optional number format such as commas, percent, USD, or CNY"),
@@ -932,6 +932,7 @@ const AvSetCellValueFieldsSchema = AvSetCellValueFieldsBaseSchema.superRefine((v
         mAsset: "assets",
     };
 
+    if (value.valueType === undefined) return;
     const expectedField = fieldByType[value.valueType];
     if (value[expectedField] === undefined) {
         ctx.addIssue({
@@ -944,8 +945,13 @@ const AvSetCellValueFieldsSchema = AvSetCellValueFieldsBaseSchema.superRefine((v
 
 const AvCellUpdateItemSchema = z.object({
     rowID: z.string().describe("Row item ID"),
-    columnID: z.string().describe("Column key ID"),
-}).and(AvSetCellValueFieldsSchema);
+    columnID: z.string().optional().describe("Column key ID; either columnID or columnName is required"),
+    columnName: z.string().optional().describe("Column name resolved against the AV schema when columnID is unknown"),
+}).and(AvSetCellValueFieldsSchema).superRefine((value, ctx) => {
+    if (!value.columnID && !value.columnName) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Each cell needs columnID or columnName.", path: ["columnID"] });
+    }
+});
 
 const AvSelectOptionSchema = z.object({
     name: z.string().min(1).describe("Option label; empty option names are rejected before the transaction."),
@@ -1043,10 +1049,11 @@ export const AvSetCellsSchema = z.object({
     items: z.array(AvCellUpdateItemSchema).min(1).optional().describe("Alias for cells"),
     rowID: z.string().optional().describe("Single-cell row item ID"),
     columnID: z.string().optional().describe("Single-cell column key ID"),
+    columnName: z.string().optional().describe("Single-cell column name resolved against the AV schema when columnID is unknown"),
 }).and(AvSetCellValueFieldsBaseSchema.partial()).superRefine((value, ctx) => {
     const cells = value.cells ?? value.items;
     const hasCells = Array.isArray(cells);
-    const hasSingle = typeof value.rowID === "string" || typeof value.columnID === "string" || typeof value.valueType === "string";
+    const hasSingle = typeof value.rowID === "string" || typeof value.columnID === "string" || typeof value.columnName === "string" || typeof value.valueType === "string";
 
     if (hasCells && hasSingle) {
         ctx.addIssue({
@@ -1061,12 +1068,8 @@ export const AvSetCellsSchema = z.object({
         if (!value.rowID) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "rowID is required for single-cell set_cells calls.", path: ["rowID"] });
         }
-        if (!value.columnID) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "columnID is required for single-cell set_cells calls.", path: ["columnID"] });
-        }
-        if (!value.valueType) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "valueType is required for single-cell set_cells calls.", path: ["valueType"] });
-            return;
+        if (!value.columnID && !value.columnName) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "columnID or columnName is required for single-cell set_cells calls.", path: ["columnID"] });
         }
 
         const checked = AvSetCellValueFieldsSchema.safeParse(value);

@@ -33,21 +33,21 @@ siyuan-sisyphus av add-column --av-id '<av-id>' --key-name 'Status' --key-type '
 siyuan-sisyphus av add-rows --av-id '<av-id>' --view-id '<view-id>' --block-ids-json '["<block-id>"]' --json
 ```
 ```bash
-siyuan-sisyphus av upsert-row --av-id '<av-id>' --primary-key '<primary-key-text>' --cells-json '[{"columnName":"Status","valueType":"select","option":"done"}]' --json
+siyuan-sisyphus av upsert-row --av-id '<av-id>' --primary-key '<primary-key-text>' --cells-json '[{"columnName":"Status","option":"done"}]' --json
 ```
 ```bash
 siyuan-sisyphus av get-row --av-id '<av-id>' --row-id '<row-id>' --json
 ```
 ```bash
-siyuan-sisyphus av update-row --av-id '<av-id>' --row-id '<row-id>' --cells-json '[{"columnName":"Status","valueType":"select","option":"done"}]' --json
+siyuan-sisyphus av update-row --av-id '<av-id>' --row-id '<row-id>' --cells-json '[{"columnName":"Status","option":"done"}]' --json
 ```
 ```bash
-siyuan-sisyphus av set-cells --av-id '<av-id>' --cells-json '[{"rowID":"<row-id>","columnID":"<column-id>","valueType":"text","text":"Done"}]' --json
+siyuan-sisyphus av set-cells --av-id '<av-id>' --cells-json '[{"rowID":"<row-id>","columnName":"Status","option":"done"}]' --json
 ```
 ```bash
 siyuan-sisyphus av create-table --block-id '<host-document-or-block-id>' --columns-json '[{"name":"Task","type":"text"},{"name":"Status","type":"select","options":["todo","done"]}]' --json
 ```
 
-Before writing cells, render the current view and map column names to column IDs. Preserve the declared value type; do not put a date-shaped string into a number/date/select column without using the action’s expected value shape. Re-render after mutation. Read `siyuan-sisyphus help av set-cells` for the current cell schema.
+Cells accept `columnName` in place of `columnID`, and you can omit `valueType` — it is inferred from the column schema, so you only pass the matching value field (`option` for a select column, `options` for multi-select, `checked` for checkbox, `text` for text). Render the current view first to learn row and column IDs; do not put a date-shaped string into a number/date/select column. Re-render after mutation. Read `siyuan-sisyphus help av set-cells` for the current cell schema.
 
 Treat a successful mutation response as provisional until the same view and affected rows/cells are read back. Keep the render and readback paginated, continue while more data is advertised, and compare the intended cell values by stable row and column IDs. A raw MCP or CLI success message does not establish that strict-write coordination or complete readback occurred.

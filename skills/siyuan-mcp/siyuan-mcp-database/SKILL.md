@@ -33,21 +33,21 @@ av(action="add_column", avID="<av-id>", keyName="Status", keyType="select")
 av(action="add_rows", avID="<av-id>", viewID="<view-id>", blockIDs=["<block-id>"])
 ```
 ```text
-av(action="upsert_row", avID="<av-id>", primaryKey="<primary-key-text>", cells=[{"columnName":"Status","valueType":"select","option":"done"}])
+av(action="upsert_row", avID="<av-id>", primaryKey="<primary-key-text>", cells=[{"columnName":"Status","option":"done"}])
 ```
 ```text
 av(action="get_row", avID="<av-id>", rowID="<row-id>")
 ```
 ```text
-av(action="update_row", avID="<av-id>", rowID="<row-id>", cells=[{"columnName":"Status","valueType":"select","option":"done"}])
+av(action="update_row", avID="<av-id>", rowID="<row-id>", cells=[{"columnName":"Status","option":"done"}])
 ```
 ```text
-av(action="set_cells", avID="<av-id>", cells=[{"rowID":"<row-id>","columnID":"<column-id>","valueType":"text","text":"Done"}])
+av(action="set_cells", avID="<av-id>", cells=[{"rowID":"<row-id>","columnName":"Status","option":"done"}])
 ```
 ```text
 av(action="create_table", blockID="<host-document-or-block-id>", columns=[{"name":"Task","type":"text"},{"name":"Status","type":"select","options":["todo","done"]}])
 ```
 
-Before writing cells, render the current view and map column names to column IDs. Preserve the declared value type; do not put a date-shaped string into a number/date/select column without using the action’s expected value shape. Re-render after mutation. Read `siyuan://help/action/av/set_cells` for the current cell schema.
+Cells accept `columnName` in place of `columnID`, and you can omit `valueType` — it is inferred from the column schema, so you only pass the matching value field (`option` for a select column, `options` for multi-select, `checked` for checkbox, `text` for text). Render the current view first to learn row and column IDs; do not put a date-shaped string into a number/date/select column. Re-render after mutation. Read `siyuan://help/action/av/set_cells` for the current cell schema.
 
 Treat a successful mutation response as provisional until the same view and affected rows/cells are read back. Keep the render and readback paginated, continue while more data is advertised, and compare the intended cell values by stable row and column IDs. A raw MCP or CLI success message does not establish that strict-write coordination or complete readback occurred.

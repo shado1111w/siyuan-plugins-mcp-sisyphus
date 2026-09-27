@@ -4797,6 +4797,120 @@ describe('av tool', () => {
         expect(vi.mocked(transactionApi.performTransactions)).not.toHaveBeenCalled();
     });
 
+    it('upsert_row infers valueType from the column schema when omitted', async () => {
+        const avApi = await import('@/api/av');
+        const transactionApi = await import('@/api/transaction');
+        vi.mocked(avApi.getMirrorDatabaseBlocks).mockResolvedValue({ refDefs: [{ refID: 'db-block-1', defIDs: [] }] } as never);
+        vi.mocked(avApi.getAttributeView).mockResolvedValue({
+            av: {
+                id: 'av-1',
+                keyValues: [
+                    { key: { id: 'key-pk', name: 'Primary Key', type: 'block' }, values: [{ id: 'v1', blockID: 'row-1', isDetached: true, block: { content: 'existing' } }] },
+                    { key: { id: 'key-status', name: 'Status', type: 'select' }, values: [] },
+                    { key: { id: 'key-task', name: 'Task', type: 'text' }, values: [] },
+                ],
+                views: [{ id: 'view-1', type: 'table' }],
+            },
+        } as never);
+
+        const result = await callAvTool(client, {
+            action: 'upsert_row', avID: 'av-1', blockID: 'db-block-1', primaryKey: 'existing',
+            cells: [
+                { columnName: 'Status', option: 'doing' },
+                { columnName: 'Task', text: 'inferred task' },
+            ],
+        }, enabledActions('upsert_row'), permMgr);
+
+        const payload = JSON.parse(result.content[0].text);
+        expect(payload).toMatchObject({ success: true, action: 'upsert_row', updated: true, cellsWritten: 2 });
+        const ops = vi.mocked(transactionApi.performTransactions).mock.calls[0][1][0].doOperations;
+        const statusOp = ops.find((op: any) => op.keyID === 'key-status');
+        const taskOp = ops.find((op: any) => op.keyID === 'key-task');
+        expect(statusOp?.data?.type).toBe('select');
+        expect(statusOp?.data?.mSelect).toEqual([{ content: 'doing', color: '' }]);
+        expect(taskOp?.data?.type).toBe('text');
+        expect(taskOp?.data?.text).toEqual({ content: 'inferred task' });
+    });
+
+    it('upsert_row infers multi_select for an mSelect column', async () => {
+        const avApi = await import('@/api/av');
+        const transactionApi = await import('@/api/transaction');
+        vi.mocked(avApi.getMirrorDatabaseBlocks).mockResolvedValue({ refDefs: [{ refID: 'db-block-1', defIDs: [] }] } as never);
+        vi.mocked(avApi.getAttributeView).mockResolvedValue({
+            av: {
+                id: 'av-1',
+                keyValues: [
+                    { key: { id: 'key-pk', name: 'Primary Key', type: 'block' }, values: [{ id: 'v1', blockID: 'row-1', isDetached: true, block: { content: 'existing' } }] },
+                    { key: { id: 'key-tags', name: 'Tags', type: 'mSelect' }, values: [] },
+                ],
+                views: [{ id: 'view-1', type: 'table' }],
+            },
+        } as never);
+
+        const result = await callAvTool(client, {
+            action: 'upsert_row', avID: 'av-1', blockID: 'db-block-1', primaryKey: 'existing',
+            cells: [{ columnName: 'Tags', options: ['a', 'b'] }],
+        }, enabledActions('upsert_row'), permMgr);
+
+        expect(JSON.parse(result.content[0].text)).toMatchObject({ success: true, cellsWritten: 1 });
+        const op = vi.mocked(transactionApi.performTransactions).mock.calls[0][1][0].doOperations.find((o: any) => o.keyID === 'key-tags');
+        expect(op?.data?.type).toBe('mSelect');
+        expect(op?.data?.mSelect).toEqual([{ content: 'a', color: '' }, { content: 'b', color: '' }]);
+    });
+
+    it('upsert_row reports a missing value field for the inferred type', async () => {
+        const avApi = await import('@/api/av');
+        const transactionApi = await import('@/api/transaction');
+        vi.mocked(avApi.getMirrorDatabaseBlocks).mockResolvedValue({ refDefs: [{ refID: 'db-block-1', defIDs: [] }] } as never);
+        vi.mocked(avApi.getAttributeView).mockResolvedValue({
+            av: {
+                id: 'av-1',
+                keyValues: [
+                    { key: { id: 'key-pk', name: 'Primary Key', type: 'block' }, values: [{ id: 'v1', blockID: 'row-1', isDetached: true, block: { content: 'existing' } }] },
+                    { key: { id: 'key-status', name: 'Status', type: 'select' }, values: [] },
+                ],
+                views: [{ id: 'view-1', type: 'table' }],
+            },
+        } as never);
+
+        const result = await callAvTool(client, {
+            action: 'upsert_row', avID: 'av-1', blockID: 'db-block-1', primaryKey: 'existing',
+            cells: [{ columnName: 'Status' }],
+        }, enabledActions('upsert_row'), permMgr);
+
+        const payload = JSON.parse(result.content[0].text);
+        expect(payload.error?.type).toBe('validation_error');
+        expect(payload.error?.message).toContain('option');
+        expect(vi.mocked(transactionApi.performTransactions)).not.toHaveBeenCalled();
+    });
+
+    it('set_cells resolves columnName and infers valueType', async () => {
+        const avApi = await import('@/api/av');
+        const transactionApi = await import('@/api/transaction');
+        vi.mocked(avApi.getMirrorDatabaseBlocks).mockResolvedValue({ refDefs: [{ refID: 'db-block-1', defIDs: [] }] } as never);
+        vi.mocked(avApi.getAttributeView).mockResolvedValue({
+            av: {
+                id: 'av-1',
+                keyValues: [
+                    { key: { id: 'key-pk', name: 'Primary Key', type: 'block' }, values: [{ id: 'v1', blockID: 'row-1', isDetached: true, block: { content: 'existing' } }] },
+                    { key: { id: 'key-done', name: 'Done', type: 'checkbox' }, values: [] },
+                ],
+                views: [{ id: 'view-1', type: 'table' }],
+            },
+        } as never);
+
+        const result = await callAvTool(client, {
+            action: 'set_cells', avID: 'av-1', blockID: 'db-block-1',
+            rowID: 'row-1', columnName: 'Done', checked: true,
+        }, enabledActions('set_cells'), permMgr);
+
+        const payload = JSON.parse(result.content[0].text);
+        expect(payload).toMatchObject({ success: true, action: 'set_cells', columnID: 'key-done', valueType: 'checkbox' });
+        const op = vi.mocked(transactionApi.performTransactions).mock.calls[0][1][0].doOperations.find((o: any) => o.keyID === 'key-done');
+        expect(op?.data?.type).toBe('checkbox');
+        expect(op?.data?.checkbox).toEqual({ checked: true });
+    });
+
     it('create_table materializes an AV block and adds columns with options', async () => {
         const avApi = await import('@/api/av');
         const transactionApi = await import('@/api/transaction');

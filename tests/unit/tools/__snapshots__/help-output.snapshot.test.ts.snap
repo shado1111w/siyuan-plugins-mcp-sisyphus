@@ -1161,7 +1161,7 @@ av.add_rows: required [avID] | optional [blockIDs, primaryKeyTexts, blockID, vie
 av.remove_rows: required [avID, srcIDs] | optional [blockID]
 av.add_column: required [avID, keyName, keyType] | optional [blockID, keyID, keyIcon, previousKeyID]
 av.remove_column: required [avID] | optional [blockID, keyID, columnID, removeRelationDest]
-av.set_cells: required [avID] | optional [blockID, cells, items, rowID, columnID, valueType, text, number, numberFormat, date, endDate, includeTime, checked, option, options, relationBlockIDs, url, email, phone, assets]
+av.set_cells: required [avID] | optional [blockID, cells, items, rowID, columnID, columnName, valueType, text, number, numberFormat, date, endDate, includeTime, checked, option, options, relationBlockIDs, url, email, phone, assets]
 av.set_column_options: required [avID, keyID, options] | optional [blockID]
 av.duplicate_rows: required [avID, sourceRowIDs] | optional [blockID, previousID]
 av.duplicate: required [avID] | optional [blockID, previousID]

@@ -105,7 +105,7 @@ type AddRowsResolution = {
 };
 
 type StrongCellValueInput = {
-    valueType: 'text' | 'number' | 'date' | 'checkbox' | 'select' | 'multi_select' | 'relation' | 'url' | 'email' | 'phone' | 'mAsset';
+    valueType?: 'text' | 'number' | 'date' | 'checkbox' | 'select' | 'multi_select' | 'relation' | 'url' | 'email' | 'phone' | 'mAsset';
     text?: string;
     number?: number;
     numberFormat?: string;
@@ -1661,7 +1661,7 @@ function buildStrongCellValue(
         blockID: rowID,
     };
 
-    switch (input.valueType) {
+    switch (input.valueType!) {
         case 'text':
             return { ...base, type: 'text', text: { content: input.text } };
         case 'number':
@@ -2545,8 +2545,9 @@ async function handleSetCells({ client, permMgr, rawArgs }: ToolHandlerContext):
     const isSingleCellCall = !parsed.cells && !parsed.items;
     const items = parsed.cells ?? parsed.items ?? [{
         rowID: parsed.rowID!,
-        columnID: parsed.columnID!,
-        valueType: parsed.valueType!,
+        columnID: parsed.columnID,
+        columnName: parsed.columnName,
+        valueType: parsed.valueType,
         text: parsed.text,
         number: parsed.number,
         numberFormat: parsed.numberFormat,
@@ -2563,31 +2564,31 @@ async function handleSetCells({ client, permMgr, rawArgs }: ToolHandlerContext):
         assets: parsed.assets,
     }];
 
-    if (items.some((item) => item.valueType === 'relation')) {
-        // updateAttrViewCell alone authorizes only the source AV, while a
-        // relation may mutate a reverse cell in another AV. Keep relation
-        // writes on the dedicated action so it can preflight both carriers and
-        // read back the complete relation graph instead of a scalar cell.
-        return createAvValidationErrorResult('set_cells', {
-            reason: 'relation_requires_set_relation',
-            message: 'Relation cells must use av(action="set_relation").',
-            hint: 'Pass source itemID, relation keyID, complete relatedItemIDs, and the verified source database block to set_relation. An empty relatedItemIDs array clears the relation.',
-        });
-    }
 
     const values: TransactionOperation[] = [];
     for (let index = 0; index < items.length; index += 1) {
         const item = items[index];
         const validatedRowID = validateRowIdForAv(parsed.avID, 'set_cells', rowLookup, item.rowID, isSingleCellCall ? undefined : index);
         if (validatedRowID.ok === false) return validatedRowID.result;
+        const resolved = resolveCellWriteInput(avData, item);
+        if (resolved.ok !== true) {
+            return createUpsertCellError(parsed.avID, item.rowID, index, resolved.message);
+        }
+        if (resolved.input.valueType === 'relation') {
+            return createAvValidationErrorResult('set_cells', {
+                reason: 'relation_requires_set_relation',
+                message: 'Relation cells must use av(action="set_relation").',
+                hint: 'Pass source itemID, relation keyID, complete relatedItemIDs, and the verified source database block to set_relation. An empty relatedItemIDs array clears the relation.',
+            });
+        }
         if (isSingleCellCall) {
             const transactionBlockID = await resolveAvTransactionBlockId(client, parsed.avID, avData, parsed.blockID);
             const updatedOps = withUpdatedOperation([{
                 action: 'updateAttrViewCell',
                 avID: parsed.avID,
-                keyID: item.columnID,
+                keyID: resolved.columnID,
                 rowID: validatedRowID.rowID,
-                data: buildStrongCellValue(item.columnID, validatedRowID.rowID, item),
+                data: buildStrongCellValue(resolved.columnID, validatedRowID.rowID, resolved.input),
             }], transactionBlockID);
             await transactionApi.performTransactions(client, [{
                 doOperations: updatedOps.doOperations,
@@ -2598,16 +2599,16 @@ async function handleSetCells({ client, permMgr, rawArgs }: ToolHandlerContext):
                 action: 'set_cells',
                 avID: parsed.avID,
                 rowID: item.rowID,
-                columnID: item.columnID,
-                valueType: item.valueType,
+                columnID: resolved.columnID,
+                valueType: resolved.input.valueType,
             }), refreshOperations);
         }
         values.push({
             action: 'updateAttrViewCell',
             avID: parsed.avID,
-            keyID: item.columnID,
+            keyID: resolved.columnID,
             rowID: validatedRowID.rowID,
-            data: buildStrongCellValue(item.columnID, validatedRowID.rowID, item),
+            data: buildStrongCellValue(resolved.columnID, validatedRowID.rowID, resolved.input),
         });
     }
     const transactionBlockID = await resolveAvTransactionBlockId(client, parsed.avID, avData, parsed.blockID);
@@ -3821,16 +3822,74 @@ function findPrimaryKeyRowIds(avData: unknown, primaryKey: string): string[] {
     return matches;
 }
 
-function resolveUpsertColumnId(avData: unknown, cell: { columnID?: string; columnName?: string }): { ok: true; columnID: string } | { ok: false; message: string } {
-    if (cell.columnID) return { ok: true, columnID: cell.columnID };
-    const name = cell.columnName!;
+// Map a SiYuan column (key) type to the write-side valueType enum used by
+// buildStrongCellValue. Unknown/auxiliary types degrade to text so an omitted
+// valueType stays writable on block/created/updated/lineNumber/rollup columns.
+function inferValueTypeFromKeyType(keyType: string | undefined): StrongCellValueInput['valueType'] {
+    switch (keyType) {
+        case 'number': return 'number';
+        case 'date': return 'date';
+        case 'checkbox': return 'checkbox';
+        case 'select': return 'select';
+        case 'mSelect': return 'multi_select';
+        case 'relation': return 'relation';
+        case 'url': return 'url';
+        case 'email': return 'email';
+        case 'phone': return 'phone';
+        case 'mAsset': return 'mAsset';
+        default: return 'text';
+    }
+}
+
+// Required value field for each write-side valueType; mirrors the zod refine
+// but runs here after column-type inference when valueType was omitted.
+const REQUIRED_FIELD_BY_VALUE_TYPE: Record<StrongCellValueInput['valueType'], keyof StrongCellValueInput> = {
+    text: 'text',
+    number: 'number',
+    date: 'date',
+    checkbox: 'checked',
+    select: 'option',
+    multi_select: 'options',
+    relation: 'relationBlockIDs',
+    url: 'url',
+    email: 'email',
+    phone: 'phone',
+    mAsset: 'assets',
+};
+
+// Resolve a cell's column (columnID or columnName) to its key ID and declared
+// column type, so callers can infer an omitted valueType from the schema.
+function resolveCellColumn(avData: unknown, cell: { columnID?: string; columnName?: string }): { ok: true; columnID: string; keyType?: string } | { ok: false; message: string } {
     const keys = extractAttributeViewKeysFromData(avData);
+    if (cell.columnID) {
+        const key = keys.find((k) => getStringField(k, ['id']) === cell.columnID);
+        return { ok: true, columnID: cell.columnID, keyType: key ? getStringField(key, ['type']) : undefined };
+    }
+    const name = cell.columnName!;
     const matched = keys.filter((key) => getStringField(key, ['name']) === name);
-    if (matched.length === 1) return { ok: true, columnID: getStringField(matched[0], ['id'])! };
+    if (matched.length === 1) {
+        return { ok: true, columnID: getStringField(matched[0], ['id'])!, keyType: getStringField(matched[0], ['type']) };
+    }
     if (matched.length > 1) {
         return { ok: false, message: `Column name "${name}" matched ${matched.length} columns; pass columnID instead.` };
     }
     return { ok: false, message: `Column name "${name}" does not exist in this attribute view.` };
+}
+
+// Fill in an omitted valueType from the column schema and verify the matching
+// value field is present. Returns the effective StrongCellValueInput.
+function resolveCellWriteInput(
+    avData: unknown,
+    cell: StrongCellValueInput & { columnID?: string; columnName?: string },
+): { ok: true; columnID: string; input: StrongCellValueInput } | { ok: false; message: string } {
+    const col = resolveCellColumn(avData, cell);
+    if (col.ok !== true) return { ok: false, message: col.message };
+    const valueType = cell.valueType ?? inferValueTypeFromKeyType(col.keyType);
+    const required = REQUIRED_FIELD_BY_VALUE_TYPE[valueType];
+    if (cell[required] === undefined) {
+        return { ok: false, message: `${String(required)} is required for the "${col.keyType ?? 'text'}" column (valueType=${valueType}).` };
+    }
+    return { ok: true, columnID: col.columnID, input: { ...cell, valueType } };
 }
 
 function createUpsertCellError(avID: string, rowID: string, cellIndex: number, message: string): ToolResult {
@@ -3864,7 +3923,7 @@ async function applyUpsertCells(
 ): Promise<{ updated: number } | { error: ToolResult }> {
     const values: TransactionOperation[] = [];
     for (const [index, cell] of cells.entries()) {
-        const resolved = resolveUpsertColumnId(avData, cell);
+        const resolved = resolveCellWriteInput(avData, cell as StrongCellValueInput & { columnID?: string; columnName?: string });
         if (resolved.ok !== true) {
             return { error: createUpsertCellError(avID, rowID, index, resolved.message) };
         }
@@ -3873,7 +3932,7 @@ async function applyUpsertCells(
             avID,
             keyID: resolved.columnID,
             rowID,
-            data: buildStrongCellValue(resolved.columnID, rowID, cell as StrongCellValueInput),
+            data: buildStrongCellValue(resolved.columnID, rowID, resolved.input),
         });
     }
     const transactionBlockID = await resolveAvTransactionBlockId(client, avID, avData, explicitBlockID);
