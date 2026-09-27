@@ -27,9 +27,14 @@ Use search-assisted discovery when the path is unknown:
 ```text
 fs(action="search", path="/Notebook", query="keyword", page=1, pageSize=20)
 ```
+
+`fs search` runs a regex-capable Markdown-line scan inside a human-readable path scope. Use it when you already know which notebook/folder/doc to grep, or when you need regex over the rendered Markdown view.
+
 ```text
 search(action="fulltext", query="keyword", page=1, pageSize=20)
 ```
+
+`search fulltext` uses the kernel's block-level index. Use it when you don't know which document holds the text, need block-granular hits, or want `parentId`/`typeShortcodes`/`hasTags` filtering.
 
 ## Low-level reads
 

@@ -93,7 +93,12 @@ The complete layout guide is available through the help action below, using the 
 Use search-assisted discovery when the path is unknown:
 
 {{call search}}
+
+\`fs search\` runs a regex-capable Markdown-line scan inside a human-readable path scope. Use it when you already know which notebook/folder/doc to grep, or when you need regex over the rendered Markdown view.
+
 {{call fulltext}}
+
+\`search fulltext\` uses the kernel's block-level index. Use it when you don't know which document holds the text, need block-granular hits, or want \`parentId\`/\`typeShortcodes\`/\`hasTags\` filtering.
 
 ## Low-level reads
 
