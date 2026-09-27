@@ -39,4 +39,6 @@ siyuan-sisyphus flashcard list-cards --scope 'deck' --deck-id '<deck-id>' --filt
 siyuan-sisyphus flashcard review-card --deck-id '<deck-id>' --card-id '<card-id>' --rating '3' --json
 ```
 
-Ratings are 1 through 4, with larger values representing easier recall. Do not imitate flashcard creation with block attributes alone. Before removing a tag or card, show the exact label, deck, and block IDs and obtain approval. Newly written tags and headings may need a short indexing delay before discovery actions show them.
+Ratings are 1 through 4, with larger values representing easier recall. Do not imitate flashcard creation with block attributes alone. Before removing a tag or card, show the exact label, deck, and block IDs and obtain approval. `tag list` shows hierarchical tags with parent-level `count=0` — only leaf tags carry document counts. This is expected; the parent exists as a grouping node.
+
+Newly written tags and headings may need a short indexing delay before discovery actions show them.

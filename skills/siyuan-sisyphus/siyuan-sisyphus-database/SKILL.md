@@ -7,6 +7,8 @@ description: CLI-only playbook for SiYuan attribute views with siyuan-sisyphus. 
 
 Never guess attribute-view identifiers. Inspect the AV and its views before changing rows or cells.
 
+`av` actions operate on existing database blocks only — the CLI cannot create a new attribute-view database from scratch. To create one, use the SiYuan editor UI to insert a database block into a document, then use `av` actions to populate columns, rows, and cells.
+
 ```bash
 siyuan-sisyphus av get --av-id '<av-id>' --json
 ```

@@ -43,6 +43,8 @@ block(action="insert", previousID="<block-id>", dataType="markdown", data="Inser
 block(action="update", id="<block-id>", dataType="markdown", data="Replacement block content.")
 ```
 
+When updating a task-list item, provide the complete list prefix (`- [x] ` or `- [ ] `) in the markdown data. A bare text replacement causes the block to be re-parsed as a paragraph and rejected by the list's parent.
+
 Use block `update` only when replacing the whole block is intended. Prefer a scoped replacement for a small textual change:
 
 ```text
@@ -51,11 +53,19 @@ block(action="replace", id="<block-id>", edit={"old":"draft","new":"final"})
 
 ## Metadata and daily notes
 
+## Structural constraints
+
+`query_embed` blocks and other structural block types cannot be inserted inside a `NodeList` or `NodeListItem`. Insert them as top-level siblings in the document body — for example, after the parent list block rather than after an individual list item.
+
 ```text
 block(action="set_attrs", id="<block-id>", attrs={"custom-source":"agent"})
 ```
 ```text
 document(action="create_daily_note", notebook="<notebook-id>")
 ```
+
+## Heading/document conversion
+
+`document heading_to_doc` and `document doc_to_heading` operate on SiYuan's internal blocktree index. Heading blocks created through `fs write` or `block append` may not be registered in blocktrees immediately, causing `heading2Doc` to return "block not found". If conversion fails, verify the heading exists via `block get_kramdown`, allow a brief indexing delay, and retry. Document-level operations such as `document move` and `document rename` are not affected.
 
 Before rename, move, delete, or broad replacement, resolve the exact target, show the affected scope, and obtain approval. After every mutation, read by stable ID when possible. Use `siyuan://help/action/block/append` when any parameter is uncertain.

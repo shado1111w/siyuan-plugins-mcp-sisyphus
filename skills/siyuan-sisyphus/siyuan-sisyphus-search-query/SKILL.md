@@ -25,9 +25,15 @@ siyuan-sisyphus search get-backlinks --id '<block-or-doc-id>' --ref-tree-id '<do
 ```bash
 siyuan-sisyphus search search-refs --id '<block-id>' --before-len '512' --json
 ```
+
+`search get_backlinks` and `block docs_info` depend on SiYuan's reference index, which is eventually consistent. A newly created block reference `((id 'title'))` may not appear in backlink results or `refCount` for several seconds. Retry with a short delay before concluding a reference is missing.
+
+For block attribute searchability: `name` and `alias` are indexed for fulltext search, but `bookmark` and custom attributes are not. Use `block get_attrs` to verify attribute values, and `search query_sql` on the `attributes` table for custom-attribute queries.
+
 ```bash
 siyuan-sisyphus search search-assets --query 'diagram' --exts-json '["png","jpg","webp"]' --json
 ```
+
 
 Search results mix `NodeDocument`, `NodeHeading`, `NodeParagraph`, and other node types in the `data[]` array. Check `type` before using `id` — a `NodeDocument` id is a doc root, not a content block, and cannot be used with block-level actions like `block update` or `block replace`.
 

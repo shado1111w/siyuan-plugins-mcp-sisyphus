@@ -177,14 +177,24 @@ The document title comes from the path or \`title\`, not from markdown. Do not s
 {{call insert}}
 {{call update}}
 
+When updating a task-list item, provide the complete list prefix (\`- [x] \` or \`- [ ] \`) in the markdown data. A bare text replacement causes the block to be re-parsed as a paragraph and rejected by the list's parent.
+
 Use block \`update\` only when replacing the whole block is intended. Prefer a scoped replacement for a small textual change:
 
 {{call replace}}
 
 ## Metadata and daily notes
 
+## Structural constraints
+
+\`query_embed\` blocks and other structural block types cannot be inserted inside a \`NodeList\` or \`NodeListItem\`. Insert them as top-level siblings in the document body — for example, after the parent list block rather than after an individual list item.
+
 {{call attrs}}
 {{call daily}}
+
+## Heading/document conversion
+
+\`document heading_to_doc\` and \`document doc_to_heading\` operate on SiYuan's internal blocktree index. Heading blocks created through \`fs write\` or \`block append\` may not be registered in blocktrees immediately, causing \`heading2Doc\` to return "block not found". If conversion fails, verify the heading exists via \`block get_kramdown\`, allow a brief indexing delay, and retry. Document-level operations such as \`document move\` and \`document rename\` are not affected.
 
 Before rename, move, delete, or broad replacement, resolve the exact target, show the affected scope, and obtain approval. After every mutation, read by stable ID when possible. Use {{help block append}} when any parameter is uncertain.
 `,
@@ -217,7 +227,10 @@ Before rename, move, delete, or broad replacement, resolve the exact target, sho
 {{call sql}}
 {{call backlinks}}
 {{call refs}}
-{{call assets}}
+
+\`search get_backlinks\` and \`block docs_info\` depend on SiYuan's reference index, which is eventually consistent. A newly created block reference \`((id 'title'))\` may not appear in backlink results or \`refCount\` for several seconds. Retry with a short delay before concluding a reference is missing.
+
+For block attribute searchability: \`name\` and \`alias\` are indexed for fulltext search, but \`bookmark\` and custom attributes are not. Use \`block get_attrs\` to verify attribute values, and \`search query_sql\` on the \`attributes\` table for custom-attribute queries.\n\n{{call assets}}\n
 
 Search results mix \`NodeDocument\`, \`NodeHeading\`, \`NodeParagraph\`, and other node types in the \`data[]\` array. Check \`type\` before using \`id\` — a \`NodeDocument\` id is a doc root, not a content block, and cannot be used with block-level actions like \`block update\` or \`block replace\`.
 
@@ -253,6 +266,8 @@ Read the changed blocks again. Recent writes can take time to enter the search i
         shortDescription: 'Operate SiYuan attribute view databases',
         defaultPrompt: 'Use $NAME to inspect or update this SiYuan attribute view safely.',
         body: `Never guess attribute-view identifiers. Inspect the AV and its views before changing rows or cells.
+
+\`av\` actions operate on existing database blocks only — the CLI cannot create a new attribute-view database from scratch. To create one, use the SiYuan editor UI to insert a database block into a document, then use \`av\` actions to populate columns, rows, and cells.
 
 {{call get}}
 {{call render}}
@@ -520,7 +535,9 @@ Create or identify a heading block, discover the target deck, then register the 
 {{call due}}
 {{call review}}
 
-Ratings are 1 through 4, with larger values representing easier recall. Do not imitate flashcard creation with block attributes alone. Before removing a tag or card, show the exact label, deck, and block IDs and obtain approval. Newly written tags and headings may need a short indexing delay before discovery actions show them.
+Ratings are 1 through 4, with larger values representing easier recall. Do not imitate flashcard creation with block attributes alone. Before removing a tag or card, show the exact label, deck, and block IDs and obtain approval. \`tag list\` shows hierarchical tags with parent-level \`count=0\` — only leaf tags carry document counts. This is expected; the parent exists as a grouping node.
+
+Newly written tags and headings may need a short indexing delay before discovery actions show them.
 `,
         calls: {
             tagWrite: call('block', 'append', { parentID: '<doc-id>', dataType: 'markdown', data: '#project# #project/phase1#' }),

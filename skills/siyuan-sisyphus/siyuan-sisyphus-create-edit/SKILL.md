@@ -49,6 +49,8 @@ siyuan-sisyphus block insert --previous-id '<block-id>' --data-type 'markdown' -
 siyuan-sisyphus block update --id '<block-id>' --data-type 'markdown' --data 'Replacement block content.' --json
 ```
 
+When updating a task-list item, provide the complete list prefix (`- [x] ` or `- [ ] `) in the markdown data. A bare text replacement causes the block to be re-parsed as a paragraph and rejected by the list's parent.
+
 Use block `update` only when replacing the whole block is intended. Prefer a scoped replacement for a small textual change:
 
 ```bash
@@ -57,11 +59,19 @@ siyuan-sisyphus block replace --id '<block-id>' --edit-json '{"old":"draft","new
 
 ## Metadata and daily notes
 
+## Structural constraints
+
+`query_embed` blocks and other structural block types cannot be inserted inside a `NodeList` or `NodeListItem`. Insert them as top-level siblings in the document body — for example, after the parent list block rather than after an individual list item.
+
 ```bash
 siyuan-sisyphus block set-attrs --id '<block-id>' --attrs-json '{"custom-source":"agent"}' --json
 ```
 ```bash
 siyuan-sisyphus document create-daily-note --notebook '<notebook-id>' --json
 ```
+
+## Heading/document conversion
+
+`document heading_to_doc` and `document doc_to_heading` operate on SiYuan's internal blocktree index. Heading blocks created through `fs write` or `block append` may not be registered in blocktrees immediately, causing `heading2Doc` to return "block not found". If conversion fails, verify the heading exists via `block get_kramdown`, allow a brief indexing delay, and retry. Document-level operations such as `document move` and `document rename` are not affected.
 
 Before rename, move, delete, or broad replacement, resolve the exact target, show the affected scope, and obtain approval. After every mutation, read by stable ID when possible. Use `siyuan-sisyphus help block append` when any parameter is uncertain.
