@@ -30,6 +30,8 @@ import {
     AvSetSortsSchema,
     AvSetNewItemTemplatesSchema,
     AvSetRelationSchema,
+    AvUpsertRowSchema,
+    AvCreateTableSchema,
 } from '../../core/types';
 import { defineTool } from '../internal/define-tool';
 import { createZodActionVariant, type ActionVariant, type ToolResult } from '../internal/shared';
@@ -63,6 +65,8 @@ export const AV_VARIANTS: ActionVariant<AvAction>[] = [
     createZodActionVariant('configure_two_way_relation', AvConfigureTwoWayRelationSchema, 'Configure an existing source relation key and its stable two-way reverse relation key.'),
     createZodActionVariant('configure_rollup', AvConfigureRollupSchema, 'Configure an existing rollup key from an existing relation key and destination key using native RollupCalc data.'),
     createZodActionVariant('set_relation', AvSetRelationSchema, 'Set or clear one relation cell by AV item IDs, then verify the two-way reverse cell when configured.'),
+    createZodActionVariant('upsert_row', AvUpsertRowSchema, 'Insert a detached row when the primary-key text is absent, otherwise update that row in place; optional cells are written after resolution.'),
+    createZodActionVariant('create_table', AvCreateTableSchema, 'Create a fresh attribute view under a document/block and add its non-primary-key columns in one flow.'),
 ];
 
 for (const variant of AV_VARIANTS) {

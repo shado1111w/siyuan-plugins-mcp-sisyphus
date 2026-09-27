@@ -4,7 +4,7 @@
 
 ## 当前基线
 
-- **15** 个聚合工具、**153** 个静态 action（不含隐式 `help`、MCP App 重复 action、`extension` 运行时动态 action）。
+- **15** 个聚合工具、**155** 个静态 action（不含隐式 `help`、MCP App 重复 action、`extension` 运行时动态 action）。
 - `src/api` wrapper 覆盖口径为 **150** 个唯一 `/api/*` 字面量：**149** 个有效，覆盖当前 **582** 个内核 API 路径的 **25.6%**；工具层直调另列，不混入该基线。
 - UI 设置页另有 **5** 个 UI-only 路径，不计入工具/API 覆盖率。
 - 唯一失效 wrapper：`/api/asset/setImageAlpha`（`src/api/file.ts:93`）；本轮仅记录，不删除。
@@ -18,7 +18,7 @@
 | `notebook` | 11 | `remove`、`set_permission` | `notebook` |
 | `document` | 21 | `remove`、`move` | `document`、`outline`、`dailynote` |
 | `block` | 21 | `delete`、`move` | `block`、`attr` |
-| `av` | 25 | `set_column_options`、`duplicate_rows`、`set_new_item_templates`、`create_from_template`、`configure_two_way_relation`、`configure_rollup`、`set_relation` | `database` |
+| `av` | 27 | `set_column_options`、`duplicate_rows`、`set_new_item_templates`、`create_from_template`、`configure_two_way_relation`、`configure_rollup`、`set_relation`、`upsert_row`、`create_table` | `database` |
 | `file` | 20 | `upload_asset`、`delete_template`、`remove_unused_assets`、`delete_asset` | `file`、`asset`、`export`、`template` |
 | `search` | 9 | `find_replace` | `search`、`sql`、`ref` |
 | `tag` | 3 | `remove` | `tag` |
@@ -123,6 +123,8 @@
 | `av.configure_two_way_relation` | — | — | — | `mutation(state)`；危险：协议确认 | `database` | 本地逻辑、外部服务或静态分析无法可靠绑定；未猜测 endpoint |
 | `av.configure_rollup` | — | — | — | `mutation(state)`；危险：协议确认 | `database` | 本地逻辑、外部服务或静态分析无法可靠绑定；未猜测 endpoint |
 | `av.set_relation` | — | — | — | `mutation(state)`；危险：协议确认 | `database` | 本地逻辑、外部服务或静态分析无法可靠绑定；未猜测 endpoint |
+| `av.upsert_row` | `/api/av/getAttributeView`<br>`/api/av/addAttributeViewBlocks`<br>`/api/av/setAttributeViewBlockAttr`<br>`/api/av/batchSetAttributeViewBlockAttrs` | — | — | `mutation(manifest)`；危险：协议确认 | `database` | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
+| `av.create_table` | `/api/av/renderAttributeView`<br>`/api/lute/spinBlockDOM`<br>`/api/av/addAttributeViewKey`<br>`/api/av/setAttributeViewBlockAttr` | — | — | `mutation(state)`；危险：协议确认 | `database` | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
 | `file.upload_asset` | `/api/asset/upload` | — | — | `mutation(source)`；危险：协议确认 | `file`、`asset`、`export`、`template` | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
 | `file.list_templates` | `/api/search/searchTemplate` | — | — | `read` | `file`、`asset`、`export`、`template` | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
 | `file.read_template` | `/templates/*filepath` | — | — | `read` | `file`、`asset`、`export`、`template` | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
@@ -182,9 +184,9 @@
 | `flashcard.review_card` | `/api/riff/reviewRiffCard`<br>`/api/riff/skipReviewRiffCard` | — | — | `mutation(state)` | — | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
 | `flashcard.create_card` | `/api/riff/addRiffCards` | — | — | `mutation(none)` | — | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
 | `flashcard.remove_card` | `/api/riff/removeRiffCards` | — | — | `mutation(state)`；危险：协议确认 | — | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
-| `extension.list` | `/mcp` | — | — | `read` | `动态官方 MCP 工具` | 动态读取思源原生 MCP tools/list；运行时动态 action 不计入静态 153 |
-| `extension.validate_package` | — | — | — | `read` | `动态官方 MCP 工具` | 动态读取思源原生 MCP tools/list；运行时动态 action 不计入静态 153 |
-| `extension.diagnose_plugin_mcp` | — | — | — | `read` | `动态官方 MCP 工具` | 动态读取思源原生 MCP tools/list；运行时动态 action 不计入静态 153 |
+| `extension.list` | `/mcp` | — | — | `read` | `动态官方 MCP 工具` | 动态读取思源原生 MCP tools/list；运行时动态 action 不计入静态 155 |
+| `extension.validate_package` | — | — | — | `read` | `动态官方 MCP 工具` | 动态读取思源原生 MCP tools/list；运行时动态 action 不计入静态 155 |
+| `extension.diagnose_plugin_mcp` | — | — | — | `read` | `动态官方 MCP 工具` | 动态读取思源原生 MCP tools/list；运行时动态 action 不计入静态 155 |
 | `mascot.get_balance` | `external:Sisyphus service` | — | — | `read` | — | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
 | `mascot.shop` | `external:Sisyphus service` | — | — | `read` | — | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
 | `mascot.buy` | `external:Sisyphus service` | — | — | `mutation(state)` | — | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
@@ -349,7 +351,7 @@
 
 | API 路径 | 位置 | 状态 |
 |---|---|---|
-| `/api/file/readDir` | `src/tools/av/handlers.ts:1388` | 有效 |
+| `/api/file/readDir` | `src/tools/av/handlers.ts:1390` | 有效 |
 
 ### UI-only（不计覆盖率）
 
@@ -364,7 +366,7 @@
 ## 覆盖层级解释
 
 - **插件直接覆盖**：后端 API wrapper 或工具层直调，列于上表 150 项。
-- **由 extension 暴露原生工具**：运行时通过思源 `/mcp` 发现；动态 action 不纳入静态 153。
+- **由 extension 暴露原生工具**：运行时通过思源 `/mcp` 发现；动态 action 不纳入静态 155。
 - **仅内核内部使用**：当前内核路由存在，但没有插件后端字面量；不等同于适合暴露给 AI。
 - **不建议引入**：宿主管理、认证回调、任意文件/网络代理等能力，见人工候选区。
 

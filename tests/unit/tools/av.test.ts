@@ -4680,4 +4680,145 @@ describe('av tool', () => {
             ],
         });
     });
+
+
+    it('upsert_row inserts a detached row and writes its cells', async () => {
+        const avApi = await import('@/api/av');
+        const transactionApi = await import('@/api/transaction');
+        vi.mocked(avApi.getMirrorDatabaseBlocks).mockResolvedValue({ refDefs: [{ refID: 'db-block-1', defIDs: [] }] } as never);
+        const avData = {
+            id: 'av-1',
+            keyValues: [
+                { key: { id: 'key-pk', name: 'Primary Key', type: 'block' }, values: [] },
+                { key: { id: 'key-status', name: 'Status', type: 'select' }, values: [] },
+            ],
+            views: [{ id: 'view-1', type: 'table' }],
+        };
+        let insertedRowID = '';
+        vi.mocked(avApi.getAttributeView).mockImplementation(async () => {
+            if (!insertedRowID) return { av: avData };
+            const after = structuredClone(avData);
+            (after.keyValues[0] as any).values.push({ id: 'value-new', blockID: insertedRowID, isDetached: true, block: { content: 'new-task' } });
+            return { av: after };
+        });
+        vi.mocked(transactionApi.performTransactions).mockImplementation(async (_c, txs) => {
+            const op = txs[0].doOperations[0] as { srcs?: Array<{ itemID?: string }> };
+            if (op.srcs?.[0]?.itemID) insertedRowID = op.srcs[0].itemID;
+            return [] as never;
+        });
+
+        const result = await callAvTool(client, {
+            action: 'upsert_row', avID: 'av-1', blockID: 'db-block-1', primaryKey: 'new-task',
+            cells: [{ columnName: 'Status', valueType: 'select', option: 'done' }],
+        }, enabledActions('upsert_row'), permMgr);
+
+        const payload = JSON.parse(result.content[0].text);
+        expect(payload).toMatchObject({ success: true, action: 'upsert_row', inserted: true, updated: false, cellsWritten: 1 });
+        expect(payload.primaryKey).toBe('new-task');
+        const calls = vi.mocked(transactionApi.performTransactions).mock.calls;
+        expect(calls[0][1][0].doOperations[0]).toMatchObject({ action: 'insertAttrViewBlock' });
+        const lastDo = calls[calls.length - 1][1][0].doOperations;
+        expect(lastDo.some((op: any) => op.action === 'updateAttrViewCell' && op.keyID === 'key-status')).toBe(true);
+    });
+
+    it('upsert_row updates an existing row matched by primary key', async () => {
+        const avApi = await import('@/api/av');
+        const transactionApi = await import('@/api/transaction');
+        vi.mocked(avApi.getMirrorDatabaseBlocks).mockResolvedValue({ refDefs: [{ refID: 'db-block-1', defIDs: [] }] } as never);
+        vi.mocked(avApi.getAttributeView).mockResolvedValue({
+            av: {
+                id: 'av-1',
+                keyValues: [
+                    { key: { id: 'key-pk', name: 'Primary Key', type: 'block' }, values: [{ id: 'v1', blockID: 'row-1', isDetached: true, block: { content: 'existing-task' } }] },
+                    { key: { id: 'key-status', name: 'Status', type: 'select' }, values: [] },
+                ],
+                views: [{ id: 'view-1', type: 'table' }],
+            },
+        } as never);
+
+        const result = await callAvTool(client, {
+            action: 'upsert_row', avID: 'av-1', blockID: 'db-block-1', primaryKey: 'existing-task',
+            cells: [{ columnID: 'key-status', valueType: 'select', option: 'done' }],
+        }, enabledActions('upsert_row'), permMgr);
+
+        const payload = JSON.parse(result.content[0].text);
+        expect(payload).toMatchObject({ success: true, action: 'upsert_row', inserted: false, updated: true, rowID: 'row-1', cellsWritten: 1 });
+        const ops = vi.mocked(transactionApi.performTransactions).mock.calls[0][1][0].doOperations;
+        expect(ops[0]).toMatchObject({ action: 'updateAttrViewCell', keyID: 'key-status', rowID: 'row-1' });
+    });
+
+    it('upsert_row rejects ambiguous primary-key matches', async () => {
+        const avApi = await import('@/api/av');
+        vi.mocked(avApi.getMirrorDatabaseBlocks).mockResolvedValue({ refDefs: [{ refID: 'db-block-1', defIDs: [] }] } as never);
+        vi.mocked(avApi.getAttributeView).mockResolvedValue({
+            av: {
+                id: 'av-1',
+                keyValues: [
+                    { key: { id: 'key-pk', name: 'Primary Key', type: 'block' }, values: [
+                        { id: 'v1', blockID: 'row-1', isDetached: true, block: { content: 'dup' } },
+                        { id: 'v2', blockID: 'row-2', isDetached: true, block: { content: 'dup' } },
+                    ] },
+                ],
+                views: [{ id: 'view-1', type: 'table' }],
+            },
+        } as never);
+
+        const result = await callAvTool(client, {
+            action: 'upsert_row', avID: 'av-1', blockID: 'db-block-1', primaryKey: 'dup',
+        }, enabledActions('upsert_row'), permMgr);
+
+        const payload = JSON.parse(result.content[0].text);
+        expect(payload.error?.reason).toBe('primary_key_ambiguous');
+        expect(payload.error?.candidateRowIDs).toEqual(['row-1', 'row-2']);
+    });
+
+    it('upsert_row reports an unknown columnName without dispatching', async () => {
+        const avApi = await import('@/api/av');
+        const transactionApi = await import('@/api/transaction');
+        vi.mocked(avApi.getMirrorDatabaseBlocks).mockResolvedValue({ refDefs: [{ refID: 'db-block-1', defIDs: [] }] } as never);
+        vi.mocked(avApi.getAttributeView).mockResolvedValue({
+            av: {
+                id: 'av-1',
+                keyValues: [
+                    { key: { id: 'key-pk', name: 'Primary Key', type: 'block' }, values: [{ id: 'v1', blockID: 'row-1', isDetached: true, block: { content: 'existing' } }] },
+                ],
+                views: [{ id: 'view-1', type: 'table' }],
+            },
+        } as never);
+
+        const result = await callAvTool(client, {
+            action: 'upsert_row', avID: 'av-1', blockID: 'db-block-1', primaryKey: 'existing',
+            cells: [{ columnName: 'Missing', valueType: 'text', text: 'x' }],
+        }, enabledActions('upsert_row'), permMgr);
+
+        const payload = JSON.parse(result.content[0].text);
+        expect(payload.error?.type).toBe('validation_error');
+        expect(payload.error?.message).toContain('Missing');
+        expect(vi.mocked(transactionApi.performTransactions)).not.toHaveBeenCalled();
+    });
+
+    it('create_table materializes an AV block and adds columns with options', async () => {
+        const avApi = await import('@/api/av');
+        const transactionApi = await import('@/api/transaction');
+        vi.mocked(avApi.renderAttributeView).mockResolvedValue({ id: 'av-new', view: { id: 'v', pageSize: 50, rows: [], rowCount: 0 } } as never);
+        vi.mocked(avApi.getAttributeView).mockResolvedValue({
+            av: { id: 'av-new', keyValues: [{ key: { id: 'pk', name: 'Primary Key', type: 'block' }, values: [] }], views: [{ id: 'v', type: 'table' }] },
+        } as never);
+        vi.mocked(avApi.getMirrorDatabaseBlocks).mockImplementation(async (_c, id) => ({
+            refDefs: id === 'av-new' ? [{ refID: 'db-block-1', defIDs: [] }] : [],
+        }) as never);
+
+        const result = await callAvTool(client, {
+            action: 'create_table', blockID: 'doc-1',
+            columns: [{ name: 'Task', type: 'text' }, { name: 'Status', type: 'select', options: ['todo', 'done'] }],
+        }, enabledActions('create_table'), permMgr);
+
+        const payload = JSON.parse(result.content[0].text);
+        expect(payload).toMatchObject({ success: true, action: 'create_table', parentID: 'doc-1' });
+        expect(payload.columns).toHaveLength(2);
+        const doOps = vi.mocked(transactionApi.performTransactions).mock.calls.flatMap((c) => c[1][0].doOperations);
+        expect(doOps.filter((op: any) => op.action === 'addAttrViewCol')).toHaveLength(2);
+        expect(doOps.some((op: any) => op.action === 'updateAttrViewColOptions')).toBe(true);
+        expect(doOps.some((op: any) => op.action === 'insert' && op.parentID === 'doc-1')).toBe(true);
+    });
 });

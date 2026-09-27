@@ -1073,6 +1073,47 @@ export const AvGetPrimaryKeyValuesSchema = z.object({
     pageSize: z.number().int().min(1).optional().describe("Rows per page, default all"),
 });
 
+const AvUpsertCellSchema = z.object({
+    columnID: z.string().optional().describe("Column key ID; either columnID or columnName is required"),
+    columnName: z.string().optional().describe("Column name resolved against the AV schema when columnID is unknown"),
+}).and(AvSetCellValueFieldsSchema);
+
+export const AvUpsertRowSchema = z.object({
+    action: z.literal("upsert_row"),
+    avID: z.string().describe("Attribute view ID"),
+    blockID: z.string().optional().describe("Registered database block ID for explicit database-block context"),
+    primaryKey: z.string().min(1).describe("Primary-key text used to decide insert vs update"),
+    cells: z.array(AvUpsertCellSchema).min(1).optional().describe("Non-primary-key cells to write after the row is resolved"),
+    viewID: z.string().optional().describe("Optional target view ID when inserting"),
+    groupID: z.string().optional().describe("Optional target group ID when inserting"),
+    ignoreDefaultFill: z.boolean().optional().describe("When true, skip view/group default value filling on insert"),
+}).superRefine((value, ctx) => {
+    for (const [index, cell] of (value.cells ?? []).entries()) {
+        if (!cell.columnID && !cell.columnName) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Each cell needs columnID or columnName.",
+                path: ["cells", index, "columnID"],
+            });
+        }
+    }
+});
+
+const AvTableColumnSchema = z.object({
+    name: z.string().min(1).describe("Column name"),
+    type: z.enum(["text", "number", "date", "select", "mSelect", "url", "email", "phone", "checkbox", "created", "updated", "lineNumber"]).optional().describe("Column type; defaults to text"),
+    options: z.array(z.string()).optional().describe("Option labels for select/mSelect columns"),
+    icon: z.string().optional().describe("Optional column icon"),
+    numberFormat: z.string().optional().describe("Optional number format for number columns"),
+});
+
+export const AvCreateTableSchema = z.object({
+    action: z.literal("create_table"),
+    blockID: z.string().describe("Parent document or block ID where the database block is materialized"),
+    avID: z.string().optional().describe("Optional pre-assigned attribute view ID; generated when omitted"),
+    columns: z.array(AvTableColumnSchema).min(1).describe("Non-primary-key columns to create in order"),
+});
+
 const AvViewIDSchema = z.string().min(1).describe('Attribute-view view ID');
 const AvCarrierBlockIDSchema = z.string().min(1).describe('Exact NodeAttributeView carrier block ID; kernel fallback is not permitted');
 const AvLayoutSchema = z.enum(['table', 'gallery', 'kanban']).describe('View layout type');

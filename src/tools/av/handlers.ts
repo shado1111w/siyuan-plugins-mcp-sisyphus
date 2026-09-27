@@ -16,6 +16,7 @@ import {
     AvConfigureRollupSchema,
     AvConfigureTwoWayRelationSchema,
     AvCreateFromTemplateSchema,
+    AvCreateTableSchema,
     AvDuplicateSchema,
     AvDuplicateRowsSchema,
     AvGetAttributeViewFilterSortSchema,
@@ -35,6 +36,7 @@ import {
     AvSetSortsSchema,
     AvSetNewItemTemplatesSchema,
     AvSetRelationSchema,
+    AvUpsertRowSchema,
 } from '../../core/types';
 import { createResultResolutionCache, ensurePermissionForDocumentId, ensurePermissionForNotebook, escapeSqlString, resolveDocumentContextById, resolveResultItemContext } from '../internal/context';
 import { computePageCount } from '../internal/pagination';
@@ -3783,4 +3785,272 @@ export const AV_ACTION_HANDLERS: Record<AvAction, ToolActionHandler> = {
     set_group: handleSetGroup,
     set_column_visibility: handleSetColumnVisibility,
     set_column_order: handleSetColumnOrder,
+    upsert_row: handleUpsertRow,
+    create_table: handleCreateTable,
 };
+
+
+// ---------------------------------------------------------------------------
+// upsert_row: resolve a row by primary-key text, update it if present, else add
+// a detached row and then apply any provided non-primary-key cells.
+// ---------------------------------------------------------------------------
+
+function findPrimaryKeyRowIds(avData: unknown, primaryKey: string): string[] {
+    const keyValues = asRecord(avData)?.keyValues;
+    if (!Array.isArray(keyValues)) return [];
+    const matches: string[] = [];
+    for (const entry of keyValues) {
+        if (!entry || typeof entry !== 'object') continue;
+        const typedEntry = entry as { key?: { type?: string }; values?: unknown };
+        if (typedEntry.key?.type !== 'block' || !Array.isArray(typedEntry.values)) continue;
+        for (const value of typedEntry.values) {
+            const content = getNestedStringField(value, ['block', 'content']) ?? '';
+            if (content !== primaryKey) continue;
+            const rowID = extractRowIdFromValue(value);
+            if (rowID && !matches.includes(rowID)) matches.push(rowID);
+        }
+    }
+    return matches;
+}
+
+function resolveUpsertColumnId(avData: unknown, cell: { columnID?: string; columnName?: string }): { ok: true; columnID: string } | { ok: false; message: string } {
+    if (cell.columnID) return { ok: true, columnID: cell.columnID };
+    const name = cell.columnName!;
+    const keys = extractAttributeViewKeysFromData(avData);
+    const matched = keys.filter((key) => getStringField(key, ['name']) === name);
+    if (matched.length === 1) return { ok: true, columnID: getStringField(matched[0], ['id'])! };
+    if (matched.length > 1) {
+        return { ok: false, message: `Column name "${name}" matched ${matched.length} columns; pass columnID instead.` };
+    }
+    return { ok: false, message: `Column name "${name}" does not exist in this attribute view.` };
+}
+
+function createUpsertCellError(avID: string, rowID: string, cellIndex: number, message: string): ToolResult {
+    return {
+        content: [{
+            type: 'text',
+            text: JSON.stringify({
+                error: {
+                    type: 'validation_error',
+                    tool: AV_TOOL_NAME,
+                    action: 'upsert_row',
+                    avID,
+                    rowID,
+                    cellIndex,
+                    message,
+                    hint: 'Use av(action="get_attribute_view_keys") to list column key IDs and names.',
+                },
+            }, null, 2),
+        }],
+        isError: true,
+    };
+}
+
+async function applyUpsertCells(
+    client: SiYuanClient,
+    avID: string,
+    avData: unknown,
+    rowID: string,
+    cells: Array<{ columnID?: string; columnName?: string }>,
+    explicitBlockID?: string,
+): Promise<{ updated: number } | { error: ToolResult }> {
+    const values: TransactionOperation[] = [];
+    for (const [index, cell] of cells.entries()) {
+        const resolved = resolveUpsertColumnId(avData, cell);
+        if (resolved.ok !== true) {
+            return { error: createUpsertCellError(avID, rowID, index, resolved.message) };
+        }
+        values.push({
+            action: 'updateAttrViewCell',
+            avID,
+            keyID: resolved.columnID,
+            rowID,
+            data: buildStrongCellValue(resolved.columnID, rowID, cell as StrongCellValueInput),
+        });
+    }
+    const transactionBlockID = await resolveAvTransactionBlockId(client, avID, avData, explicitBlockID);
+    const updatedOps = withUpdatedOperation(values, transactionBlockID);
+    await transactionApi.performTransactions(client, [{
+        doOperations: updatedOps.doOperations,
+        undoOperations: updatedOps.undoOperations,
+    }]);
+    return { updated: values.length };
+}
+
+async function handleUpsertRow({ client, permMgr, rawArgs }: ToolHandlerContext): Promise<ToolResult> {
+    const parsed = AvUpsertRowSchema.parse(rawArgs);
+    const { denied, avData } = await ensurePermissionForAvId(client, permMgr, parsed.avID, 'write', { blockID: parsed.blockID, action: 'upsert_row' });
+    if (denied) return denied;
+
+    if ((parsed.cells ?? []).some((cell) => (cell as { valueType?: string }).valueType === 'relation')) {
+        return createAvValidationErrorResult('upsert_row', {
+            reason: 'relation_requires_set_relation',
+            message: 'Relation cells must use av(action="set_relation").',
+            hint: 'Pass source itemID, relation keyID, complete relatedItemIDs, and the verified source database block to set_relation.',
+        });
+    }
+
+    const matched = findPrimaryKeyRowIds(avData, parsed.primaryKey);
+
+    if (matched.length === 0) {
+        const rowID = generateSiYuanNodeId();
+        const srcID = generateSiYuanNodeId();
+        const transactionBlockID = await resolveAvTransactionBlockId(client, parsed.avID, avData, parsed.blockID);
+        const updatedOps = withUpdatedOperation([{
+            action: 'insertAttrViewBlock',
+            avID: parsed.avID,
+            blockID: transactionBlockID,
+            viewID: parsed.viewID,
+            groupID: parsed.groupID,
+            ignoreDefaultFill: parsed.ignoreDefaultFill,
+            srcs: [{ itemID: rowID, id: srcID, isDetached: true, content: parsed.primaryKey }],
+        }], transactionBlockID);
+        await transactionApi.performTransactions(client, [{
+            doOperations: updatedOps.doOperations,
+            undoOperations: [
+                { action: 'removeAttrViewBlock', srcIDs: [rowID], avID: parsed.avID },
+                ...updatedOps.undoOperations,
+            ],
+        }]);
+        const resolution = await waitForAddedRows(client, parsed.avID, [], [{ primaryKeyText: parsed.primaryKey, rowID }]);
+        if (resolution.unresolvedRowIDs && resolution.unresolvedRowIDs.length > 0) {
+            return createAddRowsSyncTimeoutResult(parsed.avID, [], resolution, [parsed.primaryKey]);
+        }
+        if (parsed.cells && parsed.cells.length > 0) {
+            const freshAv = (await avApi.getAttributeView(client, parsed.avID)).av;
+            const applied = await applyUpsertCells(client, parsed.avID, freshAv, rowID, parsed.cells, parsed.blockID);
+            if ('error' in applied) return applied.error;
+        }
+        const refreshOperations = await resolveAvWriteRefreshOperations(client, parsed.avID, avData, parsed.blockID);
+        return applyUiRefresh(client, createWriteSuccessResult({
+            action: 'upsert_row',
+            avID: parsed.avID,
+            primaryKey: parsed.primaryKey,
+            rowID,
+            inserted: true,
+            updated: false,
+            cellsWritten: parsed.cells?.length ?? 0,
+        }), refreshOperations);
+    }
+
+    if (matched.length > 1) {
+        return createAvValidationErrorResult('upsert_row', {
+            reason: 'primary_key_ambiguous',
+            message: `Primary key "${parsed.primaryKey}" matched ${matched.length} rows in attribute view "${parsed.avID}".`,
+            avID: parsed.avID,
+            primaryKey: parsed.primaryKey,
+            candidateRowIDs: matched,
+            hint: 'Primary-key text is not unique. Remove duplicates or pass a more specific primaryKey value.',
+        });
+    }
+
+    const rowID = matched[0];
+    if (parsed.cells && parsed.cells.length > 0) {
+        const applied = await applyUpsertCells(client, parsed.avID, avData, rowID, parsed.cells, parsed.blockID);
+        if ('error' in applied) return applied.error;
+    }
+    const refreshOperations = await resolveAvWriteRefreshOperations(client, parsed.avID, avData, parsed.blockID);
+    return applyUiRefresh(client, createWriteSuccessResult({
+        action: 'upsert_row',
+        avID: parsed.avID,
+        primaryKey: parsed.primaryKey,
+        rowID,
+        inserted: false,
+        updated: true,
+        cellsWritten: parsed.cells?.length ?? 0,
+    }), refreshOperations);
+}
+
+// ---------------------------------------------------------------------------
+// create_table: materialize a fresh attribute view under a document/block and
+// populate its non-primary-key column schema in one flow.
+// ---------------------------------------------------------------------------
+
+async function handleCreateTable({ client, permMgr, rawArgs }: ToolHandlerContext): Promise<ToolResult> {
+    const parsed = AvCreateTableSchema.parse(rawArgs);
+    const creationTime = new Date();
+    const effectiveAvID = parsed.avID ?? generateSiYuanNodeId(creationTime);
+
+    // The database block is materialized inside a document, so the write gate
+    // resolves notebook permission from that parent block.
+    const { denied, context } = await ensurePermissionForDocumentId(client, permMgr, parsed.blockID, 'write');
+    if (denied) return denied;
+
+    // 1) Initialize the AV definition, then materialize a NodeAttributeView block.
+    await avApi.renderAttributeView(client, {
+        id: effectiveAvID,
+        blockID: parsed.blockID,
+        createIfNotExist: true,
+    });
+    const materializedBlockID = generateSiYuanNodeId(creationTime);
+    let data = buildDuplicateAvBlockDom(materializedBlockID, effectiveAvID);
+    try {
+        const spun = await avApi.spinBlockDOM(client, data);
+        if (typeof spun.dom === 'string' && spun.dom.length > 0) data = spun.dom;
+    } catch {
+        // Older kernels without spinBlockDOM still accept the minimal AV DOM.
+    }
+    await transactionApi.performTransactions(client, [{
+        doOperations: [{ action: 'insert', id: materializedBlockID, data, parentID: parsed.blockID }],
+        undoOperations: [{ action: 'delete', id: materializedBlockID }],
+    }]);
+
+    let registered = false;
+    for (let attempt = 0; attempt < AV_MATERIALIZATION_POLL_ATTEMPTS; attempt += 1) {
+        const mirrorBlockIDs = await getAvMirrorDatabaseBlockIds(client, effectiveAvID);
+        if (mirrorBlockIDs.includes(materializedBlockID)) { registered = true; break; }
+        if (attempt === AV_MATERIALIZATION_POLL_ATTEMPTS - 1) break;
+        await sleep(AV_MATERIALIZATION_POLL_DELAY_MS);
+    }
+
+    // 2) Add the requested non-primary-key columns in order.
+    const createdColumns: Array<{ keyID: string; name: string; type: string }> = [];
+    for (const column of parsed.columns) {
+        const keyID = generateSiYuanNodeId();
+        const ops = withUpdatedOperation([{
+            action: 'addAttrViewCol',
+            name: column.name,
+            avID: effectiveAvID,
+            type: column.type ?? 'text',
+            id: keyID,
+            data: column.icon ?? '',
+            previousID: '',
+        }], materializedBlockID);
+        await transactionApi.performTransactions(client, [{
+            doOperations: ops.doOperations,
+            undoOperations: [
+                { action: 'removeAttrViewCol', id: keyID, avID: effectiveAvID },
+                ...ops.undoOperations,
+            ],
+        }]);
+        // Seed the complete option list for select/mSelect columns.
+        if ((column.type === 'select' || column.type === 'mSelect') && column.options && column.options.length > 0) {
+            const optionOps = withUpdatedOperation([{
+                action: 'updateAttrViewColOptions',
+                avID: effectiveAvID,
+                id: keyID,
+                data: column.options.map((name) => ({ name, color: '' })),
+            }], materializedBlockID);
+            await transactionApi.performTransactions(client, [{
+                doOperations: optionOps.doOperations,
+                undoOperations: optionOps.undoOperations,
+            }]);
+        }
+        createdColumns.push({ keyID, name: column.name, type: column.type ?? 'text' });
+    }
+
+    return applyUiRefresh(client, createWriteSuccessResult({
+        action: 'create_table',
+        avID: effectiveAvID,
+        blockID: materializedBlockID,
+        parentID: parsed.blockID,
+        columns: createdColumns,
+        databaseBlockRegistrationVerified: registered,
+        ...(registered === false ? {
+            warning: 'The database block was inserted but mirror registration was not confirmed before timeout. Retry reads by avID shortly or pass blockID explicitly.',
+        } : {}),
+    }), [
+        { type: 'reloadAttributeView', id: effectiveAvID },
+        { type: 'reloadProtyle', id: context.documentId },
+    ]);
+}

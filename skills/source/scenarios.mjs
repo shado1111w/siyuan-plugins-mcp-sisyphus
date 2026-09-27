@@ -293,7 +293,7 @@ Read the changed blocks again. Recent writes can take time to enter the search i
         defaultPrompt: 'Use $NAME to inspect or update this SiYuan attribute view safely.',
         body: `Never guess attribute-view identifiers. Inspect the AV and its views before changing rows or cells.
 
-\`av\` actions operate on existing database blocks only — the CLI cannot create a new attribute-view database from scratch. To create one, use the SiYuan editor UI to insert a database block into a document, then use \`av\` actions to populate columns, rows, and cells.
+\`av\` actions operate on existing database blocks, and the CLI can now create one too. Use \`av create_table\` with the host \`blockID\` and an ordered \`columns\` list to materialize a NodeAttributeView block and add its non-primary-key columns in one flow. To insert-or-update a row by its primary-key text without first rendering the view, use \`av upsert_row\` — it creates a detached row when the key is absent and applies any \`cells\` after the row resolves; keep \`add_rows\` + \`set_cells\` for bound-row control when you already hold row IDs.
 
 {{call get}}
 {{call render}}
@@ -305,7 +305,9 @@ Keep these identifiers distinct: AV ID identifies the database; view ID identifi
 
 {{call column}}
 {{call rows}}
+{{call upsert}}
 {{call cells}}
+{{call createTable}}
 
 Before writing cells, render the current view and map column names to column IDs. Preserve the declared value type; do not put a date-shaped string into a number/date/select column without using the action’s expected value shape. Re-render after mutation. Read {{help av set_cells}} for the current cell schema.
 
@@ -318,6 +320,8 @@ Treat a successful mutation response as provisional until the same view and affe
             column: call('av', 'add_column', { avID: '<av-id>', keyName: 'Status', keyType: 'select' }),
             rows: call('av', 'add_rows', { avID: '<av-id>', viewID: '<view-id>', blockIDs: ['<block-id>'] }),
             cells: call('av', 'set_cells', { avID: '<av-id>', cells: [{ rowID: '<row-id>', columnID: '<column-id>', valueType: 'text', text: 'Done' }] }),
+            upsert: call('av', 'upsert_row', { avID: '<av-id>', primaryKey: '<primary-key-text>', cells: [{ columnName: 'Status', valueType: 'select', option: 'done' }] }),
+            createTable: call('av', 'create_table', { blockID: '<host-document-or-block-id>', columns: [{ name: 'Task', type: 'text' }, { name: 'Status', type: 'select', options: ['todo', 'done'] }] }),
         },
     },
     {

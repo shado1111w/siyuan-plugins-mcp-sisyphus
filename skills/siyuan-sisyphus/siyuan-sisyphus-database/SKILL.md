@@ -7,7 +7,7 @@ description: CLI-only playbook for SiYuan attribute views with siyuan-sisyphus. 
 
 Never guess attribute-view identifiers. Inspect the AV and its views before changing rows or cells.
 
-`av` actions operate on existing database blocks only — the CLI cannot create a new attribute-view database from scratch. To create one, use the SiYuan editor UI to insert a database block into a document, then use `av` actions to populate columns, rows, and cells.
+`av` actions operate on existing database blocks, and the CLI can now create one too. Use `av create_table` with the host `blockID` and an ordered `columns` list to materialize a NodeAttributeView block and add its non-primary-key columns in one flow. To insert-or-update a row by its primary-key text without first rendering the view, use `av upsert_row` — it creates a detached row when the key is absent and applies any `cells` after the row resolves; keep `add_rows` + `set_cells` for bound-row control when you already hold row IDs.
 
 ```bash
 siyuan-sisyphus av get --av-id '<av-id>' --json
@@ -30,7 +30,13 @@ siyuan-sisyphus av add-column --av-id '<av-id>' --key-name 'Status' --key-type '
 siyuan-sisyphus av add-rows --av-id '<av-id>' --view-id '<view-id>' --block-ids-json '["<block-id>"]' --json
 ```
 ```bash
+siyuan-sisyphus av upsert-row --av-id '<av-id>' --primary-key '<primary-key-text>' --cells-json '[{"columnName":"Status","valueType":"select","option":"done"}]' --json
+```
+```bash
 siyuan-sisyphus av set-cells --av-id '<av-id>' --cells-json '[{"rowID":"<row-id>","columnID":"<column-id>","valueType":"text","text":"Done"}]' --json
+```
+```bash
+siyuan-sisyphus av create-table --block-id '<host-document-or-block-id>' --columns-json '[{"name":"Task","type":"text"},{"name":"Status","type":"select","options":["todo","done"]}]' --json
 ```
 
 Before writing cells, render the current view and map column names to column IDs. Preserve the declared value type; do not put a date-shaped string into a number/date/select column without using the action’s expected value shape. Re-render after mutation. Read `siyuan-sisyphus help av set-cells` for the current cell schema.
