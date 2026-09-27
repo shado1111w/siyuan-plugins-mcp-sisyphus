@@ -150,6 +150,22 @@ d17|dailynote|Create daily note for 2026-09-24 with content "## Standup\n- Item 
 d18|dailynote|Delete the daily note for 2026-09-24 if it exists (call dailynote delete). If it does not exist, the tool should report success=false with a warning — verify that behavior is correct.
 d19|dailynote|Use dailynote append to add 3 different blocks to today daily note in sequence: a paragraph, a task list item, and a blockquote. Then read the note and count total top-level blocks.
 d20|dailynote|Create a weekly review workflow: use dailynote create for each of the past 3 days (2026-09-25, 2026-09-26, today), append a summary line to each, then use dailynote list to confirm all three are present in the range.
+r01|read|In the e2e-test notebook create a doc "/eval-read/doc1" via document create with markdown "## Intro\nalpha paragraph\n## Body\nbeta paragraph\n### Body.Sub\nsub detail\n## Tail\nomega paragraph". Then use document read --scope outline to list all headings. Confirm headingCount is 4.
+r02|read|Using the doc created in r01, use document read --scope section --anchor Body. Verify the returned content contains "beta paragraph", "### Body.Sub", and "sub detail" but NOT "## Intro" or "## Tail".
+r03|read|Using the doc from r01, use document read --scope keyword --pattern "alpha|omega". Verify content contains both "alpha paragraph" and "omega paragraph" but not "beta paragraph".
+r04|read|Using the doc from r01, use document read --scope keyword --pattern "beta" --context-before 1 --context-after 1. Verify the matched beta paragraph block plus its neighbors appear in content.
+r05|read|First run document read --scope outline --include-block-ids on doc1 to get block ids. Then use document read --scope range --start-id <id of Body heading> --end-id <id of Tail heading> and confirm the output spans Body through Tail headings.
+r06|read|Call document read --scope section on doc1 with NO --anchor. Confirm it returns a validation error telling the agent that --anchor is required (not a crash).
+r07|read|Call document read --scope section --anchor "No Such Heading" on doc1. Confirm the error message suggests using --scope outline to list headings.
+r08|read|Call document read --scope range on doc1 with --start-id set to the Tail heading id and --end-id set to the Intro heading id (out of order). Confirm a clear error that end-id precedes start-id.
+r09|edit|Create doc "/eval-append/doc1" via document create --markdown "seed paragraph". Then use document append --id <doc-id> --data-type markdown --data "tail line one". Read the doc and confirm "tail line one" is the LAST block.
+r10|edit|Using doc from r09, use document append --notebook <e2e-test id> --hpath /eval-append/doc1 --data-type markdown --data "tail line two". Verify it appends WITHOUT needing a separate lookup step, and content order is seed, tail one, tail two.
+r11|edit|Using doc from r09, use document prepend --id <doc-id> --data-type markdown --data "head line". Read the doc and confirm "head line" is the FIRST block, before "seed paragraph".
+r12|edit|Use document prepend --notebook <id> --hpath /eval-append/doc1 --data-type markdown --data "very first". Confirm it lands before "head line".
+r13|edit|Call document append with BOTH --id and --notebook --hpath. Confirm a validation error saying provide id OR notebook+hpath, not both.
+r14|edit|Call document append with NEITHER --id NOR --notebook/--hpath (only --data-type and --data). Confirm a validation error asking for a document locator.
+r15|edit|Call document append --notebook <id> --hpath /eval-append/nonexistent --data-type markdown --data "x". Confirm a clean not_found error naming the missing hpath (not an internal crash).
+r16|edit|End-to-end: document create "/eval-flow/notes" with "## Plan". document append --id to add "## Doing" section + a task. document read --scope outline to confirm 2 headings. document read --scope section --anchor Doing to read just that section. document prepend --id to add a title-adjacent intro line at top. Finally document read --scope full to show the whole assembled doc.
 SCENARIOS
 
 echo "=== SiYuan Sisyphus Agent Evaluation ==="
