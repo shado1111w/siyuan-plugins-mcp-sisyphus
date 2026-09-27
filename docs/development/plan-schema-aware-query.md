@@ -234,3 +234,137 @@ Each scenario asserts the tool/action chosen and the round-trip readback, mirror
 - ID normalization: table-driven tests for `siyuan://`, `((…))`, web URLs, and pass-through non-IDs.
 - `set_attr` shorthand: key+value vs attrs exclusivity, custom-* passthrough, clear semantics.
 - Update help snapshots, api-audit counts, and skill regeneration for every phase.
+
+---
+
+## Phase 5 — Gap-closing actions vs Notion / Obsidian / Feishu CLIs
+
+Reference surface gap audit: `4ier/notion-cli`, `Yakitrak/notesmd-cli`, `larksuite/lark-cli`. Ordered by agent value; each is an independent action or flag, no ordering dependency between them except where noted.
+
+### Phase 5.1 — `block`/`document` append from file (`--file`)
+
+```sh
+block append --parent-id <doc> --file notes.md
+document append --id <doc> --file notes.md          # or --notebook + --hpath
+document create --path /Nb/Doc --file notes.md      # body from file, not inline
+```
+
+- Read a local UTF-8 Markdown file and use it as the `data` payload, so agents never have to inline large content into a single `--data` flag (avoids shell-escaping bugs and arg-length limits).
+- Mirrors `notion block append --file`. Accepts `--file -` for stdin so an agent pipeline can stream content in without a temp file.
+- Conflicts: `--file` and `data`/`markdown` are mutually exclusive; error if both are given.
+- Registration: schema widener on existing actions (`block append/insert/prepend/update`, `document append/prepend/create`). Handler-side file read via the CLI's existing fs access; MCP transport keeps inline `data` only (flag is CLI-surface sugar resolved before the kernel call).
+- Tests: file read + relative/absolute path resolution, `--file -` stdin, mutual-exclusion error, binary/UTF-16 rejection; live `--file` on the e2e notebook.
+
+### Phase 5.2 — `system api` raw-kernel escape hatch
+
+```sh
+system api POST /api/block/getBlockKramdown '{"id":"<id>"}'
+system api GET  /api/system/getConf
+```
+
+- Forwards an arbitrary method + kernel path + JSON body straight through the configured profile, returning the raw kernel response. Covers the long tail of kernel endpoints that have no aggregate action yet — the single biggest structural gap vs `notion api` and `lark-cli api`.
+- Guard rails: a `--write`/`--confirm` flag is required for non-GET methods, since the escape hatch bypasses per-action safety tiers; GET endpoints stay read-only by default. The hint names it a last resort and points back to `help <tool>` for the typed surface.
+- Registration: new action `api` on `system`. `config.ts` ACTIONS + ACTION_TIERS `dangerous` (write path) → `types.ts` schema (`action`, `method`, `path`, `body?`) → `write-safety-policy.ts` `mutation('system')` for non-GET, `read()` for GET → `system/index.ts` variant → handler forwarding through `client.request` → i18n + api-audit contract (generic, no fixed endpoint) → `action-contract.test.ts` case → help snapshot → `siyuan-sisyphus-system-cli` skill → unit test (method gating, `--confirm` requirement, path passthrough, error surfacing) + live GET/POST on `local`.
+- Tests: GET allowed without confirm, non-GET rejected without `--write`, 404/error body surfaced verbatim, `--write` flows through.
+
+### Phase 5.3 — `av query --filter-json` nested conditions
+
+```sh
+av query --av-id <avID> --filter-json '{"or":[{"Status":"done"},{"Priority":">2"}]}'
+```
+
+- Extends `av query` with a `--filter-json` structured filter for nested `and`/`or`/operator objects — the case the linear `Col=val` grammar cannot express (mixed or-groups, per-branch operators).
+- Reuses `query-filter.ts`: add a JSON node → predicate compiler alongside the existing string parser. Leaf node shape `{ "<Col>": "<value>" }` uses the same operator grammar (`=`, `!=`, `~`, `>`, `!`); `{ and: [...] }` / `{ or: [...] }` recurse. `--filter`/`--filters` and `--filter-json` merge with an implicit top-level `and`.
+- Registration: schema widener on `av query` (`filterJson?: unknown`). No new action. Help hint + `siyuan-sisyphus-database` skill example.
+- Tests: nested or/and compile, leaf-operator reuse, depth/size cap (reject pathological nesting), merge with `--filter`, malformed JSON → validation_error; live query against e2e AV.
+
+### Phase 5.4 — `document get_attr` + frontmatter on `export_md`
+
+```sh
+document get_attr --id <doc>                      # all attrs as JSON
+document get_attr --id <doc> --key custom-status  # single value
+file export_md --id <doc> --with-frontmatter      # YAML block prepended
+```
+
+- `document get_attr` reads a document's full attribute set (icon, cover, `custom-*`) as JSON — the read half `set_attr` never had. `--key` narrows to one value.
+- `file export_md --with-frontmatter` prepends a `---`/`key: value`/`---` YAML block built from those attrs so exported Markdown round-trips into Obsidian/notesmd-style frontmatter workflows. Off by default so existing exports are unchanged.
+- Registration: `get_attr` is a new action on `document` (`read()` tier, full checklist). `--with-frontmatter` is a flag on `file export_md`/`export_markdown_snapshot`. Skill: `siyuan-sisyphus-file-export`.
+- Tests: full + single-key read, frontmatter emit/shape/escaping (quote strings containing `:`/`#`), `custom-*` pass-through, flag-off regression; live export on `local`.
+
+### Phase 5.5 — `document find_replace` scoped find-and-replace
+
+```sh
+document find_replace --id <doc> --old "draft" --new "final"            # all occurrences in one doc
+document find_replace --id <doc> --old "draft" --new "final" --limit 1  # first only
+```
+
+- Scopes the existing workspace `search find_replace` to a single document or block subtree, so an agent doesn't have to match the whole notebook to fix one line.
+- Implementation: enumerate the target's blocks (existing `get_child_blocks`/`read` machinery), find textual matches in editable block content, and rewrite each hit with `block update` — reusing `find_replace`'s provenance/confirm flow but pre-filtered to one document.
+- Registration: new action on `document`, `advanced` / `mutation('content')`, full checklist. Skill: `siyuan-sisyphus-create-edit`.
+- Tests: match scoping (a hit in another doc is untouched), `--limit`, code-block vs prose behavior, no-match no-op, confirm-flow; live on e2e doc.
+
+### Phase 5.6 — `system whoami` identity
+
+```sh
+system whoami   # { user, account?, workspace, profile }
+```
+
+- Returns the current identity: configured profile name, SiYuan account/user if the kernel reports one, and the active workspace — so a multi-profile agent can tell which vault it's writing to before mutating.
+- Registration: new action on `system`, `read()` tier. Cheap; combines `system conf`/`workspace_info` fields already reachable.
+- Tests: shape stability, profile echo, offline/degraded handling.
+
+### Phase 5.7 — `document archive` soft-archive
+
+```sh
+document archive --id <doc>             # tag custom-archived + optional move
+document archive --id <doc> --to /Archive   # also relocate under an archive path
+```
+
+- Marks a document archived without deleting: sets `custom-archived=true` (visible to queries/filters) and optionally moves it under a caller-chosen archive path/notebook. Reversible via `set_attr --key custom-archived --value ''`.
+- Mirrors `notion page archive` (soft-delete that keeps the record). Unlike `remove`, nothing is destroyed.
+- Registration: new action on `document`, `basic` / `mutation('content')` (+ `structure` if `--to` moves). Skill: `siyuan-sisyphus-create-edit`.
+- Tests: attr set + readback, optional move under path, idempotent re-archive, clear round-trip.
+
+### Phase 5.8 — `dailynote create --template` + `--print-path`
+
+```sh
+dailynote create --notebook <nb> --template <name>     # render a template into today's note
+fs read --path /Nb/2026/09/27 --print-path             # underlying .sy disk path
+```
+
+- `dailynote create --template` renders a workspace template (same Sprig path as `document create --template`) when materializing the daily note — saves a separate render+append round-trip.
+- `--print-path` on `fs`/`document` read returns the real `.sy` path on disk so an agent can hand the file to an external editor/diff tool (`notesmd open`/`--editor` analog).
+- Registration: flag additions on existing actions; `--print-path` is read-tier metadata. Skill: create-edit / file-export.
+- Tests: template render into daily note, path resolution for notebook+path, flag-off regression.
+
+### Not-feasible items (kernel gaps, recorded so they aren't re-litigated)
+
+- **Comments** — kernel exposes no comment API; `notion comment`/`lark doc comment` have no counterpart.
+- **Watch / event subscription** — kernel is pull-only; `block recent_updated` is the documented polling proxy.
+- **Property typing on `set_attr`** — SiYuan document attrs are strings; richer types live in AV columns, which Phase 2 already makes schema-aware.
+- **`document graph` / mermaid export** — `get_backlinks` + `list_invalid_refs` already return the adjacency data; a graph serializer is optional polish, deferred.
+
+### Registration checklist delta for Phase 5
+
+New actions this phase (`system api`, `system whoami`, `document get_attr`, `document find_replace`, `document archive`) follow the full checklist in "Registration checklist (per new action)". Flag/schema widenings (`--file`, `--filter-json`, `--with-frontmatter`, `--template`, `--print-path`, `columnName` already done) touch only `types.ts` + handler + help/skill — no new ACTIONS entry.
+
+### Phase 5 unit-test map
+
+| Phase | Files | Focus |
+|---|---|---|
+| 5.1 | `tests/unit/tools/block.test.ts` + `document.test.ts` | file read, stdin, exclusivity |
+| 5.2 | `tests/unit/tools/system.test.ts` | method gating, confirm, passthrough, errors |
+| 5.3 | `tests/unit/tools/av.test.ts` + `query-filter.test.ts` | nested compile, merge, caps |
+| 5.4 | `tests/unit/tools/document.test.ts` + `file.test.ts` | attr read, frontmatter emit/escape |
+| 5.5 | `tests/unit/tools/document.test.ts` | doc scoping, limit, confirm |
+| 5.6 | `tests/unit/tools/system.test.ts` | shape, profile echo |
+| 5.7 | `tests/unit/tools/document.test.ts` | attr + optional move, idempotent |
+| 5.8 | `tests/unit/tools/dailynote.test.ts` + `fs.test.ts` | template render, path resolution |
+
+### Phase 5 skill / eval coverage
+
+- `siyuan-sisyphus-system-cli` gains `system api` escape-hatch guidance (when to use it, confirm requirement) and `whoami`.
+- `siyuan-sisyphus-database` gains the `--filter-json` example beside the linear grammar.
+- `siyuan-sisyphus-create-edit` gains `document get_attr`/`find_replace`/`archive`, `dailynote --template`, and `--file` examples.
+- `siyuan-sisyphus-file-export` gains `--with-frontmatter` and `--print-path`.
+- New eval prompts (mirroring r01–r16/d01–d20): `sys-api01` raw endpoint call, `fj01` nested av filter, `fa01` frontmatter export, `fr01` scoped find-replace — each asserting the chosen action plus readback.
