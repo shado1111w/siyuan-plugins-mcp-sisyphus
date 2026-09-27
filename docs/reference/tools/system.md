@@ -35,3 +35,5 @@ Related pages:
 - `perform_sync`
 - `get_version`
 - `get_current_time`
+- `whoami`
+- `api`
