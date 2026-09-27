@@ -3153,7 +3153,7 @@ Common actions: create, lookup, rename, get_child_blocks, get_child_docs, search
 Additional actions: ensure_link_targets, remove, move, reorder, set_attr, list_tree, create_daily_note, duplicate, heading_to_doc, doc_to_heading. Read siyuan://help/action/document/{action} for details, or call action="help" if resources are unavailable.
 
 Parameter contract per action (fields outside the action's optional list should not be sent):
-document.create: required [notebook, path] OR [notebook, parentPath, title] | optional [markdown, sorts, icon]
+document.create: required [notebook, path] OR [notebook, parentPath, title] | optional [markdown, template, sorts, icon]
 document.lookup: required [] | optional [id, notebook, path, hpath, hPath, include]
 document.ensure_link_targets: required [notebook, parentId, mode, targets] | optional [markdown, dryRun]
 document.rename: required [title] | optional [id, notebook, path]

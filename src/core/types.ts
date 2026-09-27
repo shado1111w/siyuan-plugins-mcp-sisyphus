@@ -230,12 +230,22 @@ export const DocumentCreateSchema = z.object({
     path: z.string().optional().describe("Human-readable target path, relative to the notebook root. Must start with / and MUST NOT include the notebook name (e.g., /Folder/Doc, not /NotebookName/Folder/Doc). Parent paths must already exist."),
     parentPath: z.string().optional().describe("Parent path for title-based creation, relative to the notebook root. Accepts a human-readable path (must start with /, MUST NOT include the notebook name) or a storage path ending in .sy returned by document(action=\"lookup\")."),
     title: z.string().optional().describe("Required together with parentPath when create omits path; notebook + title alone is invalid"),
-    markdown: z.string().optional().describe("Markdown content, defaults to empty. Do not include a leading # Title; a matching H1 is stripped automatically."),
+    markdown: z.string().optional().describe("Markdown content, defaults to empty. Do not include a leading # Title; a matching H1 is stripped automatically. Mutually exclusive with template."),
+    template: z.string().optional().describe("Create the document from a SiYuan workspace template instead of literal markdown. Accepts a template path returned by file(action='list_templates') (e.g. eval-meeting.md or its workspace path). The template markdown is rendered through the kernel Sprig engine ({{now}}, {{.title}}, etc.) before the document is created."),
     sorts: z.array(z.string()).optional().describe("Compatibility option retained for older callers; title-based creation now uses the reliable path flow"),
     icon: z.string().optional().describe("Optional document icon. Prefer a Unicode hex code string such as '1f4d4' for 📔 instead of a raw emoji character."),
 }).superRefine((value, ctx) => {
     const hasPath = typeof value.path === "string";
     const hasTitleMode = typeof value.parentPath === "string" || typeof value.title === "string";
+
+    if (value.markdown && value.template) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Provide either markdown or template, not both. The template already supplies the document content.",
+            path: ["template"],
+        });
+        return;
+    }
 
     if (hasPath && hasTitleMode) {
         ctx.addIssue({

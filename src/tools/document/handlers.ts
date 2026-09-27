@@ -1,6 +1,7 @@
 import type { SiYuanClient } from '../../api/client';
 import * as blockApi from '../../api/block';
 import * as documentApi from '../../api/document';
+import * as templateApi from '../../api/template';
 import * as notebookApi from '../../api/notebook';
 import * as searchApi from '../../api/search';
 import * as transactionApi from '../../api/transaction';
@@ -394,9 +395,28 @@ const handleCreate: DocumentActionHandler = async ({ client, permMgr, rawArgs })
         ? await resolveCreateParentPath(client, parsed.notebook, parsed.parentPath)
         : undefined;
     const path = parsed.path ?? normalizeChildDocPath(parentPath!, parsed.title!);
+    let sourceMarkdown = parsed.markdown ?? '';
+    let usedTemplate: string | undefined;
+    if (parsed.template) {
+        try {
+            const tpl = await templateApi.resolveTemplate(client, parsed.template);
+            const source = await templateApi.readTemplateSource(client, tpl.relativePath ?? tpl.path);
+            sourceMarkdown = await templateApi.renderSprig(client, source.markdown);
+            usedTemplate = tpl.relativePath || tpl.path || parsed.template;
+        } catch (error) {
+            return createJsonResult({
+                error: {
+                    type: 'template_error',
+                    message: error instanceof Error ? error.message : String(error),
+                    template: parsed.template,
+                    hint: 'Resolve the template with file(action="list_templates") and pass its path or relative path to --template.',
+                },
+            });
+        }
+    }
     const markdown = await normalizeMarkdownInputRefs(
         client,
-        stripRedundantTitleHeading(parsed.markdown ?? '', parsed.title ?? deriveTitleFromCreatePath(path)),
+        stripRedundantTitleHeading(sourceMarkdown, parsed.title ?? deriveTitleFromCreatePath(path)),
         'document.create',
     );
     const docId = await documentApi.createDoc(client, parsed.notebook, path, markdown);
@@ -413,6 +433,7 @@ const handleCreate: DocumentActionHandler = async ({ client, permMgr, rawArgs })
         ...(parsed.parentPath ? { parentPath: parsed.parentPath } : {}),
         ...(parentPath && parentPath !== parsed.parentPath ? { resolvedParentPath: parentPath } : {}),
         ...(parsed.title ? { title: parsed.title } : {}),
+        ...(usedTemplate ? { template: usedTemplate } : {}),
         id: docId,
         iconHint: createSetIconReminder('document', Boolean(parsed.icon)),
     }), parsed.icon

@@ -285,3 +285,38 @@ describe('document.append / document.prepend', () => {
         expect(p.error?.type).toBe('not_found');
     });
 });
+
+describe('document.create --template', () => {
+    function tplClient(calls: Array<[string, unknown]>) {
+        return createMockClient({
+            request: vi.fn(async (endpoint: string, body?: Record<string, unknown>) => {
+                calls.push([endpoint, body]);
+                if (endpoint === '/api/template/search') return { templates: [{ path: '/data/templates/eval.md', content: 'x' }], k: 'eval' };
+                if (endpoint === '/api/filetree/createDocWithMd') return 'doc-new';
+                if (endpoint === '/api/filetree/getHPathByID') return '/Doc';
+                return null;
+            }),
+            // readTemplateSource uses fetch against client baseUrl + staticPath
+            requestRead: undefined,
+        });
+    }
+
+    it('rejects markdown + template together', async () => {
+        const r = await callDocumentTool(tplClient([]), { action: 'create', notebook: 'nb-1', path: '/D', markdown: 'inline', template: 'eval.md' }, dc(), permMgr);
+        expect(r.isError).toBe(true);
+        expect(r.content[0].text).toContain('not both');
+    });
+
+    it('returns template_error for an unknown template path', async () => {
+        const cl = createMockClient({
+            request: vi.fn(async (endpoint: string) => {
+                if (endpoint === '/api/template/search') return { templates: [], k: '' };
+                if (endpoint === '/api/notebook/lsNotebooks') return { notebooks: [{ id: 'nb-1', name: 'N', closed: false }] };
+                return null;
+            }),
+        });
+        const r = await callDocumentTool(cl, { action: 'create', notebook: 'nb-1', path: '/D', template: 'missing.md' }, dc(), permMgr);
+        const p = parseResult(r);
+        expect(p.error?.type).toBe('template_error');
+    });
+});
