@@ -19,6 +19,7 @@ import {
     DocumentGetOutlineSchema,
     DocumentAppendSchema,
     DocumentPrependSchema,
+    DocumentCopySchema,
     DocumentReadSchema,
     DocumentHeadingToDocSchema,
     DocumentListTreeSchema,
@@ -1212,6 +1213,54 @@ const handlePrepend: DocumentActionHandler = async ({ client, permMgr, rawArgs }
     }), [{ type: 'reloadProtyle', id: target.documentId }]);
 };
 
+
+
+const handleCopy: DocumentActionHandler = async ({ client, permMgr, rawArgs }) => {
+    const parsed = DocumentCopySchema.parse(rawArgs);
+    const { denied } = await ensurePermissionForDocumentId(client, permMgr, parsed.id, 'write');
+    if (denied) return denied;
+
+    // Authorize the destination before dispatching the write.
+    if (parsed.toID) {
+        const targetNotebook = await resolveMoveTargetNotebook(client, parsed.toID);
+        const targetDenied = await ensurePermissionForNotebook(permMgr, targetNotebook, 'write');
+        if (targetDenied) return targetDenied;
+    } else {
+        const targetDenied = await ensurePermissionForNotebook(permMgr, parsed.toNotebook!, 'write');
+        if (targetDenied) return targetDenied;
+    }
+
+    // duplicate() creates the copy next to the source, then we relocate it.
+    const duplicated = await documentApi.duplicateDoc(client, parsed.id);
+    const copyID = (duplicated as { id?: string }).id;
+    if (!copyID) {
+        throw new Error('document copy: duplicateDoc did not return a new document id.');
+    }
+
+    if (parsed.toID) {
+        await documentApi.moveDocsByID(client, [copyID], parsed.toID);
+    } else {
+        const info = await documentApi.getPathByID(client, copyID);
+        await documentApi.moveDocs(client, [info.path], parsed.toNotebook!, parsed.toPath!);
+    }
+
+    if (parsed.title) {
+        await documentApi.renameDocByID(client, copyID, parsed.title);
+    }
+
+    const hPath = await getHPathByIdWithRetry(client, copyID).catch(() => undefined);
+    return applyUiRefresh(client, createJsonResult({
+        success: true,
+        action: 'copy',
+        sourceID: parsed.id,
+        copyID,
+        ...(hPath ? { hPath } : {}),
+        ...(parsed.title ? { title: parsed.title } : {}),
+        ...(parsed.toID ? { toID: parsed.toID } : {}),
+        ...(parsed.toNotebook ? { toNotebook: parsed.toNotebook, toPath: parsed.toPath } : {}),
+    }), [{ type: 'reloadFiletree' }]);
+};
+
 export const DOCUMENT_ACTION_HANDLERS: Record<DocumentAction, DocumentActionHandler> = {
     create: handleCreate,
     lookup: handleLookup,
@@ -1232,6 +1281,7 @@ export const DOCUMENT_ACTION_HANDLERS: Record<DocumentAction, DocumentActionHand
     get_outline: handleGetOutline,
     create_daily_note: handleCreateDailyNote,
     duplicate: handleDuplicate,
+    copy: handleCopy,
     heading_to_doc: handleHeadingToDoc,
     doc_to_heading: handleDocToHeading,
 };

@@ -220,6 +220,7 @@ export const DOCUMENT_ACTION_HINTS: Partial<Record<DocumentAction, string>> = {
     get_doc: 'Use a document ID. mode="markdown" tries full clean Markdown by default, bounded to 256 KiB UTF-8 and 2000 complete blocks, with a window-scoped outline and nextWindow; totalBlocks is null until EOF; use blockStart/blockLimit/tokenBudget and optionally includeBlockIds. page/pageSize character pagination was removed. mode="html" uses the current focus view.',
     get_outline: 'Use a document ID to return SiYuan’s native heading tree without reading the document body. preview defaults to false. The response includes heading block IDs, nesting, and headingCount.',
     create_daily_note: 'Use a notebook ID and optionally pass app for downstream SiYuan event routing. When the user asks for a diary, journal entry, daily log, or today’s note in a notebook, prefer this action over manually creating a path and then appending content.',
+    copy: 'Duplicate a document then relocate the copy. Pass id + toID (target parent document) or id + toNotebook + toPath (target storage path). Optional title renames the copy; otherwise it keeps the duplicated name. Returns copyID and its hPath for follow-up edits.',
 };
 
 export const BLOCK_ACTION_HINTS: Partial<Record<BlockAction, string>> = {
@@ -270,6 +271,8 @@ export const AV_ACTION_HINTS: Partial<Record<AvAction, string>> = {
     set_relation: 'Dangerous complete replacement of one relation cell. blockID is the verified source database carrier; itemID and relatedItemIDs are AV row item IDs, never bound document block IDs. An empty relatedItemIDs array clears the relation. MCP authorizes destination writes and verifies source plus two-way reverse cells without retrying an unknown response.',
     upsert_row: 'Insert a detached row when primaryKey text is absent, otherwise update the matching row in place — no prior render needed. Pass avID + primaryKey; optional cells[] write non-primary-key fields after the row resolves. Each cell takes columnID or columnName plus valueType and its typed value. Relation cells are rejected; use set_relation. The result reports inserted/updated and the resolved rowID.',
     create_table: 'Create a fresh attribute view under blockID (a document or container block) and add its non-primary-key columns in order. Pass columns[] = [{name, type, options?, icon?, numberFormat?}]; type defaults to text and select/mSelect accept a complete options list. The primary-key column is created automatically and cannot be renamed here. Returns the generated avID and materialized database blockID for follow-up add_rows/upsert_row/set_cells.',
+    get_row: 'Read one database row by rowID and return every cell as both a column-name map and a columnID map. rowID is the database row item ID (value.blockID), not the bound source block ID or cell value id. Use this for record-detail reads instead of rendering the whole view.',
+    update_row: 'Write a batch of cells on one existing row. Pass avID + rowID + cells[]; each cell takes columnID or columnName plus valueType and its typed value. rowID must be the row item ID. Relation cells are rejected; use set_relation.',
 };
 
 export const FILE_ACTION_HINTS: Partial<Record<FileAction, string>> = {

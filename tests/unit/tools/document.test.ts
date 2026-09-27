@@ -868,3 +868,69 @@ describe('document.lookup path compatibility', () => {
         expect(client.request).not.toHaveBeenCalledWith('/api/filetree/getHPathByPath', expect.anything());
     });
 });
+
+
+describe('document.copy', () => {
+    function createPermMgr(level: 'rwd' | 'rw' | 'r' = 'rwd') {
+        return {
+            reload: vi.fn(async () => undefined),
+            canRead: vi.fn(() => level !== 'r'),
+            canWrite: vi.fn(() => level === 'rw' || level === 'rwd'),
+            canDelete: vi.fn(() => level === 'rwd'),
+            get: vi.fn(() => level),
+        } as never;
+    }
+
+    function createCopyClient() {
+        const request = vi.fn(async (endpoint: string, body?: Record<string, any>) => {
+            if (endpoint === '/api/notebook/lsNotebooks') return { notebooks: [{ id: 'nb-1', name: 'Notebook', closed: false }] };
+            if (endpoint === '/api/block/getDocInfo') return { id: 'src-1', rootID: 'src-1', box: 'nb-1', path: '/src-1.sy', name: 'Source', type: 'doc', childCount: 0 };
+            if (endpoint === '/api/filetree/getPathByID') {
+                const id = body?.id;
+                if (id === 'copy-1') return { notebook: 'nb-1', path: '/copy-1.sy' };
+                return { notebook: 'nb-1', path: '/' + id + '.sy' };
+            }
+            if (endpoint === '/api/filetree/getHPathByID') return '/Notebook/' + (body?.id === 'copy-1' ? 'Archive/Copied' : 'Source');
+            if (endpoint === '/api/filetree/duplicateDoc') return { id: 'copy-1', notebook: 'nb-1', path: '/copy-1.sy', hPath: '/Source (Duplicated)' };
+            if (endpoint === '/api/filetree/moveDocsByID') return null;
+            if (endpoint === '/api/filetree/moveDocs') return null;
+            if (endpoint === '/api/filetree/renameDocByID') return null;
+            if (endpoint === '/api/query/sql') return [{ id: 'parent-doc', root_id: 'parent-doc', box: 'nb-1', path: '/parent.sy', hpath: '/Archive', content: 'Archive', type: 'd' }];
+            if (endpoint.startsWith('/api/ui/')) return null;
+            return null;
+        });
+        return { client: createMockClient({ request }), request };
+    }
+
+    it('duplicates then moves the copy under a target parent by toID', async () => {
+        const { client, request } = createCopyClient();
+        const result = await callDocumentTool(client, {
+            action: 'copy', id: 'src-1', toID: 'parent-doc',
+        }, buildDefaultToolConfig().document, createPermMgr());
+
+        expect(parseResult(result)).toMatchObject({ success: true, action: 'copy', sourceID: 'src-1', copyID: 'copy-1', toID: 'parent-doc' });
+        expect(request).toHaveBeenCalledWith('/api/filetree/duplicateDoc', { id: 'src-1' });
+        expect(request).toHaveBeenCalledWith('/api/filetree/moveDocsByID', { fromIDs: ['copy-1'], toID: 'parent-doc' });
+    });
+
+    it('moves the copy by toNotebook + toPath and applies a new title', async () => {
+        const { client, request } = createCopyClient();
+        const result = await callDocumentTool(client, {
+            action: 'copy', id: 'src-1', toNotebook: 'nb-1', toPath: '/parent.sy', title: 'Copied Note',
+        }, buildDefaultToolConfig().document, createPermMgr());
+
+        const payload = parseResult(result) as Record<string, unknown>;
+        expect(payload).toMatchObject({ success: true, action: 'copy', copyID: 'copy-1', toNotebook: 'nb-1', toPath: '/parent.sy', title: 'Copied Note' });
+        expect(request).toHaveBeenCalledWith('/api/filetree/moveDocs', { fromPaths: ['/copy-1.sy'], toNotebook: 'nb-1', toPath: '/parent.sy' });
+        expect(request).toHaveBeenCalledWith('/api/filetree/renameDocByID', { id: 'copy-1', title: 'Copied Note' });
+    });
+
+    it('rejects a copy with no destination', async () => {
+        const result = await callDocumentTool({} as never, {
+            action: 'copy', id: 'src-1',
+        }, buildDefaultToolConfig().document, createPermMgr());
+        const payload = parseResult(result) as { error?: { type?: string } };
+        expect(result.isError).toBe(true);
+        expect(payload.error?.type).toBe('validation_error');
+    });
+});

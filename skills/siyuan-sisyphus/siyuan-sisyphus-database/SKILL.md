@@ -7,7 +7,7 @@ description: CLI-only playbook for SiYuan attribute views with siyuan-sisyphus. 
 
 Never guess attribute-view identifiers. Inspect the AV and its views before changing rows or cells.
 
-`av` actions operate on existing database blocks, and the CLI can now create one too. Use `av create_table` with the host `blockID` and an ordered `columns` list to materialize a NodeAttributeView block and add its non-primary-key columns in one flow. To insert-or-update a row by its primary-key text without first rendering the view, use `av upsert_row` — it creates a detached row when the key is absent and applies any `cells` after the row resolves; keep `add_rows` + `set_cells` for bound-row control when you already hold row IDs.
+`av` actions operate on existing database blocks, and the CLI can now create one too. Use `av create_table` with the host `blockID` and an ordered `columns` list to materialize a NodeAttributeView block and add its non-primary-key columns in one flow. To insert-or-update a row by its primary-key text without first rendering the view, use `av upsert_row` — it creates a detached row when the key is absent and applies any `cells` after the row resolves; keep `add_rows` + `set_cells` for bound-row control when you already hold row IDs. To read one record as a column-name map without rendering the whole view, use `av get_row`; to write several cells on a known row in one call, use `av update_row` with `rowID` + `cells[]` (columnID or columnName).
 
 ```bash
 siyuan-sisyphus av get --av-id '<av-id>' --json
@@ -31,6 +31,12 @@ siyuan-sisyphus av add-rows --av-id '<av-id>' --view-id '<view-id>' --block-ids-
 ```
 ```bash
 siyuan-sisyphus av upsert-row --av-id '<av-id>' --primary-key '<primary-key-text>' --cells-json '[{"columnName":"Status","valueType":"select","option":"done"}]' --json
+```
+```bash
+siyuan-sisyphus av get-row --av-id '<av-id>' --row-id '<row-id>' --json
+```
+```bash
+siyuan-sisyphus av update-row --av-id '<av-id>' --row-id '<row-id>' --cells-json '[{"columnName":"Status","valueType":"select","option":"done"}]' --json
 ```
 ```bash
 siyuan-sisyphus av set-cells --av-id '<av-id>' --cells-json '[{"rowID":"<row-id>","columnID":"<column-id>","valueType":"text","text":"Done"}]' --json

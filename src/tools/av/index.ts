@@ -32,6 +32,8 @@ import {
     AvSetRelationSchema,
     AvUpsertRowSchema,
     AvCreateTableSchema,
+    AvGetRowSchema,
+    AvUpdateRowSchema,
 } from '../../core/types';
 import { defineTool } from '../internal/define-tool';
 import { createZodActionVariant, type ActionVariant, type ToolResult } from '../internal/shared';
@@ -67,6 +69,8 @@ export const AV_VARIANTS: ActionVariant<AvAction>[] = [
     createZodActionVariant('set_relation', AvSetRelationSchema, 'Set or clear one relation cell by AV item IDs, then verify the two-way reverse cell when configured.'),
     createZodActionVariant('upsert_row', AvUpsertRowSchema, 'Insert a detached row when the primary-key text is absent, otherwise update that row in place; optional cells are written after resolution.'),
     createZodActionVariant('create_table', AvCreateTableSchema, 'Create a fresh attribute view under a document/block and add its non-primary-key columns in one flow.'),
+    createZodActionVariant('get_row', AvGetRowSchema, 'Read one database row as a column-name -> value map by rowID.'),
+    createZodActionVariant('update_row', AvUpdateRowSchema, 'Write a batch of cells on one existing row by rowID; cells take columnID or columnName.'),
 ];
 
 for (const variant of AV_VARIANTS) {

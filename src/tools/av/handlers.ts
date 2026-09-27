@@ -37,6 +37,8 @@ import {
     AvSetNewItemTemplatesSchema,
     AvSetRelationSchema,
     AvUpsertRowSchema,
+    AvGetRowSchema,
+    AvUpdateRowSchema,
 } from '../../core/types';
 import { createResultResolutionCache, ensurePermissionForDocumentId, ensurePermissionForNotebook, escapeSqlString, resolveDocumentContextById, resolveResultItemContext } from '../internal/context';
 import { computePageCount } from '../internal/pagination';
@@ -3787,6 +3789,8 @@ export const AV_ACTION_HANDLERS: Record<AvAction, ToolActionHandler> = {
     set_column_order: handleSetColumnOrder,
     upsert_row: handleUpsertRow,
     create_table: handleCreateTable,
+    get_row: handleGetRow,
+    update_row: handleUpdateRow,
 };
 
 
@@ -4053,4 +4057,121 @@ async function handleCreateTable({ client, permMgr, rawArgs }: ToolHandlerContex
         { type: 'reloadAttributeView', id: effectiveAvID },
         { type: 'reloadProtyle', id: context.documentId },
     ]);
+}
+
+
+// ---------------------------------------------------------------------------
+// get_row: read one database row as a column-name -> value map.
+// update_row: write a batch of cells on a single existing row by rowID.
+// ---------------------------------------------------------------------------
+
+function extractRowValueByType(value: unknown, keyType: string): unknown {
+    if (!value || typeof value !== 'object') return value;
+    const record = value as Record<string, unknown>;
+    const sub = record[keyType];
+    if (sub === undefined || sub === null) return undefined;
+    if (typeof sub === 'object' && !Array.isArray(sub)) {
+        const subRecord = sub as Record<string, unknown>;
+        if ('content' in subRecord) return subRecord.content;
+        if ('checked' in subRecord) return subRecord.checked;
+        return subRecord;
+    }
+    return sub;
+}
+
+async function handleGetRow({ client, permMgr, rawArgs }: ToolHandlerContext): Promise<ToolResult> {
+    const parsed = AvGetRowSchema.parse(rawArgs);
+    const { denied, avData } = await ensurePermissionForAvId(client, permMgr, parsed.avID, 'read', { blockID: parsed.blockID, action: 'get_row' });
+    if (denied) return denied;
+
+    const keyValues = asRecord(avData)?.keyValues;
+    if (!Array.isArray(keyValues)) {
+        return createAvValidationErrorResult('get_row', {
+            reason: 'row_not_found',
+            message: `Attribute view "${parsed.avID}" has no readable keyValues.`,
+            avID: parsed.avID,
+            rowID: parsed.rowID,
+        });
+    }
+
+    const cells: Record<string, unknown> = {};
+    const byColumnId: Record<string, unknown> = {};
+    let found = false;
+    for (const entry of keyValues) {
+        if (!entry || typeof entry !== 'object') continue;
+        const typedEntry = entry as { key?: { id?: string; name?: string; type?: string }; values?: unknown };
+        const key = typedEntry.key;
+        if (!key?.id || !Array.isArray(typedEntry.values)) continue;
+        for (const value of typedEntry.values) {
+            const rowID = extractRowIdFromValue(value);
+            if (rowID !== parsed.rowID) continue;
+            found = true;
+            const raw = extractRowValueByType(value, key.type ?? '');
+            const display = key.type === 'block'
+                ? (getNestedStringField(value, ['block', 'content']) ?? raw)
+                : raw;
+            byColumnId[key.id] = display;
+            if (key.name) cells[key.name] = display;
+        }
+    }
+    if (!found) {
+        return createAvValidationErrorResult('get_row', {
+            reason: 'row_not_found',
+            message: `Row "${parsed.rowID}" was not found in attribute view "${parsed.avID}".`,
+            avID: parsed.avID,
+            rowID: parsed.rowID,
+            hint: 'rowID must be the database row item ID (value.blockID), not the bound source block ID or cell value id.',
+        });
+    }
+    return createJsonResult({
+        avID: parsed.avID,
+        rowID: parsed.rowID,
+        cells,
+        cellsByColumnId: byColumnId,
+    });
+}
+
+async function handleUpdateRow({ client, permMgr, rawArgs }: ToolHandlerContext): Promise<ToolResult> {
+    const parsed = AvUpdateRowSchema.parse(rawArgs);
+    const { denied, avData } = await ensurePermissionForAvId(client, permMgr, parsed.avID, 'write', { blockID: parsed.blockID, action: 'update_row' });
+    if (denied) return denied;
+
+    const rowLookup = extractAvRowLookup(avData);
+    if (!rowLookup.rowIDs.has(parsed.rowID)) {
+        return createAvValidationErrorResult('update_row', {
+            reason: 'row_not_found',
+            message: `Row "${parsed.rowID}" was not found in attribute view "${parsed.avID}".`,
+            avID: parsed.avID,
+            rowID: parsed.rowID,
+            hint: 'rowID must be the database row item ID (value.blockID), not value.id or the bound source block ID.',
+        });
+    }
+
+    if (parsed.cells.some((cell) => (cell as { valueType?: string }).valueType === 'relation')) {
+        return createAvValidationErrorResult('update_row', {
+            reason: 'relation_requires_set_relation',
+            message: 'Relation cells must use av(action="set_relation").',
+            hint: 'Pass source itemID, relation keyID, complete relatedItemIDs, and the verified source database block to set_relation.',
+        });
+    }
+
+    const applied = await applyUpsertCells(client, parsed.avID, avData, parsed.rowID, parsed.cells, parsed.blockID);
+    if ('error' in applied) {
+        // Re-label the cell error to update_row for caller clarity.
+        const err = applied.error;
+        try {
+            const payload = JSON.parse(err.content[0].text);
+            payload.error.action = 'update_row';
+            err.content[0].text = JSON.stringify(payload, null, 2);
+        } catch { /* keep original */ }
+        return err;
+    }
+
+    const refreshOperations = await resolveAvWriteRefreshOperations(client, parsed.avID, avData, parsed.blockID);
+    return applyUiRefresh(client, createWriteSuccessResult({
+        action: 'update_row',
+        avID: parsed.avID,
+        rowID: parsed.rowID,
+        cellsWritten: applied.updated,
+    }), refreshOperations);
 }

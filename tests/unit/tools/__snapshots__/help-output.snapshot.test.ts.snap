@@ -273,7 +273,7 @@ exports[`tool description and help outputs > matches the locked snapshot for all
           "blockID",
           "columns",
         ],
-        "requiresConfirmation": true,
+        "requiresConfirmation": false,
         "shapes": [
           "blockID + columns",
         ],
@@ -478,6 +478,41 @@ exports[`tool description and help outputs > matches the locked snapshot for all
         "requiresConfirmation": false,
         "shapes": [
           "avID",
+        ],
+        "tool": "av",
+      },
+      "get_row": {
+        "action": "get_row",
+        "example": {
+          "action": "get_row",
+          "avID": "<avID>",
+          "rowID": "<rowID>",
+        },
+        "fullDocResource": "siyuan://help/action/av/get_row",
+        "guidance": [
+          "AV actions operate on real SiYuan attribute views (database blocks), not Markdown tables.",
+          "To initialize a new AV definition, call av(action="render", blockID, createIfNotExist=true). MCP can generate the AV ID automatically and materialize a SiYuan-style NodeAttributeView block in the target document through a transaction.",
+          "Most follow-up AV reads and writes only need avID. MCP resolves the owning database block from row bindings, mirror database blocks, or the blocks-table AV block record; pass blockID when you need an exact database-block view context or fallback.",
+          "Use strong typed fields such as valueType=text/number/date/checkbox/select when calling av(action="set_cells").",
+          "For cell writes, rowID must be the database row item ID stored in each AV value's blockID field. The value id field is only the cell value ID, and block.id is the original bound source block ID.",
+          "av(action="set_column_options") replaces a select or multi-select key's complete option list. It is dangerous and requires confirmation plus a strict preflight; omitted options are intentionally removed. If SiYuan reports new names in append order, MCP returns that intermediate state and never sends a concealed reorder write.",
+          "av(action="duplicate_rows") copies canonical, bound row item IDs into detached text records. It is dangerous and requires confirmation plus a strict manifest preflight; two-way relations also require rw/rwd permission on every resolved destination AV carrier. A lost response is never retried automatically.",
+          "AV permission checks resolve from registered database blocks. For createIfNotExist=true, provide blockID as the creation target; after materialization, MCP can usually rediscover that owning database block automatically.",
+          "av(action="search") first queries kernel search results, then MCP post-filters unreadable or unresolvable AVs and reports the filtering metadata.",
+          "av(action="search") is best for database names and primary-key matches. Do not assume it will find arbitrary non-primary-key cell text immediately after writes.",
+          "For add_view, set_filters, set_sorts, set_group, set_column_visibility, and set_column_order, always provide avID + blockID + viewID. blockID must be the exact NodeAttributeView carrier whose custom-sy-av-view currently equals viewID; MCP refuses kernel fallback.",
+          "These view-configuration actions are strict writes: run the same action with validateOnly=true, then submit the returned requestId and returned expectedStateHash. Their persistence proof is raw getAttributeView plus carrier attrs/DOM, never renderAttributeView.",
+          "set_filters and set_sorts replace their entire arrays; partial patch input is not supported. An empty filter list is persisted as the semantic empty AND root, even if Go omits its empty filters array on raw JSON readback.",
+          "add_view creates only table, gallery, or kanban and names it in one native transaction. Kanban requires an existing select column so creation cannot silently synthesize a schema field in every existing view. The native transaction selects the new view on the supplied carrier and normalizes its visible-view list to the existing persisted view order plus that new ID; MCP verifies that exact effect. Use block(action="set_attrs") deliberately for any other visible-view curation.",
+        ],
+        "hint": "Read one database row by rowID and return every cell as both a column-name map and a columnID map. rowID is the database row item ID (value.blockID), not the bound source block ID or cell value id. Use this for record-detail reads instead of rendering the whole view.",
+        "requiredFields": [
+          "avID",
+          "rowID",
+        ],
+        "requiresConfirmation": false,
+        "shapes": [
+          "avID + rowID",
         ],
         "tool": "av",
       },
@@ -1000,6 +1035,47 @@ exports[`tool description and help outputs > matches the locked snapshot for all
         ],
         "tool": "av",
       },
+      "update_row": {
+        "action": "update_row",
+        "example": {
+          "action": "update_row",
+          "avID": "<avID>",
+          "cells": [
+            {
+              "columnID": "<columnID>",
+            },
+          ],
+          "rowID": "<rowID>",
+        },
+        "fullDocResource": "siyuan://help/action/av/update_row",
+        "guidance": [
+          "AV actions operate on real SiYuan attribute views (database blocks), not Markdown tables.",
+          "To initialize a new AV definition, call av(action="render", blockID, createIfNotExist=true). MCP can generate the AV ID automatically and materialize a SiYuan-style NodeAttributeView block in the target document through a transaction.",
+          "Most follow-up AV reads and writes only need avID. MCP resolves the owning database block from row bindings, mirror database blocks, or the blocks-table AV block record; pass blockID when you need an exact database-block view context or fallback.",
+          "Use strong typed fields such as valueType=text/number/date/checkbox/select when calling av(action="set_cells").",
+          "For cell writes, rowID must be the database row item ID stored in each AV value's blockID field. The value id field is only the cell value ID, and block.id is the original bound source block ID.",
+          "av(action="set_column_options") replaces a select or multi-select key's complete option list. It is dangerous and requires confirmation plus a strict preflight; omitted options are intentionally removed. If SiYuan reports new names in append order, MCP returns that intermediate state and never sends a concealed reorder write.",
+          "av(action="duplicate_rows") copies canonical, bound row item IDs into detached text records. It is dangerous and requires confirmation plus a strict manifest preflight; two-way relations also require rw/rwd permission on every resolved destination AV carrier. A lost response is never retried automatically.",
+          "AV permission checks resolve from registered database blocks. For createIfNotExist=true, provide blockID as the creation target; after materialization, MCP can usually rediscover that owning database block automatically.",
+          "av(action="search") first queries kernel search results, then MCP post-filters unreadable or unresolvable AVs and reports the filtering metadata.",
+          "av(action="search") is best for database names and primary-key matches. Do not assume it will find arbitrary non-primary-key cell text immediately after writes.",
+          "For add_view, set_filters, set_sorts, set_group, set_column_visibility, and set_column_order, always provide avID + blockID + viewID. blockID must be the exact NodeAttributeView carrier whose custom-sy-av-view currently equals viewID; MCP refuses kernel fallback.",
+          "These view-configuration actions are strict writes: run the same action with validateOnly=true, then submit the returned requestId and returned expectedStateHash. Their persistence proof is raw getAttributeView plus carrier attrs/DOM, never renderAttributeView.",
+          "set_filters and set_sorts replace their entire arrays; partial patch input is not supported. An empty filter list is persisted as the semantic empty AND root, even if Go omits its empty filters array on raw JSON readback.",
+          "add_view creates only table, gallery, or kanban and names it in one native transaction. Kanban requires an existing select column so creation cannot silently synthesize a schema field in every existing view. The native transaction selects the new view on the supplied carrier and normalizes its visible-view list to the existing persisted view order plus that new ID; MCP verifies that exact effect. Use block(action="set_attrs") deliberately for any other visible-view curation.",
+        ],
+        "hint": "Write a batch of cells on one existing row. Pass avID + rowID + cells[]; each cell takes columnID or columnName plus valueType and its typed value. rowID must be the row item ID. Relation cells are rejected; use set_relation.",
+        "requiredFields": [
+          "avID",
+          "rowID",
+          "cells",
+        ],
+        "requiresConfirmation": false,
+        "shapes": [
+          "avID + rowID + cells",
+        ],
+        "tool": "av",
+      },
       "upsert_row": {
         "action": "upsert_row",
         "example": {
@@ -1029,7 +1105,7 @@ exports[`tool description and help outputs > matches the locked snapshot for all
           "avID",
           "primaryKey",
         ],
-        "requiresConfirmation": true,
+        "requiresConfirmation": false,
         "shapes": [
           "avID + primaryKey",
         ],
@@ -1038,9 +1114,9 @@ exports[`tool description and help outputs > matches the locked snapshot for all
     },
     "description": "🗃️ Grouped attribute-view (database) operations. Use the "action" field to select the operation.
 
-Common actions: get, render, get_attribute_view_keys, get_attribute_view_filter_sort, search, get_primary_key_values. Required fields: get: avID; render: no additional fields; get_attribute_view_keys: avID; get_attribute_view_filter_sort: avID; search: keyword; get_primary_key_values: avID.
+Common actions: get, render, get_attribute_view_keys, get_attribute_view_filter_sort, search, get_primary_key_values, get_row. Required fields: get: avID; render: no additional fields; get_attribute_view_keys: avID; get_attribute_view_filter_sort: avID; search: keyword; get_primary_key_values: avID; get_row: avID, rowID.
 
-Additional actions: add_rows, remove_rows, add_column, remove_column, set_cells, set_column_options, duplicate_rows, duplicate, add_view, set_filters, set_sorts, set_group, set_column_visibility, set_column_order, set_new_item_templates, create_from_template, configure_two_way_relation, configure_rollup, set_relation, upsert_row, create_table. Read siyuan://help/action/av/{action} for details, or call action="help" if resources are unavailable.
+Additional actions: add_rows, remove_rows, add_column, remove_column, set_cells, set_column_options, duplicate_rows, duplicate, add_view, set_filters, set_sorts, set_group, set_column_visibility, set_column_order, set_new_item_templates, create_from_template, configure_two_way_relation, configure_rollup, set_relation, upsert_row, create_table, update_row. Read siyuan://help/action/av/{action} for details, or call action="help" if resources are unavailable.
 
 Parameter contract per action (fields outside the action's optional list should not be sent):
 av.get: required [avID] | optional [blockID, id]
@@ -1070,8 +1146,10 @@ av.configure_rollup: required [avID, blockID, keyID, relationKeyID, destinationK
 av.set_relation: required [avID, blockID, itemID, keyID, relatedItemIDs] | optional []
 av.upsert_row: required [avID, primaryKey] | optional [blockID, cells, viewID, groupID, ignoreDefaultFill]
 av.create_table: required [blockID, columns] | optional [avID]
+av.get_row: required [avID, rowID] | optional [blockID]
+av.update_row: required [avID, rowID, cells] | optional [blockID]
 
-AV actions operate on real SiYuan attribute views (database blocks), not Markdown tables. To initialize a new AV definition, call av(action="render", blockID, createIfNotExist=true). MCP can generate the AV ID automatically and materialize a SiYuan-style NodeAttributeView block in the target document through a transaction. Requires user confirmation before: set_column_options, duplicate_rows, set_new_item_templates, create_from_template, configure_two_way_relation, configure_rollup, set_relation, upsert_row, create_table.",
+AV actions operate on real SiYuan attribute views (database blocks), not Markdown tables. To initialize a new AV definition, call av(action="render", blockID, createIfNotExist=true). MCP can generate the AV ID automatically and materialize a SiYuan-style NodeAttributeView block in the target document through a transaction. Requires user confirmation before: set_column_options, duplicate_rows, set_new_item_templates, create_from_template, configure_two_way_relation, configure_rollup, set_relation.",
     "overview": {
       "actionSummaries": {
         "add_column": "Use avID + keyName + keyType, and optionally keyID or blockID. MCP generates keyID automatically when omitted. Supported keyType values match the 16 SiYuan addable column types, including keyType="mSelect", keyType="mAsset", and keyType="lineNumber". Optional blockID must be a registered database block for this AV if you need to pin a specific block view.",
@@ -1087,6 +1165,7 @@ AV actions operate on real SiYuan attribute views (database blocks), not Markdow
         "get_attribute_view_filter_sort": "Use avID + blockID to return the filters and sorts applied to that database block view.",
         "get_attribute_view_keys": "Use avID to return the database column definitions.",
         "get_primary_key_values": "Returns the AV name plus primary-key rows, with optional keyword/page/pageSize filtering.",
+        "get_row": "Read one database row by rowID and return every cell as both a column-name map and a columnID map. rowID is the database row item ID (value.blockID), not the bound source block ID or cell value id. Use this for record-detail reads instead of rendering the whole view.",
         "remove_column": "Use avID + keyID, and optionally blockID to target a specific registered database block. removeRelationDest only matters for relation columns.",
         "remove_rows": "Use avID + srcIDs to remove rows from the AV. Optional blockID pins a specific registered database block when you need explicit block-view context.",
         "render": "Use avID (id is a deprecated compatibility alias) plus optional blockID/viewID/page/pageSize/query to render database rows with the active view context. With createIfNotExist=true, blockID becomes the creation target; if avID is omitted, MCP generates one and materializes the database block automatically via a SiYuan-style transaction.",
@@ -1100,6 +1179,7 @@ AV actions operate on real SiYuan attribute views (database blocks), not Markdow
         "set_new_item_templates": "Dangerous complete replacement of ordered native new-item templates. Pass every template and defaultTemplateID, not a patch. MCP captures a canonical complete-template preimage, validates each key and select/mSelect option against the raw AV, performs one native transaction, and verifies order, default, and all remaining template fields through getAttributeView. Missing options are rejected rather than added or silently pruned.",
         "set_relation": "Dangerous complete replacement of one relation cell. blockID is the verified source database carrier; itemID and relatedItemIDs are AV row item IDs, never bound document block IDs. An empty relatedItemIDs array clears the relation. MCP authorizes destination writes and verifies source plus two-way reverse cells without retrying an unknown response.",
         "set_sorts": "Provide avID + exact carrier blockID + its current viewID + the complete [{column, order}] array. [] clears all sorts; partial patch input is rejected by contract. First run validateOnly=true.",
+        "update_row": "Write a batch of cells on one existing row. Pass avID + rowID + cells[]; each cell takes columnID or columnName plus valueType and its typed value. rowID must be the row item ID. Relation cells are rejected; use set_relation.",
         "upsert_row": "Insert a detached row when primaryKey text is absent, otherwise update the matching row in place — no prior render needed. Pass avID + primaryKey; optional cells[] write non-primary-key fields after the row resolves. Each cell takes columnID or columnName plus valueType and its typed value. Relation cells are rejected; use set_relation. The result reports inserted/updated and the resolved rowID.",
       },
       "actions": {
@@ -1129,7 +1209,7 @@ AV actions operate on real SiYuan attribute views (database blocks), not Markdow
         },
         "create_table": {
           "hint": "Create a fresh attribute view under blockID (a document or container block) and add its non-primary-key columns in order. Pass columns[] = [{name, type, options?, icon?, numberFormat?}]; type defaults to text and select/mSelect accept a complete options list. The primary-key column is created automatically and cannot be renamed here. Returns the generated avID and materialized database blockID for follow-up add_rows/upsert_row/set_cells.",
-          "requiresConfirmation": true,
+          "requiresConfirmation": false,
         },
         "duplicate": {
           "hint": "Matches SiYuan copy-as-mirror behavior: call the kernel duplicate API, spin the AV block DOM, then commit an insert transaction. previousID overrides the insertion target; otherwise MCP uses blockID or the resolved owning database block.",
@@ -1153,6 +1233,10 @@ AV actions operate on real SiYuan attribute views (database blocks), not Markdow
         },
         "get_primary_key_values": {
           "hint": "Returns the AV name plus primary-key rows, with optional keyword/page/pageSize filtering.",
+          "requiresConfirmation": false,
+        },
+        "get_row": {
+          "hint": "Read one database row by rowID and return every cell as both a column-name map and a columnID map. rowID is the database row item ID (value.blockID), not the bound source block ID or cell value id. Use this for record-detail reads instead of rendering the whole view.",
           "requiresConfirmation": false,
         },
         "remove_column": {
@@ -1207,9 +1291,13 @@ AV actions operate on real SiYuan attribute views (database blocks), not Markdow
           "hint": "Provide avID + exact carrier blockID + its current viewID + the complete [{column, order}] array. [] clears all sorts; partial patch input is rejected by contract. First run validateOnly=true.",
           "requiresConfirmation": false,
         },
+        "update_row": {
+          "hint": "Write a batch of cells on one existing row. Pass avID + rowID + cells[]; each cell takes columnID or columnName plus valueType and its typed value. rowID must be the row item ID. Relation cells are rejected; use set_relation.",
+          "requiresConfirmation": false,
+        },
         "upsert_row": {
           "hint": "Insert a detached row when primaryKey text is absent, otherwise update the matching row in place — no prior render needed. Pass avID + primaryKey; optional cells[] write non-primary-key fields after the row resolves. Each cell takes columnID or columnName plus valueType and its typed value. Relation cells are rejected; use set_relation. The result reports inserted/updated and the resolved rowID.",
-          "requiresConfirmation": true,
+          "requiresConfirmation": false,
         },
       },
       "advancedActions": [
@@ -1234,6 +1322,7 @@ AV actions operate on real SiYuan attribute views (database blocks), not Markdow
         "set_relation",
         "upsert_row",
         "create_table",
+        "update_row",
       ],
       "commonActions": [
         "get",
@@ -1242,6 +1331,7 @@ AV actions operate on real SiYuan attribute views (database blocks), not Markdow
         "get_attribute_view_filter_sort",
         "search",
         "get_primary_key_values",
+        "get_row",
       ],
       "detailsHint": "Call av(action="help", topic="<actionName>") for required fields, shapes, and a minimal example.",
       "guidance": [
@@ -1274,8 +1364,6 @@ AV actions operate on real SiYuan attribute views (database blocks), not Markdow
         "configure_two_way_relation",
         "configure_rollup",
         "set_relation",
-        "upsert_row",
-        "create_table",
       ],
       "sharedTopics": [
         "ai-layout-guide",
@@ -2478,6 +2566,41 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
         ],
         "tool": "document",
       },
+      "copy": {
+        "action": "copy",
+        "example": {
+          "action": "copy",
+          "id": "20240318112233-abc123",
+        },
+        "fullDocResource": "siyuan://help/action/document/copy",
+        "guidance": [
+          "For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"write"|"search") because it accepts human-readable paths and hides storage paths and IDs.",
+          "document(action="create") creates both non-empty and empty documents. Prefer path for child documents; path is a notebook-local human-readable hpath such as /Folder/Parent/New Child, not /Notebook/Folder/... and not a .sy storage path.",
+          "Do not put # Title at the start of document(action="create") markdown. SiYuan renders the document title as H1 automatically, and MCP strips a matching leading H1 to avoid duplicate titles.",
+          "document(action="create", parentPath=..., title=...) is also supported. parentPath accepts either a notebook-local human-readable parent hpath such as /Folder/Parent, or a storage path ending in .sy returned by document(action="lookup").",
+          "fs(action="write", path="/Notebook/Folder/Doc") uses a workspace path and should include the notebook name for unambiguous resolution; omission works only for a unique existing document or parent. document(action="create", notebook=..., path="/Folder/Doc") uses a notebook-local hpath and must omit the notebook name. Do not mix these two path formats.",
+          "For document(action="lookup"), path means a storage path such as /20240318112233-abc123.sy; use hpath/hPath for human-readable paths, which are notebook-local and MUST NOT include the notebook name (e.g., /Folder/Weekly Note, not /NotebookName/Folder/Weekly Note).",
+          "Other document actions that use notebook + path expect storage paths returned by document(action="lookup").",
+          "If document(action="create") reports a duplicate-name error, verify the intended child with document(action="lookup", notebook=..., hpath="/Folder/Parent/New Child", include=["id","path","hpath"]) or document(action="get_child_docs", id=<parent-doc-id>). New create results may take a short indexing delay before lookup/search sees them.",
+          "document(action="ensure_link_targets") is the bounded import-link provisioner: scope it with notebook + parentId, reuse only explicit child document IDs, and use create only for explicit new titles. It never guesses an existing target from a title; same-title children are unresolved and require an ID decision.",
+          "A safe path-based workflow is lookup -> rename/remove/move.",
+          "document(action="reorder") applies a complete manual order to every visible direct child under parentID and switches the notebook to custom sorting. Read the current child documents first and include each child ID exactly once.",
+          "document(action="get_child_blocks") and document(action="get_child_docs") return direct children for a document ID.",
+          "document(action="set_attr") updates document metadata such as icon and cover; use attrs.cover=null or an empty string to clear the cover.",
+          "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
+          "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
+        ],
+        "hint": "Duplicate a document then relocate the copy. Pass id + toID (target parent document) or id + toNotebook + toPath (target storage path). Optional title renames the copy; otherwise it keeps the duplicated name. Returns copyID and its hPath for follow-up edits.",
+        "requiredFields": [
+          "id",
+        ],
+        "requiresConfirmation": false,
+        "shapes": [
+          "id",
+        ],
+        "tool": "document",
+      },
       "create": {
         "action": "create",
         "example": {
@@ -3240,7 +3363,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
 
 Common actions: create, lookup, rename, get_child_blocks, get_child_docs, search_docs, get_doc, read, append, prepend, get_outline. Required fields: create: notebook, path | notebook, parentPath, title; lookup: no additional fields; rename: title; get_child_blocks: id; get_child_docs: id; search_docs: notebook, query; get_doc: id; append: dataType, data; prepend: dataType, data; read: id; get_outline: id.
 
-Additional actions: ensure_link_targets, remove, move, reorder, set_attr, list_tree, create_daily_note, duplicate, heading_to_doc, doc_to_heading. Read siyuan://help/action/document/{action} for details, or call action="help" if resources are unavailable.
+Additional actions: ensure_link_targets, remove, move, reorder, set_attr, list_tree, create_daily_note, duplicate, copy, heading_to_doc, doc_to_heading. Read siyuan://help/action/document/{action} for details, or call action="help" if resources are unavailable.
 
 Parameter contract per action (fields outside the action's optional list should not be sent):
 document.create: required [notebook, path] OR [notebook, parentPath, title] | optional [markdown, template, copyFrom, sorts, icon]
@@ -3262,6 +3385,7 @@ document.read: required [id] | optional [scope, anchor, startId, endId, pattern,
 document.get_outline: required [id] | optional [preview]
 document.create_daily_note: required [notebook] | optional [app]
 document.duplicate: required [id] | optional []
+document.copy: required [id] | optional [toID, toNotebook, toPath, title]
 document.heading_to_doc: required [headingID, targetNotebook] | optional [targetPath, previousPath]
 document.doc_to_heading: required [srcID, targetID] | optional [after]
 
@@ -3269,6 +3393,7 @@ For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"writ
     "overview": {
       "actionSummaries": {
         "append": "requires: dataType, data",
+        "copy": "Duplicate a document then relocate the copy. Pass id + toID (target parent document) or id + toNotebook + toPath (target storage path). Optional title renames the copy; otherwise it keeps the duplicated name. Returns copyID and its hPath for follow-up edits.",
         "create": "Use notebook + path for the most direct child-document flow. path is a notebook-local hpath like /Folder/Parent/New Child, not /Notebook/... and not .sy. parentPath + title is also supported. markdown is optional and must not start with # Title; a matching leading H1 is stripped to avoid duplicate titles.",
         "create_daily_note": "Use a notebook ID and optionally pass app for downstream SiYuan event routing. When the user asks for a diary, journal entry, daily log, or today’s note in a notebook, prefer this action over manually creating a path and then appending content.",
         "doc_to_heading": "requires: srcID, targetID",
@@ -3292,6 +3417,10 @@ For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"writ
       },
       "actions": {
         "append": {
+          "requiresConfirmation": false,
+        },
+        "copy": {
+          "hint": "Duplicate a document then relocate the copy. Pass id + toID (target parent document) or id + toNotebook + toPath (target storage path). Optional title renames the copy; otherwise it keeps the duplicated name. Returns copyID and its hPath for follow-up edits.",
           "requiresConfirmation": false,
         },
         "create": {
@@ -3379,6 +3508,7 @@ For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"writ
         "list_tree",
         "create_daily_note",
         "duplicate",
+        "copy",
         "heading_to_doc",
         "doc_to_heading",
       ],

@@ -242,6 +242,7 @@ describe('tool action contract coverage', () => {
             { action: 'get_outline', args: { action: 'get_outline', id: 'doc-1' }, expectedEndpoint: '/api/outline/getDocOutline' },
             { action: 'create_daily_note', args: { action: 'create_daily_note', notebook: 'nb-1' }, expectedEndpoint: '/api/filetree/createDailyNote' },
             { action: 'duplicate', args: { action: 'duplicate', id: 'doc-1' }, expectedEndpoint: '/api/filetree/duplicateDoc' },
+            { action: 'copy', args: { action: 'copy', id: 'doc-1', toID: 'doc-parent' }, expectedEndpoint: '/api/filetree/duplicateDoc' },
             { action: 'heading_to_doc', args: { action: 'heading_to_doc', headingID: 'doc-1', targetNotebook: 'nb-1' }, expectedEndpoint: '/api/filetree/heading2Doc' },
             { action: 'doc_to_heading', args: { action: 'doc_to_heading', srcID: 'doc-1', targetID: 'doc-2' }, expectedEndpoint: '/api/filetree/doc2Heading' },
         ]);

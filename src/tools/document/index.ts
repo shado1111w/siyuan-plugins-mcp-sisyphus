@@ -9,6 +9,7 @@ import {
     DocumentEnsureLinkTargetsSchema,
     DocumentDocToHeadingSchema,
     DocumentDuplicateSchema,
+    DocumentCopySchema,
     DocumentGetChildBlocksSchema,
     DocumentGetChildDocsSchema,
     DocumentGetDocSchema,
@@ -52,6 +53,7 @@ export const DOCUMENT_VARIANTS: ActionVariant<DocumentAction>[] = [
     createZodActionVariant('get_outline', DocumentGetOutlineSchema, 'Get the native SiYuan heading tree for a document without reading its body.'),
     createZodActionVariant('create_daily_note', DocumentCreateDailyNoteSchema, 'Create or open today\'s daily note'),
     createZodActionVariant('duplicate', DocumentDuplicateSchema, 'Duplicate a document'),
+    createZodActionVariant('copy', DocumentCopySchema, 'Duplicate a document then move the copy under toID or toNotebook + toPath, with an optional new title.'),
     createZodActionVariant('heading_to_doc', DocumentHeadingToDocSchema, 'Convert a heading to a separate document'),
     createZodActionVariant('doc_to_heading', DocumentDocToHeadingSchema, 'Merge a document into another as a heading'),
 ];

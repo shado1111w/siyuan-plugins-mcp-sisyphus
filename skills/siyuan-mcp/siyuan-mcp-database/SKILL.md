@@ -7,7 +7,7 @@ description: MCP playbook for SiYuan attribute views. Use to inspect database me
 
 Never guess attribute-view identifiers. Inspect the AV and its views before changing rows or cells.
 
-`av` actions operate on existing database blocks, and the CLI can now create one too. Use `av create_table` with the host `blockID` and an ordered `columns` list to materialize a NodeAttributeView block and add its non-primary-key columns in one flow. To insert-or-update a row by its primary-key text without first rendering the view, use `av upsert_row` — it creates a detached row when the key is absent and applies any `cells` after the row resolves; keep `add_rows` + `set_cells` for bound-row control when you already hold row IDs.
+`av` actions operate on existing database blocks, and the CLI can now create one too. Use `av create_table` with the host `blockID` and an ordered `columns` list to materialize a NodeAttributeView block and add its non-primary-key columns in one flow. To insert-or-update a row by its primary-key text without first rendering the view, use `av upsert_row` — it creates a detached row when the key is absent and applies any `cells` after the row resolves; keep `add_rows` + `set_cells` for bound-row control when you already hold row IDs. To read one record as a column-name map without rendering the whole view, use `av get_row`; to write several cells on a known row in one call, use `av update_row` with `rowID` + `cells[]` (columnID or columnName).
 
 ```text
 av(action="get", avID="<av-id>")
@@ -31,6 +31,12 @@ av(action="add_rows", avID="<av-id>", viewID="<view-id>", blockIDs=["<block-id>"
 ```
 ```text
 av(action="upsert_row", avID="<av-id>", primaryKey="<primary-key-text>", cells=[{"columnName":"Status","valueType":"select","option":"done"}])
+```
+```text
+av(action="get_row", avID="<av-id>", rowID="<row-id>")
+```
+```text
+av(action="update_row", avID="<av-id>", rowID="<row-id>", cells=[{"columnName":"Status","valueType":"select","option":"done"}])
 ```
 ```text
 av(action="set_cells", avID="<av-id>", cells=[{"rowID":"<row-id>","columnID":"<column-id>","valueType":"text","text":"Done"}])

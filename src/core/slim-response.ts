@@ -51,6 +51,19 @@ const SUCCESS_KEEP_KEYS = new Set([
     'warning',
     'skippedComplexBlocks',
     'recommendedTools',
+    'hPath',
+    'sourceID',
+    'copyID',
+    'primaryKey',
+    'inserted',
+    'cellsWritten',
+    'cells',
+    'cellsByColumnId',
+    'columns',
+    'databaseBlockRegistrationVerified',
+    'toNotebook',
+    'toPath',
+
     // Never hide whether a successful mutation went through the strict
     // coordinator when response slimming is enabled.
     'safety',

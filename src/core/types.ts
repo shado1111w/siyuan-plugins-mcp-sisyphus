@@ -540,6 +540,27 @@ export const DocumentDuplicateSchema = z.object({
     id: z.string().describe("Source document ID"),
 });
 
+export const DocumentCopySchema = z.object({
+    action: z.literal("copy"),
+    id: z.string().describe("Source document ID"),
+    toID: z.string().optional().describe("Target parent document ID; the copy becomes its child"),
+    toNotebook: z.string().optional().describe("Target notebook ID for path-based placement"),
+    toPath: z.string().optional().describe("Target parent storage path (e.g. / or /parent.sy) inside toNotebook"),
+    title: z.string().optional().describe("Optional new title; defaults to the source title"),
+}).superRefine((value, ctx) => {
+    const idMode = typeof value.toID === "string";
+    const pathMode = typeof value.toNotebook === "string" || typeof value.toPath === "string";
+    if (idMode && pathMode) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Provide either toID or toNotebook + toPath, not both.", path: ["toID"] });
+    }
+    if (!idMode && !pathMode) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Provide toID or toNotebook + toPath so the copy has a destination.", path: ["toID"] });
+    }
+    if (pathMode && (!value.toNotebook || !value.toPath)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "toNotebook and toPath are required together for path-based copy.", path: ["toPath"] });
+    }
+});
+
 export const DocumentHeadingToDocSchema = z.object({
     action: z.literal("heading_to_doc"),
     headingID: z.string().describe("Heading block ID to convert into a document"),
@@ -1077,6 +1098,31 @@ const AvUpsertCellSchema = z.object({
     columnID: z.string().optional().describe("Column key ID; either columnID or columnName is required"),
     columnName: z.string().optional().describe("Column name resolved against the AV schema when columnID is unknown"),
 }).and(AvSetCellValueFieldsSchema);
+
+export const AvGetRowSchema = z.object({
+    action: z.literal("get_row"),
+    avID: z.string().describe("Attribute view ID"),
+    rowID: z.string().describe("Row item ID (value.blockID), not the bound source block ID"),
+    blockID: z.string().optional().describe("Optional database block ID for exact context"),
+});
+
+export const AvUpdateRowSchema = z.object({
+    action: z.literal("update_row"),
+    avID: z.string().describe("Attribute view ID"),
+    blockID: z.string().optional().describe("Registered database block ID for explicit database-block context"),
+    rowID: z.string().describe("Row item ID to update"),
+    cells: z.array(AvUpsertCellSchema).min(1).describe("Cells to write on this row"),
+}).superRefine((value, ctx) => {
+    for (const [index, cell] of value.cells.entries()) {
+        if (!cell.columnID && !cell.columnName) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Each cell needs columnID or columnName.",
+                path: ["cells", index, "columnID"],
+            });
+        }
+    }
+});
 
 export const AvUpsertRowSchema = z.object({
     action: z.literal("upsert_row"),

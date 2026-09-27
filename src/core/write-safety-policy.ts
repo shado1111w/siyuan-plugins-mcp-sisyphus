@@ -44,7 +44,7 @@ export const ACTION_SAFETY_POLICIES: {
         lookup: read(), get_child_blocks: read(), get_child_docs: read(), list_tree: read(), search_docs: read(),
         get_doc: read(), read: read(), get_outline: read(),
         append: mutation(), prepend: mutation(),
-        create: mutation(), ensure_link_targets: mutation('structure'), create_daily_note: mutation(), duplicate: mutation('state'), rename: mutation('state'),
+        create: mutation(), ensure_link_targets: mutation('structure'), create_daily_note: mutation(), duplicate: mutation('state'), copy: mutation('state'), rename: mutation('state'),
         remove: mutation('state'), move: mutation('structure'), reorder: mutation('structure'), set_attr: mutation('state'),
         heading_to_doc: mutation('structure'), doc_to_heading: mutation('structure'),
     },
@@ -69,6 +69,7 @@ export const ACTION_SAFETY_POLICIES: {
         set_new_item_templates: mutation('state'), create_from_template: mutation('state'),
         configure_two_way_relation: mutation('state'), configure_rollup: mutation('state'), set_relation: mutation('state'),
         upsert_row: mutation('manifest'), create_table: mutation('state'),
+        get_row: read(), update_row: mutation('manifest'),
     },
     file: {
         list_templates: read(), read_template: read(), render: read(), export_md: read(), export_markdown_snapshot: read(), list_unused_assets: read(),

@@ -4821,4 +4821,93 @@ describe('av tool', () => {
         expect(doOps.some((op: any) => op.action === 'updateAttrViewColOptions')).toBe(true);
         expect(doOps.some((op: any) => op.action === 'insert' && op.parentID === 'doc-1')).toBe(true);
     });
+
+
+    it('get_row returns a column-name and columnID map for one row', async () => {
+        const avApi = await import('@/api/av');
+        vi.mocked(avApi.getMirrorDatabaseBlocks).mockResolvedValue({ refDefs: [{ refID: 'db-block-1', defIDs: [] }] } as never);
+        vi.mocked(avApi.getAttributeView).mockResolvedValue({
+            av: {
+                id: 'av-1',
+                keyValues: [
+                    { key: { id: 'key-pk', name: 'Primary Key', type: 'block' }, values: [{ id: 'v1', blockID: 'row-1', isDetached: true, block: { content: 'task-1' } }] },
+                    { key: { id: 'key-task', name: 'Task', type: 'text' }, values: [{ id: 'v2', blockID: 'row-1', text: { content: 'Write report' } }] },
+                    { key: { id: 'key-done', name: 'Done', type: 'checkbox' }, values: [{ id: 'v3', blockID: 'row-1', checkbox: { checked: true } }] },
+                ],
+                views: [{ id: 'view-1', type: 'table' }],
+            },
+        } as never);
+
+        const result = await callAvTool(client, {
+            action: 'get_row', avID: 'av-1', blockID: 'db-block-1', rowID: 'row-1',
+        }, enabledActions('get_row'), permMgr);
+
+        const payload = JSON.parse(result.content[0].text);
+        expect(payload).toMatchObject({ avID: 'av-1', rowID: 'row-1' });
+        expect(payload.cells).toMatchObject({ 'Primary Key': 'task-1', Task: 'Write report', Done: true });
+        expect(payload.cellsByColumnId['key-task']).toBe('Write report');
+    });
+
+    it('get_row reports row_not_found for an absent rowID', async () => {
+        const avApi = await import('@/api/av');
+        vi.mocked(avApi.getMirrorDatabaseBlocks).mockResolvedValue({ refDefs: [{ refID: 'db-block-1', defIDs: [] }] } as never);
+        vi.mocked(avApi.getAttributeView).mockResolvedValue({
+            av: { id: 'av-1', keyValues: [{ key: { id: 'key-pk', name: 'Primary Key', type: 'block' }, values: [] }], views: [] },
+        } as never);
+
+        const result = await callAvTool(client, {
+            action: 'get_row', avID: 'av-1', blockID: 'db-block-1', rowID: 'missing',
+        }, enabledActions('get_row'), permMgr);
+
+        expect(JSON.parse(result.content[0].text).error?.reason).toBe('row_not_found');
+    });
+
+    it('update_row writes cells on one row by rowID', async () => {
+        const avApi = await import('@/api/av');
+        const transactionApi = await import('@/api/transaction');
+        vi.mocked(avApi.getMirrorDatabaseBlocks).mockResolvedValue({ refDefs: [{ refID: 'db-block-1', defIDs: [] }] } as never);
+        vi.mocked(avApi.getAttributeView).mockResolvedValue({
+            av: {
+                id: 'av-1',
+                keyValues: [
+                    { key: { id: 'key-pk', name: 'Primary Key', type: 'block' }, values: [{ id: 'v1', blockID: 'row-1', isDetached: true, block: { content: 'task-1' } }] },
+                    { key: { id: 'key-status', name: 'Status', type: 'select' }, values: [] },
+                    { key: { id: 'key-done', name: 'Done', type: 'checkbox' }, values: [] },
+                ],
+                views: [{ id: 'view-1', type: 'table' }],
+            },
+        } as never);
+
+        const result = await callAvTool(client, {
+            action: 'update_row', avID: 'av-1', blockID: 'db-block-1', rowID: 'row-1',
+            cells: [
+                { columnName: 'Status', valueType: 'select', option: 'done' },
+                { columnName: 'Done', valueType: 'checkbox', checked: true },
+            ],
+        }, enabledActions('update_row'), permMgr);
+
+        const payload = JSON.parse(result.content[0].text);
+        expect(payload).toMatchObject({ success: true, action: 'update_row', rowID: 'row-1', cellsWritten: 2 });
+        const ops = vi.mocked(transactionApi.performTransactions).mock.calls.flatMap((c) => c[1][0].doOperations);
+        const updates = ops.filter((op: any) => op.action === 'updateAttrViewCell');
+        expect(updates).toHaveLength(2);
+        expect(updates.every((op: any) => op.rowID === 'row-1')).toBe(true);
+    });
+
+    it('update_row rejects a missing rowID before dispatch', async () => {
+        const avApi = await import('@/api/av');
+        const transactionApi = await import('@/api/transaction');
+        vi.mocked(avApi.getMirrorDatabaseBlocks).mockResolvedValue({ refDefs: [{ refID: 'db-block-1', defIDs: [] }] } as never);
+        vi.mocked(avApi.getAttributeView).mockResolvedValue({
+            av: { id: 'av-1', keyValues: [{ key: { id: 'key-pk', name: 'Primary Key', type: 'block' }, values: [] }], views: [] },
+        } as never);
+
+        const result = await callAvTool(client, {
+            action: 'update_row', avID: 'av-1', blockID: 'db-block-1', rowID: 'nope',
+            cells: [{ columnID: 'key-status', valueType: 'text', text: 'x' }],
+        }, enabledActions('update_row'), permMgr);
+
+        expect(JSON.parse(result.content[0].text).error?.reason).toBe('row_not_found');
+        expect(vi.mocked(transactionApi.performTransactions)).not.toHaveBeenCalled();
+    });
 });
