@@ -9,9 +9,9 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json-summary', 'json'],
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.d.ts', 'src/**/*.svelte'],
+      exclude: ['src/mcp-apps/**', 'src/cli/index.ts', 'src/cli/init.ts', 'src/**/*.d.ts', 'src/**/*.svelte'],
     },
   },
   resolve: {
