@@ -1804,6 +1804,19 @@ export const SystemWhoamiSchema = z.object({
     action: z.literal("whoami"),
 });
 
+export const SystemApiSchema = z.object({
+    action: z.literal("api"),
+    method: z.string().optional().describe("HTTP method for the raw kernel call. Defaults to the endpoint's catalog method (POST for most /api/*); use GET for read-only"),
+    path: z.string().optional().describe("Kernel API path such as /api/block/getBlockKramdown"),
+    body: z.string().optional().describe("Raw JSON body string forwarded verbatim. Required keys come from the endpoint describe output"),
+    write: z.boolean().optional().describe("Set true to authorize a non-GET kernel call (default false; non-GET is rejected without it)"),
+    describe: z.boolean().optional().describe("Print the endpoint's parameter table instead of calling"),
+    list: z.boolean().optional().describe("List known kernel endpoints"),
+    match: z.string().optional().describe("Substring filter for list, e.g. block, export"),
+    bodyTemplate: z.boolean().optional().describe("Print a ready-to-fill JSON body template for path"),
+    noValidate: z.boolean().optional().describe("Skip catalog param validation for dynamic endpoints"),
+});
+
 // --- Dailynote schemas ---
 
 const DailynoteDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD").optional().describe("Target date in YYYY-MM-DD; defaults to today");

@@ -34,11 +34,11 @@ describe('API audit', () => {
         expect(model.permissionChanges).toHaveLength(11);
         expect(model.production).toHaveLength(38);
         expect(model.plugin.tools).toHaveLength(15);
-        expect(model.actions).toHaveLength(162);
+        expect(model.actions).toHaveLength(163);
         expect(model.backendLiterals.size).toBe(150);
         expect(model.validBackend).toHaveLength(149);
         expect(model.invalidBackend).toEqual(['/api/asset/setImageAlpha']);
-        expect([...model.toolDirectOnly.keys()]).toEqual(['/api/file/readDir']);
+        expect([...model.toolDirectOnly.keys()]).toEqual(['/api/*', '/api/file/readDir']);
 
         const mapping = fs.readFileSync(path.resolve('API_MCP_MAPPING.md'), 'utf8');
         const mappedActions = new Set([...mapping.matchAll(/^\| `([a-z_]+\.[a-z_]+)` \|/gm)].map((match) => match[1]));

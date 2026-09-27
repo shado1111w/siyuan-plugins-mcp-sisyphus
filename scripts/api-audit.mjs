@@ -21,7 +21,7 @@ const EXPECTED = Object.freeze({
     deprecated: 4,
     permissionChanges: 11,
     tools: 15,
-    actions: 162,
+    actions: 163,
     backendApiLiterals: 150,
     validBackendApiLiterals: 149,
     uiApiLiterals: 5,

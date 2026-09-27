@@ -12,6 +12,7 @@ import {
     SystemNotifySchema,
     SystemPerformSyncSchema,
     SystemWhoamiSchema,
+    SystemApiSchema,
     SystemWorkspaceInfoSchema,
 } from '../../core/types';
 import { defineTool } from '../internal/define-tool';
@@ -30,6 +31,7 @@ export const SYSTEM_VARIANTS: ActionVariant<SystemAction>[] = [
     createZodActionVariant('get_version', SystemGetVersionSchema, 'Get the SiYuan system version.'),
     createZodActionVariant('get_current_time', SystemGetCurrentTimeSchema, 'Get the current system time.'),
     createZodActionVariant('whoami', SystemWhoamiSchema, 'Get the current identity: workspace dir, SiYuan version, language, and signed-in account if any.'),
+    createZodActionVariant('api', SystemApiSchema, 'Raw kernel escape hatch: call any /api/* endpoint directly. Use list/describe/bodyTemplate to discover params; non-GET requires write=true. Last resort - prefer typed actions.'),
 ];
 
 const systemTool = defineTool<SystemAction>({

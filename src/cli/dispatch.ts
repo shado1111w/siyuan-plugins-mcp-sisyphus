@@ -144,6 +144,14 @@ function applyPositionalActionArgs(category: ToolCategory, action: string, rest:
     const positionals = rest.filter((token) => !token.startsWith('-'));
     if (positionals.length === 0) return rest;
 
+    if (category === 'system' && action === 'api') {
+        // `system api --describe/--body-template/--match <path>`: the trailing
+        // bare path is the kernel endpoint path, not a value for the flag.
+        const nonFlags = positionals.filter((t) => t.startsWith('/'));
+        const target = nonFlags[0] ?? positionals[0];
+        if (target && !hasFlag(rest, 'path')) return prependMissingFlag(rest, 'path', target);
+        return rest;
+    }
     if (category === 'fs') {
         if (['ls', 'tree', 'read', 'rm'].includes(action)) {
             return prependMissingFlag(rest, 'path', positionals[0]);

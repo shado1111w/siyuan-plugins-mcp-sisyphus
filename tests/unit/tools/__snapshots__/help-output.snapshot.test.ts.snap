@@ -6488,6 +6488,27 @@ All search actions are read-only except find_replace, which modifies content and
   },
   "system": {
     "actions": {
+      "api": {
+        "action": "api",
+        "example": {
+          "action": "api",
+        },
+        "fullDocResource": "siyuan://help/action/system/api",
+        "guidance": [
+          "Most system actions in this tool are read-only; perform_sync is the mutating exception and requires explicit user confirmation before execution.",
+          "system(action="workspace_info") exposes the workspace path and is high-risk; it is disabled by default.",
+          "system(action="perform_sync") triggers SiYuan sync immediately; it does not modify sync provider settings.",
+          "system(action="conf") returns masked configuration, not raw secrets.",
+          "Use system(action="changelog", fromVersion="<previousVersion>") after plugin upgrades to see whether old personalized settings, rules, memory, or connection snippets need review.",
+          "Use system(action="conf", mode="summary") first, then mode="get" + keyPath such as conf.appearance.mode or conf.langs[0].",
+        ],
+        "requiredFields": [],
+        "requiresConfirmation": false,
+        "shapes": [
+          "action only",
+        ],
+        "tool": "system",
+      },
       "changelog": {
         "action": "changelog",
         "example": {
@@ -6714,7 +6735,7 @@ All search actions are read-only except find_replace, which modifies content and
 
 Common actions: conf, changelog, get_version, get_current_time, whoami. Required fields: conf: no additional fields; changelog: no additional fields; get_version: no additional fields; get_current_time: no additional fields; whoami: no additional fields.
 
-Additional actions: workspace_info, network, notify, perform_sync. Read siyuan://help/action/system/{action} for details, or call action="help" if resources are unavailable.
+Additional actions: workspace_info, network, notify, perform_sync, api. Read siyuan://help/action/system/{action} for details, or call action="help" if resources are unavailable.
 
 Parameter contract per action (fields outside the action's optional list should not be sent):
 system.workspace_info: required [] | optional []
@@ -6726,10 +6747,12 @@ system.perform_sync: required [] | optional []
 system.get_version: required [] | optional []
 system.get_current_time: required [] | optional []
 system.whoami: required [] | optional []
+system.api: required [] | optional [method, path, body, write, describe, list, match, bodyTemplate, noValidate]
 
 Most system actions in this tool are read-only; perform_sync is the mutating exception and requires explicit user confirmation before execution. system(action="workspace_info") exposes the workspace path and is high-risk; it is disabled by default. Requires user confirmation before: workspace_info, perform_sync.",
     "overview": {
       "actionSummaries": {
+        "api": "no extra fields",
         "changelog": "Reads the bundled plugin CHANGELOG with structured personalizationReview hints. Pass fromVersion after upgrades, version for one exact entry, or includeRaw=true for Markdown.",
         "conf": "Defaults to a navigable summary. Use mode="get" with keyPath to read one config field or subtree at a time, e.g. conf.appearance.mode or conf.langs[0].",
         "get_current_time": "Returns the current system time as {currentTime} epoch milliseconds and {iso} ISO 8601 text.",
@@ -6741,6 +6764,9 @@ Most system actions in this tool are read-only; perform_sync is the mutating exc
         "workspace_info": "Returns workspace path metadata and current SiYuan version. High-risk: leaks the absolute workspace path; disabled by default and requires explicit user confirmation.",
       },
       "actions": {
+        "api": {
+          "requiresConfirmation": false,
+        },
         "changelog": {
           "hint": "Reads the bundled plugin CHANGELOG with structured personalizationReview hints. Pass fromVersion after upgrades, version for one exact entry, or includeRaw=true for Markdown.",
           "requiresConfirmation": false,
@@ -6783,6 +6809,7 @@ Most system actions in this tool are read-only; perform_sync is the mutating exc
         "network",
         "notify",
         "perform_sync",
+        "api",
       ],
       "commonActions": [
         "conf",

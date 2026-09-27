@@ -4,7 +4,7 @@
 
 ## 当前基线
 
-- **15** 个聚合工具、**162** 个静态 action（不含隐式 `help`、MCP App 重复 action、`extension` 运行时动态 action）。
+- **15** 个聚合工具、**163** 个静态 action（不含隐式 `help`、MCP App 重复 action、`extension` 运行时动态 action）。
 - `src/api` wrapper 覆盖口径为 **150** 个唯一 `/api/*` 字面量：**149** 个有效，覆盖当前 **582** 个内核 API 路径的 **25.6%**；工具层直调另列，不混入该基线。
 - UI 设置页另有 **5** 个 UI-only 路径，不计入工具/API 覆盖率。
 - 唯一失效 wrapper：`/api/asset/setImageAlpha`（`src/api/file.ts:93`）；本轮仅记录，不删除。
@@ -24,7 +24,7 @@
 | `tag` | 3 | `remove` | `tag` |
 | `timeline` | 6 | `delete_node`、`rollback_document`、`rollback_block` | `repo`、`history` |
 | `dailynote` | 7 | `delete` | — |
-| `system` | 9 | `workspace_info`、`perform_sync` | `system`、`sync`、`workspace` |
+| `system` | 10 | `workspace_info`、`perform_sync` | `system`、`sync`、`workspace` |
 | `flashcard` | 6 | `remove_card` | — |
 | `extension` | 3 | — | `动态官方 MCP 工具` |
 | `mascot` | 3 | — | — |
@@ -185,15 +185,16 @@
 | `system.get_version` | `/api/system/version` | — | — | `read` | `system`、`sync`、`workspace` | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
 | `system.get_current_time` | `/api/system/currentTime` | — | — | `read` | `system`、`sync`、`workspace` | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
 | `system.whoami` | `/api/system/getWorkspaceInfo` | — | — | `read` | `system`、`sync`、`workspace` | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
+| `system.api` | — | — | — | `read` | `system`、`sync`、`workspace` | 本地逻辑、外部服务或静态分析无法可靠绑定；未猜测 endpoint |
 | `flashcard.list_cards` | `/api/riff/getRiffDueCards`<br>`/api/riff/getNotebookRiffDueCards`<br>`/api/riff/getTreeRiffDueCards` | — | — | `read` | — | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
 | `flashcard.get_decks` | `/api/riff/getRiffDecks` | — | — | `read` | — | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
 | `flashcard.get_cards` | `/api/riff/getRiffCards` | — | — | `read` | — | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
 | `flashcard.review_card` | `/api/riff/reviewRiffCard`<br>`/api/riff/skipReviewRiffCard` | — | — | `mutation(state)` | — | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
 | `flashcard.create_card` | `/api/riff/addRiffCards` | — | — | `mutation(none)` | — | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
 | `flashcard.remove_card` | `/api/riff/removeRiffCards` | — | — | `mutation(state)`；危险：协议确认 | — | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
-| `extension.list` | `/mcp` | — | — | `read` | `动态官方 MCP 工具` | 动态读取思源原生 MCP tools/list；运行时动态 action 不计入静态 162 |
-| `extension.validate_package` | — | — | — | `read` | `动态官方 MCP 工具` | 动态读取思源原生 MCP tools/list；运行时动态 action 不计入静态 162 |
-| `extension.diagnose_plugin_mcp` | — | — | — | `read` | `动态官方 MCP 工具` | 动态读取思源原生 MCP tools/list；运行时动态 action 不计入静态 162 |
+| `extension.list` | `/mcp` | — | — | `read` | `动态官方 MCP 工具` | 动态读取思源原生 MCP tools/list；运行时动态 action 不计入静态 163 |
+| `extension.validate_package` | — | — | — | `read` | `动态官方 MCP 工具` | 动态读取思源原生 MCP tools/list；运行时动态 action 不计入静态 163 |
+| `extension.diagnose_plugin_mcp` | — | — | — | `read` | `动态官方 MCP 工具` | 动态读取思源原生 MCP tools/list；运行时动态 action 不计入静态 163 |
 | `mascot.get_balance` | `external:Sisyphus service` | — | — | `read` | — | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
 | `mascot.shop` | `external:Sisyphus service` | — | — | `read` | — | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
 | `mascot.buy` | `external:Sisyphus service` | — | — | `mutation(state)` | — | 业务端点；另经过权限/刷新/写安全/lifecycle 横切链 |
@@ -242,7 +243,7 @@
 | `/api/block/getBlockBreadcrumb` | api-wrapper | `src/api/block.ts:206` | 有效内核路由 |
 | `/api/block/getBlockDOM` | api-wrapper+core | `src/api/block.ts:210`<br>`src/core/write-safety-coordinator.ts:608`<br>`src/core/write-safety-coordinator.ts:637`<br>`src/core/write-safety-coordinator.ts:985`<br>`src/core/write-safety-coordinator.ts:1674` | 有效内核路由 |
 | `/api/block/getBlockInfo` | api-wrapper+core+tool-direct | `src/api/block.ts:198`<br>`src/core/write-safety-coordinator.ts:638`<br>`src/core/write-safety-coordinator.ts:981`<br>`src/tools/search/handlers.ts:230` | 有效内核路由 |
-| `/api/block/getBlockKramdown` | api-wrapper+core | `src/api/block.ts:143`<br>`src/api/block.ts:144`<br>`src/core/write-safety-coordinator.ts:983`<br>`src/core/write-safety-coordinator.ts:1129` | 有效内核路由 |
+| `/api/block/getBlockKramdown` | api-wrapper+core+tool-direct | `src/api/block.ts:143`<br>`src/api/block.ts:144`<br>`src/core/types.ts:1810`<br>`src/core/write-safety-coordinator.ts:983`<br>`src/core/write-safety-coordinator.ts:1129`<br>`src/tools/system/handlers.ts:323` | 有效内核路由 |
 | `/api/block/getBlockKramdowns` | api-wrapper | `src/api/block.ts:155` | 有效内核路由 |
 | `/api/block/getBlocksWordCount` | api-wrapper | `src/api/block.ts:218` | 有效内核路由 |
 | `/api/block/getChildBlocks` | api-wrapper+core | `src/api/block.ts:164`<br>`src/api/block.ts:165`<br>`src/core/write-safety-coordinator.ts:984` | 有效内核路由 |
@@ -358,6 +359,7 @@
 
 | API 路径 | 位置 | 状态 |
 |---|---|---|
+| `/api/*` | `src/tools/system/index.ts:34` | 失效 |
 | `/api/file/readDir` | `src/tools/av/handlers.ts:1395` | 有效 |
 
 ### UI-only（不计覆盖率）
@@ -373,7 +375,7 @@
 ## 覆盖层级解释
 
 - **插件直接覆盖**：后端 API wrapper 或工具层直调，列于上表 150 项。
-- **由 extension 暴露原生工具**：运行时通过思源 `/mcp` 发现；动态 action 不纳入静态 162。
+- **由 extension 暴露原生工具**：运行时通过思源 `/mcp` 发现；动态 action 不纳入静态 163。
 - **仅内核内部使用**：当前内核路由存在，但没有插件后端字面量；不等同于适合暴露给 AI。
 - **不建议引入**：宿主管理、认证回调、任意文件/网络代理等能力，见人工候选区。
 

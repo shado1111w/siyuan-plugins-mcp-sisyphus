@@ -249,6 +249,30 @@ export class SiYuanClient {
             throw error;
         }
     }
+
+    /**
+     * Raw escape-hatch passthrough for `system api`. Forwards an arbitrary HTTP
+     * method + kernel path + JSON body through this client's auth/timeout. The
+     * caller is responsible for read-vs-write gating; `semantics` only picks
+     * the retry posture (read retries transient failures, write does not).
+     */
+    async requestApi(endpoint: string, method: string, body?: string): Promise<unknown> {
+        const upper = method.toUpperCase();
+        const isWrite = upper !== 'GET' && upper !== 'HEAD';
+        const init: RequestInit = {
+            method: upper,
+            headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
+        };
+        if (body !== undefined && upper !== 'GET' && upper !== 'HEAD') {
+            init.body = body;
+        }
+        try {
+            return await this.readData<unknown>(`${this.baseUrl}${endpoint}`, init, isWrite ? 'write' : 'read');
+        } catch (error) {
+            if (isWrite && isAmbiguousTransportFailure(error)) throw new WriteOutcomeUnknownError(endpoint, error);
+            throw error;
+        }
+    }
 }
 
 function isAmbiguousTransportFailure(error: unknown): boolean {

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { SiYuanClient } from '../../api/client';
 import * as notificationApi from '../../api/notification';
 import * as systemApi from '../../api/system';
@@ -8,6 +9,7 @@ import {
     SystemConfSchema,
     SystemGetCurrentTimeSchema,
     SystemWhoamiSchema,
+    SystemApiSchema,
     SystemGetVersionSchema,
     SystemNetworkSchema,
     SystemNotifySchema,
@@ -233,6 +235,135 @@ const handleWhoami: ToolActionHandler = async ({ client, rawArgs }) => {
     });
 };
 
+// --- system api: raw kernel escape hatch with param-catalog discovery -------
+
+const VALID_METHODS = new Set(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD']);
+const DEFAULT_METHOD = 'POST';
+
+let catalogCache: Record<string, CatalogEntry> | null = null;
+
+type CatalogParam = { name: string; jsonType: string; required: boolean; default?: unknown; enum?: string[]; example?: unknown; src?: string };
+type CatalogEntry = { method: string; handler: string; sourceRef?: string; params: CatalogParam[]; note?: string; dynamic?: boolean };
+
+function loadCatalog(): Record<string, CatalogEntry> {
+    if (catalogCache) return catalogCache;
+    const candidates = [
+        // bundled: cli/dist/api-catalog.json sits beside cli.cjs
+        new URL('./api-catalog.json', import.meta.url),
+        new URL('../api-catalog.json', import.meta.url),
+        // source layout: src/tools/system -> repo root
+        new URL('../../../api-catalog.json', import.meta.url),
+        new URL('../../api-catalog.json', import.meta.url),
+    ];
+    for (const u of candidates) {
+        try {
+            const raw = JSON.parse(readFileSync(u, 'utf-8')) as { endpoints?: Record<string, CatalogEntry> };
+            catalogCache = raw.endpoints ?? {};
+            return catalogCache;
+        } catch { }
+    }
+    catalogCache = {};
+    return catalogCache;
+}
+
+function findEndpoint(catalog: Record<string, CatalogEntry>, path: string, method?: string) {
+    const direct = catalog[(method ?? 'POST') + ' ' + path];
+    if (direct) return { entry: direct };
+    for (const key of Object.keys(catalog)) {
+        if (key.endsWith(' ' + path)) return { entry: catalog[key] };
+    }
+    return null;
+}
+
+function describeEndpoint(path: string, method: string | undefined, entry: CatalogEntry) {
+    const params = (entry.params ?? []).map(p => ({
+        name: p.name,
+        type: p.jsonType,
+        required: p.required === true,
+        ...(p.default !== undefined ? { default: p.default } : {}),
+        ...(p.enum ? { enum: p.enum } : {}),
+        ...(p.example !== undefined ? { example: p.example } : {}),
+    }));
+    return {
+        path, method: method ?? entry.method, handler: entry.handler,
+        sourceRef: entry.sourceRef ?? null,
+        params,
+        required: params.filter(p => p.required).map(p => p.name),
+        ...(entry.note ? { note: entry.note } : {}),
+        ...(entry.dynamic ? { dynamic: true } : {}),
+    };
+}
+
+function bodyTemplate(entry: CatalogEntry): Record<string, unknown> {
+    const tmpl: Record<string, unknown> = {};
+    for (const p of entry.params ?? []) {
+        if (p.example !== undefined) tmpl[p.name] = p.example;
+        else if (p.default !== undefined) tmpl[p.name] = p.default;
+        else if (p.required) tmpl[p.name] = '<' + p.jsonType + '>';
+    }
+    return tmpl;
+}
+
+function fuzzyMatch(catalog: Record<string, CatalogEntry>, path: string): string[] {
+    const frag = (path.split('/').pop() ?? path).toLowerCase();
+    return Object.keys(catalog).filter(k => k.toLowerCase().includes(frag)).slice(0, 8);
+}
+
+const handleApi: ToolActionHandler = async ({ client, rawArgs }) => {
+    const a = SystemApiSchema.parse(rawArgs);
+    const catalog = loadCatalog();
+
+    if (a.list) {
+        const rows = Object.keys(catalog)
+            .filter(k => !a.match || k.toLowerCase().includes(a.match.toLowerCase()))
+            .map(k => { const [method, ...rest] = k.split(' '); return { method, path: rest.join(' ') }; });
+        return createJsonResult({ endpoints: rows, count: rows.length });
+    }
+    if (!a.path) {
+        throw new Error('system api requires path (e.g. /api/block/getBlockKramdown), or list/match to browse the catalog.');
+    }
+    const found = findEndpoint(catalog, a.path, a.method);
+    if (!found) {
+        const suggestions = fuzzyMatch(catalog, a.path);
+        throw new Error('Unknown kernel endpoint ' + a.path + '.' + (suggestions.length ? ' Did you mean: ' + suggestions.join(', ') : ' No catalog match.'));
+    }
+    const entry = found.entry;
+    if (a.bodyTemplate) {
+        return createJsonResult({ path: a.path, template: bodyTemplate(entry), describe: describeEndpoint(a.path, a.method, entry) });
+    }
+    if (a.describe) {
+        return createJsonResult(describeEndpoint(a.path, a.method, entry));
+    }
+
+    const method = (a.method ?? entry.method ?? DEFAULT_METHOD).toUpperCase();
+    if (!VALID_METHODS.has(method)) throw new Error('Unsupported method ' + method + '.');
+    const isWrite = method !== 'GET' && method !== 'HEAD';
+    if (isWrite && a.write !== true) {
+        throw new Error('Refusing non-GET call to ' + a.path + ' without --write. Pass write=true to authorize.');
+    }
+    const body = a.body;
+    if (!a.noValidate && body && entry.params && entry.params.length > 0) {
+        let parsed;
+        try { parsed = JSON.parse(body); } catch { throw new Error('body must be a JSON object string.'); }
+        const known = new Set(entry.params.map(p => p.name));
+        const unknown = Object.keys(parsed).filter(k => !known.has(k));
+        const missing = entry.params.filter(p => p.required && !(p.name in parsed)).map(p => p.name);
+        if (missing.length || (unknown.length && !entry.dynamic)) {
+            const parts = [];
+            if (missing.length) parts.push('missing required: ' + missing.join(', '));
+            if (unknown.length && !entry.dynamic) parts.push('unknown keys: ' + unknown.join(', '));
+            parts.push('describe: ' + JSON.stringify(describeEndpoint(a.path, method, entry).params));
+            throw new Error('system api param check failed for ' + a.path + ': ' + parts.join(' | '));
+        }
+    }
+    try {
+        const data = await client.requestApi(a.path, method, body);
+        return createJsonResult({ path: a.path, method, data });
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error('system api ' + method + ' ' + a.path + ' failed: ' + msg + '. describe: ' + JSON.stringify(describeEndpoint(a.path, method, entry).params));
+    }
+};
 export const SYSTEM_ACTION_HANDLERS: Record<SystemAction, ToolActionHandler> = {
     workspace_info: handleWorkspaceInfo,
     network: handleNetwork,
@@ -243,4 +374,5 @@ export const SYSTEM_ACTION_HANDLERS: Record<SystemAction, ToolActionHandler> = {
     get_version: handleGetVersion,
     get_current_time: handleGetCurrentTime,
     whoami: handleWhoami,
+    api: handleApi,
 };

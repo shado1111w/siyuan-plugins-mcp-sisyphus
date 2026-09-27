@@ -331,6 +331,7 @@ describe('tool action contract coverage', () => {
             { action: 'get_version', args: { action: 'get_version' }, expectedEndpoint: '/api/system/version' },
             { action: 'get_current_time', args: { action: 'get_current_time' }, expectedEndpoint: '/api/system/currentTime' },
             { action: 'whoami', args: { action: 'whoami' }, expectedEndpoint: '/api/system/getWorkspaceInfo' },
+            { action: 'api', args: { action: 'api', list: true } },
         ]);
     });
 

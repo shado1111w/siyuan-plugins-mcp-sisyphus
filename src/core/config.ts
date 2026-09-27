@@ -17,7 +17,7 @@ export const DAILYNOTE_ACTIONS = ['create', 'get', 'list', 'read', 'append', 'pr
 export const TIMELINE_APP_ACTIONS = TIMELINE_ACTIONS;
 export const FLASHCARD_REVIEW_APP_ACTIONS = ['review_card'] as const;
 export const MASCOT_SHOP_APP_ACTIONS = ['get_balance', 'shop', 'buy'] as const;
-export const SYSTEM_ACTIONS = ['workspace_info', 'network', 'conf', 'notify', 'changelog', 'perform_sync', 'get_version', 'get_current_time', 'whoami'] as const;
+export const SYSTEM_ACTIONS = ['workspace_info', 'network', 'conf', 'notify', 'changelog', 'perform_sync', 'get_version', 'get_current_time', 'whoami', 'api'] as const;
 export const FLASHCARD_ACTIONS = ['list_cards', 'get_decks', 'get_cards', 'review_card', 'create_card', 'remove_card'] as const;
 export const EXTENSION_ACTIONS = ['list', 'validate_package', 'diagnose_plugin_mcp'] as const;
 export const MASCOT_ACTIONS = ['get_balance', 'shop', 'buy'] as const;
@@ -236,7 +236,7 @@ const ACTION_TIERS: Record<ToolCategory, Record<string, ActionTier>> = {
         delete: 'advanced',
     },
     system: {
-        get_version: 'basic', get_current_time: 'basic', whoami: 'basic', conf: 'basic', changelog: 'basic',
+        get_version: 'basic', get_current_time: 'basic', whoami: 'basic', conf: 'basic', changelog: 'basic', api: 'advanced',
         workspace_info: 'advanced', network: 'advanced', notify: 'advanced', perform_sync: 'advanced',
     },
     flashcard: {
@@ -335,7 +335,7 @@ export function buildDefaultToolConfig(): ToolConfig {
         },
         system: {
             enabled: true,
-            actions: createActionsRecord(SYSTEM_ACTIONS, ['network', 'conf', 'notify', 'changelog', 'perform_sync', 'get_version', 'get_current_time', 'whoami']),
+            actions: createActionsRecord(SYSTEM_ACTIONS, ['network', 'conf', 'notify', 'changelog', 'perform_sync', 'get_version', 'get_current_time', 'whoami', 'api']),
         },
         flashcard: {
             enabled: true,

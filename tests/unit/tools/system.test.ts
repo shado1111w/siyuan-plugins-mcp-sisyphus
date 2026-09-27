@@ -102,4 +102,72 @@ describe('system tool schemas', () => {
         expect(parsed.workspaceDir).toBeNull();
         expect(parsed.siyuanVer).toBe('3.8.5');
     });
+
+    describe('api escape hatch', () => {
+        const cfg = () => buildDefaultToolConfig().system;
+        const expectErr = async (args: Record<string, unknown>, re: RegExp) => {
+            const result = await callSystemTool({} as never, args, cfg(), {} as never);
+            const parsed = parseResult(result);
+            expect(parsed.error?.message ?? parsed.error?.type ?? '').toMatch(re);
+        };
+
+        it('lists catalog endpoints with --list and filters with --match', async () => {
+            const result = await callSystemTool({} as never, { action: 'api', list: true, match: 'getBlockKramdown' }, cfg(), {} as never);
+            const parsed = JSON.parse(result.content[0].text);
+            expect(parsed.endpoints.some((e: { path: string }) => e.path === '/api/block/getBlockKramdown')).toBe(true);
+        });
+
+        it('describes an endpoint param table with --describe', async () => {
+            const result = await callSystemTool({} as never, { action: 'api', path: '/api/block/getBlockKramdown', describe: true }, cfg(), {} as never);
+            const parsed = JSON.parse(result.content[0].text);
+            expect(parsed.path).toBe('/api/block/getBlockKramdown');
+            expect(parsed.params.some((p: { name: string }) => p.name === 'id')).toBe(true);
+            expect(parsed.required).toContain('id');
+        });
+
+        it('emits a body template with --body-template', async () => {
+            const result = await callSystemTool({} as never, { action: 'api', path: '/api/block/insertBlock', bodyTemplate: true }, cfg(), {} as never);
+            const parsed = JSON.parse(result.content[0].text);
+            expect(parsed.template.data).toBeDefined();
+            expect(parsed.describe.path).toBe('/api/block/insertBlock');
+        });
+
+        it('suggests near matches for an unknown path', async () => {
+            await expectErr({ action: 'api', path: '/api/block/getBlockKramdow', write: true }, /Did you mean|No catalog match/);
+        });
+
+        it('rejects a non-GET call without write=true', async () => {
+            await expectErr({ action: 'api', method: 'POST', path: '/api/block/updateBlock', body: '{}' }, /without --write|write=true/);
+        });
+
+        it('fails pre-flight when a required param is missing', async () => {
+            await expectErr({ action: 'api', path: '/api/block/getBlockKramdown', body: JSON.stringify({ mode: 'md' }), write: true }, /missing required: id/);
+        });
+
+        it('rejects unknown body keys against the catalog', async () => {
+            await expectErr({ action: 'api', path: '/api/block/getBlockKramdown', body: JSON.stringify({ id: 'x', bogus: 1 }), write: true }, /unknown keys: bogus/);
+        });
+
+        it('forwards GET read calls straight through', async () => {
+            const requestApi = vi.fn(async () => ({ ok: true }));
+            const result = await callSystemTool({ requestApi } as never, { action: 'api', method: 'GET', path: '/api/system/version' }, cfg(), {} as never);
+            const parsed = JSON.parse(result.content[0].text);
+            expect(parsed.data).toEqual({ ok: true });
+            expect(requestApi).toHaveBeenCalledWith('/api/system/version', 'GET', undefined);
+        });
+
+        it('forwards POST write calls when write=true', async () => {
+            const requestApi = vi.fn(async () => ({ updated: true }));
+            await callSystemTool({ requestApi } as never, { action: 'api', method: 'POST', path: '/api/block/getBlockKramdown', body: JSON.stringify({ id: 'b1' }), write: true }, cfg(), {} as never);
+            expect(requestApi).toHaveBeenCalledWith('/api/block/getBlockKramdown', 'POST', JSON.stringify({ id: 'b1' }));
+        });
+
+        it('embeds the describe table when the kernel call fails', async () => {
+            const requestApi = vi.fn(async () => { throw new Error('SiYuan API error: -1 - bad'); });
+            const result = await callSystemTool({ requestApi } as never, { action: 'api', path: '/api/block/getBlockKramdown', body: JSON.stringify({ id: 'b1' }), write: true }, cfg(), {} as never);
+            const parsed = parseResult(result);
+            expect(parsed.error?.message).toMatch(/getBlockKramdown failed/);
+            expect(parsed.error?.message).toMatch(/"name\":\"id"/);
+        });
+    });
 });

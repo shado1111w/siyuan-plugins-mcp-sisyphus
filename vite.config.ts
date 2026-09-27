@@ -416,6 +416,15 @@ function copyCliSkills() {
                     fs.default.cpSync(source, target, { recursive: true, force: true });
                     console.log(`[cli-copy-skills] copied ${source} -> ${target}`);
                 }
+
+                // Ship the generated kernel API catalog beside cli.cjs so
+                // `system api --describe/--list` resolves it at runtime.
+                const catalogSrc = resolve(__dirname, "api-catalog.json");
+                const catalogDst = resolve(__dirname, cliOutputDir, "api-catalog.json");
+                if (fs.default.existsSync(catalogSrc)) {
+                    fs.default.copyFileSync(catalogSrc, catalogDst);
+                    console.log(`[cli-copy-skills] copied ${catalogSrc} -> ${catalogDst}`);
+                }
             },
         },
     };
