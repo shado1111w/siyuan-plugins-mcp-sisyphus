@@ -42,6 +42,7 @@ import {
     AvQuerySchema,
 } from '../../core/types';
 import { filterRows, parseFilterExpression, parseSortExpression, resolveColumn, sortRows, type AvQueryColumn, type ParsedFilter, type ParsedSort } from './query-filter';
+import { toId } from '../../shared/normalize-id';
 import { createResultResolutionCache, ensurePermissionForDocumentId, ensurePermissionForNotebook, escapeSqlString, resolveDocumentContextById, resolveResultItemContext } from '../internal/context';
 import { computePageCount } from '../internal/pagination';
 import type { ToolActionHandler, ToolHandlerContext } from '../internal/define-tool';
@@ -3886,6 +3887,8 @@ async function applyUpsertCells(
 
 async function handleUpsertRow({ client, permMgr, rawArgs }: ToolHandlerContext): Promise<ToolResult> {
     const parsed = AvUpsertRowSchema.parse(rawArgs);
+    parsed.avID = toId(parsed.avID);
+    if (parsed.blockID !== undefined) parsed.blockID = toId(parsed.blockID);
     const { denied, avData } = await ensurePermissionForAvId(client, permMgr, parsed.avID, 'write', { blockID: parsed.blockID, action: 'upsert_row' });
     if (denied) return denied;
 
@@ -4084,6 +4087,9 @@ function extractRowValueByType(value: unknown, keyType: string): unknown {
 
 async function handleGetRow({ client, permMgr, rawArgs }: ToolHandlerContext): Promise<ToolResult> {
     const parsed = AvGetRowSchema.parse(rawArgs);
+    parsed.avID = toId(parsed.avID);
+    parsed.rowID = toId(parsed.rowID);
+    if (parsed.blockID !== undefined) parsed.blockID = toId(parsed.blockID);
     const { denied, avData } = await ensurePermissionForAvId(client, permMgr, parsed.avID, 'read', { blockID: parsed.blockID, action: 'get_row' });
     if (denied) return denied;
 
@@ -4136,6 +4142,9 @@ async function handleGetRow({ client, permMgr, rawArgs }: ToolHandlerContext): P
 
 async function handleUpdateRow({ client, permMgr, rawArgs }: ToolHandlerContext): Promise<ToolResult> {
     const parsed = AvUpdateRowSchema.parse(rawArgs);
+    parsed.avID = toId(parsed.avID);
+    parsed.rowID = toId(parsed.rowID);
+    if (parsed.blockID !== undefined) parsed.blockID = toId(parsed.blockID);
     const { denied, avData } = await ensurePermissionForAvId(client, permMgr, parsed.avID, 'write', { blockID: parsed.blockID, action: 'update_row' });
     if (denied) return denied;
 
@@ -4187,12 +4196,14 @@ async function handleUpdateRow({ client, permMgr, rawArgs }: ToolHandlerContext)
 
 async function handleQuery({ client, permMgr, rawArgs }: ToolHandlerContext): Promise<ToolResult> {
     const parsed = AvQuerySchema.parse(rawArgs);
-    const { denied } = await ensurePermissionForAvId(client, permMgr, parsed.avID, 'read', { blockID: parsed.blockID, action: 'query' });
+    const avID = toId(parsed.avID);
+    const blockID = parsed.blockID === undefined ? undefined : toId(parsed.blockID);
+    const { denied } = await ensurePermissionForAvId(client, permMgr, avID, 'read', { blockID, action: 'query' });
     if (denied) return denied;
 
     const response = await avApi.renderAttributeView(client, {
-        id: parsed.avID,
-        blockID: parsed.blockID,
+        id: avID,
+        blockID: blockID,
         pageSize: -1,
         query: parsed.query,
     });
@@ -4216,11 +4227,11 @@ async function handleQuery({ client, permMgr, rawArgs }: ToolHandlerContext): Pr
     for (const raw of rawFilters) {
         const parsedFilter = parseFilterExpression(raw);
         if (parsedFilter.ok === false) {
-            return createAvValidationErrorResult('query', { reason: 'invalid_filter', message: parsedFilter.message, avID: parsed.avID });
+            return createAvValidationErrorResult('query', { reason: 'invalid_filter', message: parsedFilter.message, avID: avID });
         }
         const resolved = resolveColumn(queryColumns, parsedFilter.value.column, 'filter');
         if (resolved.ok === false) {
-            return createAvValidationErrorResult('query', { reason: 'unknown_column', message: resolved.message, avID: parsed.avID });
+            return createAvValidationErrorResult('query', { reason: 'unknown_column', message: resolved.message, avID: avID });
         }
         filters.push({ ...parsedFilter.value, columnID: resolved.column.id, columnName: resolved.column.name });
     }
@@ -4230,11 +4241,11 @@ async function handleQuery({ client, permMgr, rawArgs }: ToolHandlerContext): Pr
     for (const raw of rawSorts) {
         const parsedSort = parseSortExpression(raw);
         if (parsedSort.ok === false) {
-            return createAvValidationErrorResult('query', { reason: 'invalid_sort', message: parsedSort.message, avID: parsed.avID });
+            return createAvValidationErrorResult('query', { reason: 'invalid_sort', message: parsedSort.message, avID: avID });
         }
         const resolved = resolveColumn(queryColumns, parsedSort.value.column, 'sort');
         if (resolved.ok === false) {
-            return createAvValidationErrorResult('query', { reason: 'unknown_column', message: resolved.message, avID: parsed.avID });
+            return createAvValidationErrorResult('query', { reason: 'unknown_column', message: resolved.message, avID: avID });
         }
         sorts.push({ ...parsedSort.value, columnID: resolved.column.id, columnName: resolved.column.name });
     }
@@ -4254,7 +4265,7 @@ async function handleQuery({ client, permMgr, rawArgs }: ToolHandlerContext): Pr
         pageCount,
         hasNextPage: page < pageCount,
     }, {
-        avID: parsed.avID,
+        avID: avID,
         table: { columns, rows: matched, rowCount: total },
         appliedFilters: filters.map((f) => ({ column: f.columnName ?? f.columnID, op: f.op, value: f.value })),
         appliedSorts: sorts.map((s) => ({ column: s.columnName ?? s.columnID, order: s.order })),

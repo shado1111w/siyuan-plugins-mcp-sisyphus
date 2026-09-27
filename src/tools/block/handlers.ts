@@ -39,6 +39,7 @@ import { createFootnoteReferenceHint, createSiyuanBlockLinkHint, createUnresolve
 import { normalizeMarkdownInputRefs, normalizeReplaceEditsRefs } from '../internal/markdown-input';
 import { setTaskMarker } from './task-marker';
 import { domToPlainText } from './plain-text';
+import { toId } from '../../shared/normalize-id';
 
 
 type RecentUpdatedDocumentSummary = {
@@ -848,7 +849,7 @@ const handleDocsInfo: BlockActionHandler = async ({ client, permMgr, rawArgs }) 
 
 const handleUpdateTaskMarker: BlockActionHandler = async ({ client, permMgr, rawArgs }) => {
     const parsed = BlockUpdateTaskMarkerSchema.parse(rawArgs);
-    const ids = parsed.ids ?? [parsed.id!];
+    const ids = (parsed.ids ?? [parsed.id!]).map(toId);
     const results: Array<{ id: string; ok: boolean; changed?: boolean; taskItems?: number; message?: string }> = [];
     const refreshedDocs = new Set<string>();
 
@@ -902,11 +903,12 @@ const handleUpdateTaskMarker: BlockActionHandler = async ({ client, permMgr, raw
 
 const handleText: BlockActionHandler = async ({ client, permMgr, rawArgs }) => {
     const parsed = BlockTextSchema.parse(rawArgs);
-    const { denied } = await ensurePermissionForDocumentId(client, permMgr, parsed.id, 'read');
+    const id = toId(parsed.id);
+    const { denied } = await ensurePermissionForDocumentId(client, permMgr, id, 'read');
     if (denied) return denied;
-    const domResult = await blockApi.getBlockDOM(client, parsed.id);
+    const domResult = await blockApi.getBlockDOM(client, id);
     const text = domToPlainText(domResult.dom ?? '');
-    return createJsonResult({ id: parsed.id, text, length: text.length });
+    return createJsonResult({ id, text, length: text.length });
 };
 
 export const BLOCK_ACTION_HANDLERS: Record<BlockAction, BlockActionHandler> = {

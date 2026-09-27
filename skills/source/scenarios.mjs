@@ -60,6 +60,7 @@ The complete layout guide is available through the help action below, using the 
 - Document reads try full text by default, capped at 256 KiB UTF-8 and 2000 complete blocks; a single oversized block fails explicitly. Outlines and database hints cover the returned window, and totalBlocks is null until EOF.
 - Keep reads bounded and prove completeness: use \`nextWindow\` or explicit \`blockStart\`/\`blockLimit\`/\`tokenBudget\` for documents, and page parameters for lists and searches. Continue while another page/window is advertised, then reread the exact affected ID/path and compare the intended field or status.
 - If a write response is lost, or the result is \`outcome_unknown\` or \`readback_mismatch\`, stop and inspect the exact target. Do not resend with a new \`requestId\` merely because the acknowledgement was missing.
+- When you have an ID, you may paste it in any of these forms and the CLI normalizes it for block/document/av/row targets: a bare ID (20240101120000-abcdefg), a block reference ((id)), a siyuan://blocks/<id> link, or a SiYuan web/desktop URL containing id=<id>. Human-readable workspace paths are still resolved separately and are not IDs.
 - Missing results may be caused by notebook permissions or indexing delay.
 - Obtain explicit approval before deletes, moves, bulk replacement, permission changes, local upload/export, or sensitive workspace disclosure.
 `,
