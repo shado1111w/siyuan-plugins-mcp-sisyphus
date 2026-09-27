@@ -143,3 +143,74 @@ export function filterRows<T extends { cells: Record<string, unknown> }>(rows: T
     if (filters.length === 0) return rows;
     return rows.filter((row) => filters.every((f) => evaluateFilter(f, row.cells)));
 }
+
+// ---------------------------------------------------------------------------
+// --filter-json: nested {and|or|leaf} filter compiled to a row predicate. Leaf
+// shape { "Col": "expr" } where expr reuses the linear operator tokens
+// (=, !=, ~, !~, >, <, >=, <=), a bare value (eq), empty string (notEmpty), or
+// "!" (empty). Combines with linear --filter via an implicit top-level AND.
+// ---------------------------------------------------------------------------
+
+export interface FilterJsonLeaf { op: FilterOperator; value?: string }
+
+const OP_TOKENS: Record<string, FilterOperator> = {
+    '=': 'eq', '!=': 'ne', '~': 'contains', '!~': 'notContains',
+    '>': 'gt', '<': 'lt', '>=': 'gte', '<=': 'lte',
+};
+
+function leafFromExpr(expr: string): { ok: true; leaf: FilterJsonLeaf } | { ok: false; message: string } {
+    const t = expr.trim();
+    const m = /^(!?~|!=|>=|<=|>|<|=)/.exec(t);
+    if (m) {
+        const value = t.slice(m[1].length).trim();
+        if (value === '') return { ok: false, message: 'filterJson leaf has an operator but no value: "' + expr + '".' };
+        return { ok: true, leaf: { op: OP_TOKENS[m[1]], value } };
+    }
+    if (t === '') return { ok: true, leaf: { op: 'notEmpty' } };
+    if (t === '!') return { ok: true, leaf: { op: 'empty' } };
+    return { ok: true, leaf: { op: 'eq', value: t } };
+}
+
+export function compileFilterJson(
+    node: unknown,
+    columns: AvQueryColumn[],
+): { ok: true; pred: (cells: Record<string, unknown>) => boolean; leaves: number } | { ok: false; message: string } {
+    const MAX_DEPTH = 12;
+    const MAX_LEAVES = 64;
+    let leaves = 0;
+    const build = (n: unknown, depth: number): { ok: true; pred: (c: Record<string, unknown>) => boolean } | { ok: false; message: string } => {
+        if (depth > MAX_DEPTH) return { ok: false, message: 'filterJson nesting exceeds ' + MAX_DEPTH + ' levels.' };
+        if (n === null || typeof n !== 'object' || Array.isArray(n)) return { ok: false, message: 'filterJson node must be an object.' };
+        const obj = n as Record<string, unknown>;
+        if (Array.isArray(obj.and)) {
+            const subs = obj.and.map(s => build(s, depth + 1));
+            const bad = subs.find(s => !s.ok);
+            if (bad) return bad as { ok: false; message: string };
+            const preds = (subs as Array<{ ok: true; pred: (c: Record<string, unknown>) => boolean }>).map(s => s.pred);
+            return { ok: true, pred: (c) => preds.every(p => p(c)) };
+        }
+        if (Array.isArray(obj.or)) {
+            const subs = obj.or.map(s => build(s, depth + 1));
+            const bad = subs.find(s => !s.ok);
+            if (bad) return bad as { ok: false; message: string };
+            const preds = (subs as Array<{ ok: true; pred: (c: Record<string, unknown>) => boolean }>).map(s => s.pred);
+            return { ok: true, pred: (c) => preds.some(p => p(c)) };
+        }
+        const keys = Object.keys(obj);
+        if (keys.length !== 1) return { ok: false, message: 'filterJson leaf must be a single { "Col": "expr" } object, got keys: ' + keys.join(',') + '.' };
+        if (++leaves > MAX_LEAVES) return { ok: false, message: 'filterJson has more than ' + MAX_LEAVES + ' leaf conditions.' };
+        const colToken = keys[0];
+        const expr = String(obj[colToken] ?? '');
+        const resolved = resolveColumn(columns, colToken, 'filter');
+        if (!resolved.ok) return { ok: false, message: resolved.message };
+        const lf = leafFromExpr(expr);
+        if (!lf.ok) return lf;
+        return {
+            ok: true,
+            pred: (c) => evaluateFilter({ column: colToken, columnID: resolved.column.id, columnName: resolved.column.name, op: lf.leaf.op, value: lf.leaf.value }, c),
+        };
+    };
+    const r = build(node, 0);
+    if (!r.ok) return r;
+    return { ok: true, pred: r.pred, leaves };
+}

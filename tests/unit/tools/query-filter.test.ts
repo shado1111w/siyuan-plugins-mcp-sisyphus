@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    compileFilterJson,
     evaluateFilter,
     filterRows,
     parseFilterExpression,
@@ -143,4 +144,54 @@ describe('evaluateFilter + filterRows + sortRows', () => {
         const sorted = sortRows(rows, [{ column: 'Title', columnID: 'col-title', order: 'asc' }]);
         expect(sorted[sorted.length - 1].id).toBe('r4');
     });
+
+describe('compileFilterJson', () => {
+    const jrows = [
+        { id: 'r1', cells: { 'col-status': 'done', 'col-priority': 3, 'col-title': 'Write report' } },
+        { id: 'r2', cells: { 'col-status': 'todo', 'col-priority': 1, 'col-title': 'Draft plan' } },
+        { id: 'r3', cells: { 'col-status': 'done', 'col-priority': 5, 'col-title': 'Review code' } },
+        { id: 'r4', cells: { 'col-status': '', 'col-priority': 2 } },
+    ];
+    const pred = (node) => {
+        const r = compileFilterJson(node, columns);
+        if (!r.ok) throw new Error(r.message);
+        return r.pred;
+    };
+    it('compiles a leaf operator prefix', () => {
+        const p = pred({ Priority: '>2' });
+        expect(jrows.filter(r => p(r.cells)).map(r => r.id)).toEqual(['r1', 'r3']);
+    });
+    it('bare value is equality', () => {
+        expect(jrows.filter(r => pred({ Status: 'done' })(r.cells)).map(r => r.id)).toEqual(['r1', 'r3']);
+    });
+    it('compiles nested or', () => {
+        const p = pred({ or: [{ Status: 'done' }, { Priority: '>4' }] });
+        expect(jrows.filter(r => p(r.cells)).map(r => r.id)).toEqual(['r1', 'r3']);
+    });
+    it('compiles and inside or', () => {
+        const p = pred({ or: [{ and: [{ Status: 'done' }, { Priority: '>4' }] }, { Title: '~plan' }] });
+        expect(jrows.filter(r => p(r.cells)).map(r => r.id)).toEqual(['r2', 'r3']);
+    });
+    it('supports empty / notEmpty sentinels', () => {
+        expect(jrows.filter(r => pred({ Status: '!' })(r.cells)).map(r => r.id)).toEqual(['r4']);
+        expect(jrows.filter(r => pred({ Status: '' })(r.cells)).map(r => r.id)).toEqual(['r1', 'r2', 'r3']);
+    });
+    it('rejects a multi-key leaf', () => {
+        expect(compileFilterJson({ Status: 'done', Priority: '1' }, columns).ok).toBe(false);
+    });
+    it('rejects an unknown column', () => {
+        expect(compileFilterJson({ Nope: 'x' }, columns).ok).toBe(false);
+    });
+    it('rejects non-object nodes', () => {
+        expect(compileFilterJson('x', columns).ok).toBe(false);
+        expect(compileFilterJson([{ Status: 'done' }], columns).ok).toBe(false);
+    });
+    it('caps pathological nesting', () => {
+        let node = { Status: 'done' };
+        for (let i = 0; i < 20; i++) node = { and: [node] };
+        expect(compileFilterJson(node, columns).ok).toBe(false);
+    });
 });
+
+});
+

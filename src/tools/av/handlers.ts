@@ -41,7 +41,7 @@ import {
     AvUpdateRowSchema,
     AvQuerySchema,
 } from '../../core/types';
-import { filterRows, parseFilterExpression, parseSortExpression, resolveColumn, sortRows, type AvQueryColumn, type ParsedFilter, type ParsedSort } from './query-filter';
+import { compileFilterJson, filterRows, parseFilterExpression, parseSortExpression, resolveColumn, sortRows, type AvQueryColumn, type ParsedFilter, type ParsedSort } from './query-filter';
 import { toId } from '../../shared/normalize-id';
 import { createResultResolutionCache, ensurePermissionForDocumentId, ensurePermissionForNotebook, escapeSqlString, resolveDocumentContextById, resolveResultItemContext } from '../internal/context';
 import { computePageCount } from '../internal/pagination';
@@ -4278,7 +4278,15 @@ async function handleQuery({ client, permMgr, rawArgs }: ToolHandlerContext): Pr
 
     const queryColumns: AvQueryColumn[] = columns.map((c) => ({ id: c.id, name: c.name ?? '', type: c.type ?? '' }));
 
-    const rawFilters = [...(parsed.filters ?? []), ...(parsed.filter ? [parsed.filter] : [])];
+    // `filter` may arrive as a JSON object via the --filter-json sidecar, or as
+    // a nested object via --filterJson; only the string form feeds the linear
+    // grammar.
+    const jsonFilterNodes: unknown[] = [];
+    const stringFilters: string[] = [...(parsed.filters ?? [])];
+    if (typeof parsed.filter === 'string') stringFilters.push(parsed.filter);
+    else if (parsed.filter !== undefined && typeof parsed.filter === 'object') jsonFilterNodes.push(parsed.filter);
+    if (parsed.filterJson !== undefined) jsonFilterNodes.push(parsed.filterJson);
+    const rawFilters = stringFilters;
     const rawSorts = [...(parsed.sorts ?? []), ...(parsed.sort ? [parsed.sort] : [])];
 
     // Parse + resolve filters
@@ -4309,7 +4317,17 @@ async function handleQuery({ client, permMgr, rawArgs }: ToolHandlerContext): Pr
         sorts.push({ ...parsedSort.value, columnID: resolved.column.id, columnName: resolved.column.name });
     }
 
-    const matched = sortRows(filterRows(tableRows, filters), sorts);
+    let matchedRows = filterRows(tableRows, filters);
+    let filterJsonLeaves = 0;
+    for (const node of jsonFilterNodes) {
+        const compiled = compileFilterJson(node, queryColumns);
+        if (compiled.ok === false) {
+            return createAvValidationErrorResult('query', { reason: 'invalid_filter_json', message: compiled.message, avID: avID });
+        }
+        filterJsonLeaves += compiled.leaves;
+        matchedRows = matchedRows.filter((row) => compiled.pred(row.cells));
+    }
+    const matched = sortRows(matchedRows, sorts);
     const total = matched.length;
     const page = parsed.page ?? 1;
     const pageSize = (typeof parsed.pageSize === 'number' && parsed.pageSize > 0) ? parsed.pageSize : total || 1;
@@ -4327,6 +4345,7 @@ async function handleQuery({ client, permMgr, rawArgs }: ToolHandlerContext): Pr
         avID: avID,
         table: { columns, rows: matched, rowCount: total },
         appliedFilters: filters.map((f) => ({ column: f.columnName ?? f.columnID, op: f.op, value: f.value })),
+        ...(filterJsonLeaves > 0 ? { filterJsonLeaves } : {}),
         appliedSorts: sorts.map((s) => ({ column: s.columnName ?? s.columnID, order: s.order })),
     });
 }

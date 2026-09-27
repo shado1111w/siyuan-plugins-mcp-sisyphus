@@ -1145,12 +1145,13 @@ export const AvQuerySchema = z.object({
     avID: z.string().describe("Attribute view ID to query"),
     blockID: z.string().optional().describe("Optional database block ID for exact context"),
     filters: z.array(z.string()).optional().describe("Human filters like Status=done or Priority>2. Grammar: Col=val Col!=val Col~substr Col!~substr Col>num Col<num Col>=num Col<=num, bare Col = not-empty, !Col = empty"),
-    filter: z.string().optional().describe("Single filter shorthand; merged into filters[]. Use for one --filter flag."),
+    filter: z.union([z.string(), z.record(z.string(), z.unknown())]).optional().describe("Single filter shorthand; merged into filters[]. Accepts a string expr (--filter) or a nested JSON object via --filter-json sidecar, e.g. {\"or\":[{\"Status\":\"done\"}]}."),
     sorts: z.array(z.string()).optional().describe("Human sorts like Created:desc or Name (asc). Grammar: Col[:asc|desc]"),
     sort: z.string().optional().describe("Single sort shorthand; merged into sorts[]. Use for one --sort flag."),
     page: z.number().int().min(1).optional().describe("Page number (1-based), default 1"),
     pageSize: z.number().int().optional().describe("Rows per page; omit to return all matching rows"),
     query: z.string().optional().describe("Optional primary-key text query passed through to SiYuan"),
+    filterJson: z.record(z.string(), z.unknown()).optional().describe("Nested filter object for --filterJson. Leaf shape {\"Col\":\"expr\"}; and/or arrays nest. Leaves reuse the linear operator grammar; merged with --filter via top-level AND."),
 });
 
 
