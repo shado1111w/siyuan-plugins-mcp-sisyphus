@@ -85,7 +85,7 @@ describe('search api wrappers', () => {
 
         const result = await getBacklinkDoc(client, 'def1');
 
-        expect(mock).toHaveBeenCalledWith('/api/ref/getBacklinkDoc', { defID: 'def1', keyword: undefined, refTreeID: undefined });
+        expect(mock).toHaveBeenCalledWith('/api/ref/getBacklinkDoc', { defID: 'def1', keyword: '', refTreeID: '' });
         expect(result).toEqual({ backlinks: [] });
     });
 
@@ -107,7 +107,7 @@ describe('search api wrappers', () => {
 
         const result = await getBackmentionDoc(client, 'def1');
 
-        expect(mock).toHaveBeenCalledWith('/api/ref/getBackmentionDoc', { defID: 'def1', keyword: undefined, refTreeID: undefined });
+        expect(mock).toHaveBeenCalledWith('/api/ref/getBackmentionDoc', { defID: 'def1', keyword: '', refTreeID: '' });
         expect(result).toEqual({ backmentions: [] });
     });
 

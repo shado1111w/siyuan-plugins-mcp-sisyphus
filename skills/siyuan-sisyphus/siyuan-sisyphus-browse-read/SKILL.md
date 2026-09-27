@@ -34,7 +34,7 @@ siyuan-sisyphus search fulltext --query 'keyword' --page '1' --page-size '20' --
 ## Low-level reads
 
 ```bash
-siyuan-sisyphus document lookup --id '<doc-id>' --include-json '["path","hpath","notebook"]' --json
+siyuan-sisyphus document lookup --id '<doc-id>' --include-json '["id","path","hpath","docInfo"]' --json
 ```
 ```bash
 siyuan-sisyphus document get-doc --id '<doc-id>' --mode 'markdown' --json

@@ -34,7 +34,7 @@ search(action="fulltext", query="keyword", page=1, pageSize=20)
 ## Low-level reads
 
 ```text
-document(action="lookup", id="<doc-id>", include=["path","hpath","notebook"])
+document(action="lookup", id="<doc-id>", include=["id","path","hpath","docInfo"])
 ```
 ```text
 document(action="get_doc", id="<doc-id>", mode="markdown")

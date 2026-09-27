@@ -4,6 +4,8 @@ interface MockPermissionManagerOptions {
     canRead?: (notebookId: string) => boolean;
     canWrite?: (notebookId: string) => boolean;
     canDelete?: (notebookId: string) => boolean;
+    get?: (notebookId: string) => 'none' | 'r' | 'rw' | 'rwd';
+    getAll?: () => Record<string, 'none' | 'r' | 'rw' | 'rwd'>;
 }
 
 /**
@@ -15,5 +17,7 @@ export function createMockPermissionManager(options: MockPermissionManagerOption
         canRead: vi.fn(options.canRead ?? (() => true)),
         canWrite: vi.fn(options.canWrite ?? (() => true)),
         canDelete: vi.fn(options.canDelete ?? (() => true)),
+        get: vi.fn(options.get ?? (() => 'rwd')),
+        getAll: vi.fn(options.getAll ?? (() => ({}))),
     } as any;
 }

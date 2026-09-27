@@ -20,7 +20,7 @@ siyuan-sisyphus search fulltext --query 'keyword' --parent-id '<doc-id>' --type-
 siyuan-sisyphus search query-sql --stmt 'SELECT id, hpath, content FROM blocks WHERE type = '"'"'p'"'"' ORDER BY updated DESC LIMIT 10' --json
 ```
 ```bash
-siyuan-sisyphus search get-backlinks --id '<block-or-doc-id>' --mode 'both' --json
+siyuan-sisyphus search get-backlinks --id '<block-or-doc-id>' --ref-tree-id '<doc-id>' --mode 'both' --json
 ```
 ```bash
 siyuan-sisyphus search search-refs --id '<block-id>' --before-len '512' --json

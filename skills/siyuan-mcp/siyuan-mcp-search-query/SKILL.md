@@ -20,7 +20,7 @@ search(action="fulltext", query="keyword", parentId="<doc-id>", typeShortcodes=[
 search(action="query_sql", stmt="SELECT id, hpath, content FROM blocks WHERE type = 'p' ORDER BY updated DESC LIMIT 10")
 ```
 ```text
-search(action="get_backlinks", id="<block-or-doc-id>", mode="both")
+search(action="get_backlinks", id="<block-or-doc-id>", refTreeID="<doc-id>", mode="both")
 ```
 ```text
 search(action="search_refs", id="<block-id>", beforeLen=512)
