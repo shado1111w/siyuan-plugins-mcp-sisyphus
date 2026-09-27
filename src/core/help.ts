@@ -59,6 +59,7 @@ export const DOCUMENT_GUIDANCE: string[] = [
     'document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.',
     'document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.',
     'For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.',
+    'CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.',
     'document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.',
 ];
 

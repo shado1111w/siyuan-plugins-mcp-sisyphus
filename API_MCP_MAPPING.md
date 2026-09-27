@@ -258,7 +258,7 @@
 | `/api/export/exportMdContent` | api-wrapper+core | `src/api/file.ts:35`<br>`src/core/help.ts:25` | 有效内核路由 |
 | `/api/export/exportResources` | api-wrapper | `src/api/file.ts:50` | 有效内核路由 |
 | `/api/file/getFile` | api-wrapper | `src/api/client.ts:119` | 有效内核路由 |
-| `/api/file/putFile` | api-wrapper+core | `src/api/client.ts:197`<br>`src/core/help.ts:102` | 有效内核路由 |
+| `/api/file/putFile` | api-wrapper+core | `src/api/client.ts:197`<br>`src/core/help.ts:103` | 有效内核路由 |
 | `/api/filetree/changeSort` | api-wrapper | `src/api/document.ts:197` | 有效内核路由 |
 | `/api/filetree/createDailyNote` | api-wrapper | `src/api/document.ts:252` | 有效内核路由 |
 | `/api/filetree/createDoc` | api-wrapper | `src/api/document.ts:280` | 有效内核路由 |
@@ -330,7 +330,7 @@
 | `/api/search/searchTag` | api-wrapper | `src/api/search.ts:37` | 有效内核路由 |
 | `/api/search/searchTemplate` | api-wrapper | `src/api/template.ts:154` | 有效内核路由 |
 | `/api/search/semanticSearchBlock` | api-wrapper | `src/api/search.ts:26` | 有效内核路由 |
-| `/api/sync/performSync` | api-wrapper+core | `src/api/system.ts:28`<br>`src/core/help.ts:343` | 有效内核路由 |
+| `/api/sync/performSync` | api-wrapper+core | `src/api/system.ts:28`<br>`src/core/help.ts:344` | 有效内核路由 |
 | `/api/system/bootProgress` | api-wrapper | `src/api/system.ts:24` | 有效内核路由 |
 | `/api/system/currentTime` | api-wrapper | `src/api/system.ts:36` | 有效内核路由 |
 | `/api/system/getChangelog` | api-wrapper | `src/api/system.ts:12` | 有效内核路由 |

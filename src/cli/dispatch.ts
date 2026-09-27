@@ -12,6 +12,7 @@ import { getExposedExtensionTools } from '../tools/extension';
 
 
 import type { ParsedArgs } from './args';
+import { resolveFileFlag } from './file-flag';
 import { mapFlagsToArgs } from './flag-mapper';
 import { extractPaginationInfo, renderCliError, renderToolResult } from './render';
 import { loadCliRuntimeState } from './runtime';
@@ -79,7 +80,8 @@ export async function runDispatch(cli: ParsedArgs): Promise<number> {
             for (const w of warnings) process.stderr.write(`[warn] ${w}\n`);
         }
 
-        const basePayload = { action: normalizedAction, ...mappedArgs } as Record<string, unknown>;
+        const mappedWithFile = await resolveFileFlag(mappedArgs, normalizedAction);
+        const basePayload = { action: normalizedAction, ...mappedWithFile } as Record<string, unknown>;
         const requestText = [PRIMARY_CLI_COMMAND, tool, action, ...rest].join(' ').trim();
         const runPage = async (page?: number): Promise<ToolResult> => {
             const payload = page === undefined ? basePayload : { ...basePayload, page };

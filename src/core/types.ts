@@ -231,6 +231,7 @@ export const DocumentCreateSchema = z.object({
     parentPath: z.string().optional().describe("Parent path for title-based creation, relative to the notebook root. Accepts a human-readable path (must start with /, MUST NOT include the notebook name) or a storage path ending in .sy returned by document(action=\"lookup\")."),
     title: z.string().optional().describe("Required together with parentPath when create omits path; notebook + title alone is invalid"),
     markdown: z.string().optional().describe("Markdown content, defaults to empty. Do not include a leading # Title; a matching H1 is stripped automatically. Mutually exclusive with template."),
+    file: z.string().optional().describe("CLI-only: read block/markdown content from a local file path, or `-` for stdin. Mutually exclusive with data/markdown."),
     template: z.string().optional().describe("Create the document from a SiYuan workspace template instead of literal markdown. Accepts a template path returned by file(action='list_templates') (e.g. eval-meeting.md or its workspace path). The template markdown is rendered through the kernel Sprig engine ({{now}}, {{.title}}, etc.) before the document is created."),
     copyFrom: z.string().optional().describe("Create the document by copying the full Markdown body of an existing document (its block content, excluding the title). Provide the source document ID. Mutually exclusive with markdown and template."),
     sorts: z.array(z.string()).optional().describe("Compatibility option retained for older callers; title-based creation now uses the reliable path flow"),
@@ -516,6 +517,7 @@ export const DocumentAppendSchema = z.object({
     hPath: z.string().optional().describe("Alias for hpath (notebook-local, MUST NOT include the notebook name)."),
     dataType: z.enum(["markdown", "dom"]).describe('Payload type: "markdown" (default) or "dom".'),
     data: z.string().describe("Block content to append to the end of the document."),
+    file: z.string().optional().describe("CLI-only: read block/markdown content from a local file path, or `-` for stdin. Mutually exclusive with data/markdown."),
 }).passthrough().superRefine((value, ctx) => {
     const effHpath = value.hpath ?? value.hPath;
     if (value.id && (value.notebook || effHpath)) {
@@ -534,6 +536,7 @@ export const DocumentPrependSchema = z.object({
     hPath: z.string().optional().describe("Alias for hpath (notebook-local, MUST NOT include the notebook name)."),
     dataType: z.enum(["markdown", "dom"]).describe('Payload type: "markdown" (default) or "dom".'),
     data: z.string().describe("Block content to prepend to the start of the document."),
+    file: z.string().optional().describe("CLI-only: read block/markdown content from a local file path, or `-` for stdin. Mutually exclusive with data/markdown."),
 }).passthrough().superRefine((value, ctx) => {
     const effHpath = value.hpath ?? value.hPath;
     if (value.id && (value.notebook || effHpath)) {
@@ -688,6 +691,7 @@ export const BlockInsertSchema = z.object({
     action: z.literal("insert"),
     dataType: z.enum(["markdown", "dom"]).optional().describe("Data format"),
     data: z.string().optional().describe("Block content"),
+    file: z.string().optional().describe("CLI-only: read block/markdown content from a local file path, or `-` for stdin. Mutually exclusive with data/markdown."),
     nextID: z.string().optional().describe("Next block ID"),
     previousID: z.string().optional().describe("Previous block ID"),
     parentID: z.string().optional().describe("Parent block or document ID"),
@@ -718,6 +722,7 @@ export const BlockPrependSchema = z.object({
     action: z.literal("prepend"),
     dataType: z.enum(["markdown", "dom"]).describe("Data format"),
     data: z.string().describe("Block content"),
+    file: z.string().optional().describe("CLI-only: read block/markdown content from a local file path, or `-` for stdin. Mutually exclusive with data/markdown."),
     parentID: z.string().describe("Parent block or document ID"),
 });
 
@@ -725,6 +730,7 @@ export const BlockAppendSchema = z.object({
     action: z.literal("append"),
     dataType: z.enum(["markdown", "dom"]).describe("Data format"),
     data: z.string().describe("Block content"),
+    file: z.string().optional().describe("CLI-only: read block/markdown content from a local file path, or `-` for stdin. Mutually exclusive with data/markdown."),
     parentID: z.string().describe("Parent block or document ID"),
 });
 
@@ -732,6 +738,7 @@ export const BlockUpdateSchema = z.object({
     action: z.literal("update"),
     dataType: z.enum(["markdown", "dom"]).optional().describe("Data format"),
     data: z.string().optional().describe("New block content"),
+    file: z.string().optional().describe("CLI-only: read block/markdown content from a local file path, or `-` for stdin. Mutually exclusive with data/markdown."),
     id: z.string().optional().describe("Block ID"),
     items: z.array(z.object({
         id: z.string().describe("Block ID"),

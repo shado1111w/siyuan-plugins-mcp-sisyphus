@@ -2117,10 +2117,10 @@ Common actions: insert, prepend, append, update, replace, get_kramdown, batch_kr
 Additional actions: delete, move, set_fold_state, transfer_references, set_attrs, breadcrumb, dom, recent_updated, word_count, add_to_daily_note, docs_info. Read siyuan://help/action/block/{action} for details, or call action="help" if resources are unavailable.
 
 Parameter contract per action (fields outside the action's optional list should not be sent):
-block.insert: required [] | optional [dataType, data, nextID, previousID, parentID, blocks]
-block.prepend: required [dataType, data, parentID] | optional []
-block.append: required [dataType, data, parentID] | optional []
-block.update: required [] | optional [dataType, data, id, items]
+block.insert: required [] | optional [dataType, data, file, nextID, previousID, parentID, blocks]
+block.prepend: required [dataType, data, parentID] | optional [file]
+block.append: required [dataType, data, parentID] | optional [file]
+block.update: required [] | optional [dataType, data, file, id, items]
 block.replace: required [id, edit] | optional []
 block.delete: required [id] | optional []
 block.move: required [] | optional [id, ids, previousID, parentID]
@@ -2666,6 +2666,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "requiredFields": [
@@ -2701,6 +2702,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "hint": "Duplicate a document then relocate the copy. Pass id + toID (target parent document) or id + toNotebook + toPath (target storage path). Optional title renames the copy; otherwise it keeps the duplicated name. Returns copyID and its hPath for follow-up edits.",
@@ -2770,6 +2772,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "hint": "Use notebook + path for the most direct child-document flow. path is a notebook-local hpath like /Folder/Parent/New Child, not /Notebook/... and not .sy. parentPath + title is also supported. markdown is optional and must not start with # Title; a matching leading H1 is stripped to avoid duplicate titles.",
@@ -2814,6 +2817,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "hint": "Use a notebook ID and optionally pass app for downstream SiYuan event routing. When the user asks for a diary, journal entry, daily log, or today’s note in a notebook, prefer this action over manually creating a path and then appending content.",
@@ -2850,6 +2854,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "requiredFields": [
@@ -2885,6 +2890,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "requiredFields": [
@@ -2926,6 +2932,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "hint": "Scope every request with an explicit notebook ID and parent document ID. resolve/reuse require existing child document IDs and never fall back to titles. create accepts explicit new titles only; if a same-title child already exists, it is returned as unresolved rather than guessed or reused. dryRun performs zero writes only for create. resolve/reuse are read-only; create uses strict validateOnly preflight, then one commit with the server-issued requestId plus expectedStructureHash. Responses contain exact ID/path/HPath readback and resolved/created/reused/unresolved accounting.",
@@ -2964,6 +2971,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "hint": "Use a document ID. Returns direct child blocks only.",
@@ -2999,6 +3007,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "hint": "Use a document ID. Returns direct child documents only.",
@@ -3034,6 +3043,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "hint": "Use a document ID. mode="markdown" tries full clean Markdown by default, bounded to 256 KiB UTF-8 and 2000 complete blocks, with a window-scoped outline and nextWindow; totalBlocks is null until EOF; use blockStart/blockLimit/tokenBudget and optionally includeBlockIds. page/pageSize character pagination was removed. mode="html" uses the current focus view.",
@@ -3069,6 +3079,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "hint": "Use a document ID to return SiYuan’s native heading tree without reading the document body. preview defaults to false. The response includes heading block IDs, nesting, and headingCount.",
@@ -3105,6 +3116,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "requiredFields": [
@@ -3141,6 +3153,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "hint": "Use notebook + path, where path is a storage path such as / or /20240318112233-abc123.sy.",
@@ -3176,6 +3189,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "hint": "Look up one reference at a time. Use id, notebook + storage path, or notebook + hpath/hPath. The path field means storage path like /20240318112233-abc123.sy; use hpath for human-readable paths.",
@@ -3208,6 +3222,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "hint": "Use either fromIDs + toID or fromPaths + toNotebook + toPath. For path-based moves, toPath must be the storage path of an existing destination document. This action requires explicit user confirmation.",
@@ -3242,6 +3257,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "requiredFields": [
@@ -3277,6 +3293,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "requiredFields": [
@@ -3310,6 +3327,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "hint": "Use either id or notebook + storage path. This action requires explicit user confirmation. If bulk ids/paths hit SiYuan's short indexing window, retry by deleting one document at a time with notebook + storage path.",
@@ -3343,6 +3361,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "hint": "Use either id + title or notebook + path + title.",
@@ -3381,6 +3400,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "hint": "Use parentID + orderedIDs. parentID may be a notebook ID or parent document ID, and orderedIDs must contain every visible direct child document ID exactly once. The notebook is switched to custom sorting.",
@@ -3418,6 +3438,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "hint": "Use notebook + query, and optionally path as a storage-path scope. Search is title-based in SiYuan; MCP then filters by notebook permission and optional storage path.",
@@ -3454,6 +3475,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
           "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
           "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
           "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
           "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
         ],
         "hint": "Prefer key+value for a single attribute (icon, title-img, or custom-*). Use attrs for icon/cover (cover takes an http(s) URL or /assets/... path; null/empty clears). Use customAttrs for an arbitrary map. key+value and attrs are mutually exclusive.",
@@ -3474,7 +3496,7 @@ Common actions: create, lookup, rename, get_child_blocks, get_child_docs, search
 Additional actions: ensure_link_targets, remove, move, reorder, set_attr, list_tree, create_daily_note, duplicate, copy, heading_to_doc, doc_to_heading. Read siyuan://help/action/document/{action} for details, or call action="help" if resources are unavailable.
 
 Parameter contract per action (fields outside the action's optional list should not be sent):
-document.create: required [notebook, path] OR [notebook, parentPath, title] | optional [markdown, template, copyFrom, sorts, icon]
+document.create: required [notebook, path] OR [notebook, parentPath, title] | optional [markdown, file, template, copyFrom, sorts, icon]
 document.lookup: required [] | optional [id, notebook, path, hpath, hPath, include]
 document.ensure_link_targets: required [notebook, parentId, mode, targets] | optional [markdown, dryRun]
 document.rename: required [title] | optional [id, notebook, path]
@@ -3487,8 +3509,8 @@ document.set_attr: required [id] | optional [attrs, key, value, customAttrs]
 document.list_tree: required [notebook, path] | optional [maxDepth]
 document.search_docs: required [notebook, query] | optional [path]
 document.get_doc: required [id] | optional [mode, size, blockStart, blockLimit, tokenBudget, includeBlockIds]
-document.append: required [dataType, data] | optional [id, notebook, hpath, hPath]
-document.prepend: required [dataType, data] | optional [id, notebook, hpath, hPath]
+document.append: required [dataType, data] | optional [id, notebook, hpath, hPath, file]
+document.prepend: required [dataType, data] | optional [id, notebook, hpath, hPath, file]
 document.read: required [id] | optional [scope, anchor, startId, endId, pattern, contextBefore, contextAfter, maxDepth, tokenBudget, includeBlockIds]
 document.get_outline: required [id] | optional [preview]
 document.create_daily_note: required [notebook] | optional [app]
@@ -3650,6 +3672,7 @@ For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"writ
         "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
         "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
         "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+        "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
         "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
       ],
       "helpResources": [
