@@ -232,17 +232,19 @@ export const DocumentCreateSchema = z.object({
     title: z.string().optional().describe("Required together with parentPath when create omits path; notebook + title alone is invalid"),
     markdown: z.string().optional().describe("Markdown content, defaults to empty. Do not include a leading # Title; a matching H1 is stripped automatically. Mutually exclusive with template."),
     template: z.string().optional().describe("Create the document from a SiYuan workspace template instead of literal markdown. Accepts a template path returned by file(action='list_templates') (e.g. eval-meeting.md or its workspace path). The template markdown is rendered through the kernel Sprig engine ({{now}}, {{.title}}, etc.) before the document is created."),
+    copyFrom: z.string().optional().describe("Create the document by copying the full Markdown body of an existing document (its block content, excluding the title). Provide the source document ID. Mutually exclusive with markdown and template."),
     sorts: z.array(z.string()).optional().describe("Compatibility option retained for older callers; title-based creation now uses the reliable path flow"),
     icon: z.string().optional().describe("Optional document icon. Prefer a Unicode hex code string such as '1f4d4' for 📔 instead of a raw emoji character."),
 }).superRefine((value, ctx) => {
     const hasPath = typeof value.path === "string";
     const hasTitleMode = typeof value.parentPath === "string" || typeof value.title === "string";
 
-    if (value.markdown && value.template) {
+    const contentSources = [value.markdown, value.template, value.copyFrom].filter((v) => typeof v === "string" && v.length > 0);
+    if (contentSources.length > 1) {
         ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: "Provide either markdown or template, not both. The template already supplies the document content.",
-            path: ["template"],
+            message: "Provide at most one of markdown, template, or copyFrom — they are alternative content sources.",
+            path: ["markdown"],
         });
         return;
     }

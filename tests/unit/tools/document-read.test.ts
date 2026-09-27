@@ -304,7 +304,7 @@ describe('document.create --template', () => {
     it('rejects markdown + template together', async () => {
         const r = await callDocumentTool(tplClient([]), { action: 'create', notebook: 'nb-1', path: '/D', markdown: 'inline', template: 'eval.md' }, dc(), permMgr);
         expect(r.isError).toBe(true);
-        expect(r.content[0].text).toContain('not both');
+        expect(r.content[0].text).toContain('at most one');
     });
 
     it('returns template_error for an unknown template path', async () => {
@@ -318,5 +318,43 @@ describe('document.create --template', () => {
         const r = await callDocumentTool(cl, { action: 'create', notebook: 'nb-1', path: '/D', template: 'missing.md' }, dc(), permMgr);
         const p = parseResult(r);
         expect(p.error?.type).toBe('template_error');
+    });
+});
+
+describe('document.create --copy-from', () => {
+    it('rejects when combined with markdown', async () => {
+        const r = await callDocumentTool(
+            createMockClient(),
+            { action: 'create', notebook: 'nb-1', path: '/D', markdown: 'inline', copyFrom: 'src-1' },
+            dc(), permMgr,
+        );
+        expect(r.isError).toBe(true);
+        expect(r.content[0].text).toContain('at most one');
+    });
+
+    it('copies source markdown into the new document', async () => {
+        const calls: Array<[string, unknown]> = [];
+        const cl = createMockClient({
+            request: vi.fn(async (endpoint: string, body?: Record<string, unknown>) => {
+                calls.push([endpoint, body]);
+                if (endpoint === '/api/block/getDocInfo') return { id: body?.id, rootID: 'src-1', box: 'nb-1', path: '/src-1.sy' };
+                if (endpoint === '/api/filetree/getPathByID') return { notebook: 'nb-1', path: '/src-1.sy' };
+                if (endpoint === '/api/notebook/lsNotebooks') return { notebooks: [{ id: 'nb-1', name: 'N', closed: false }] };
+                if (endpoint === '/api/block/getChildBlocks') {
+                    if (body?.id === 'src-1') return [{ id: 'b1', type: 'h', subtype: 'h2' }];
+                    return [];
+                }
+                if (endpoint === '/api/block/getBlockKramdown') return { id: 'b1', kramdown: '## Copied Heading\n{: id="b1"}' };
+                if (endpoint === '/api/filetree/createDocWithMd') return 'doc-new';
+                if (endpoint === '/api/filetree/getHPathByID') return '/D';
+                return null;
+            }),
+        });
+        const r = await callDocumentTool(cl, { action: 'create', notebook: 'nb-1', path: '/D', copyFrom: 'src-1' }, dc(), permMgr);
+        const p = parseResult(r);
+        expect(p.success).toBe(true);
+        expect(p.id).toBe('doc-new');
+        const createCall = calls.find(([e]) => e === '/api/filetree/createDocWithMd');
+        expect(String((createCall?.[1] as Record<string, unknown>)?.markdown)).toContain('## Copied Heading');
     });
 });

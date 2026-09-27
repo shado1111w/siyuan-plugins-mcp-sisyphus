@@ -54,7 +54,7 @@ import { createJsonResult, createPermissionDeniedResult, createSetIconReminder, 
 import { applyUiRefresh, type UiRefreshOperation } from '../internal/ui-refresh';
 import { sleep } from '../../shared/async';
 import { stripRedundantTitleHeading } from '../internal/kramdown-safe';
-import { readDocumentBlockWindow } from '../internal/document-kramdown';
+import { readDocumentBlockWindow, readDocumentEditableMarkdown } from '../internal/document-kramdown';
 import { normalizeDomInlineRefsAndTags } from '../internal/kramdown-safe';
 import { readDocumentScoped } from './read-scope';
 import { createFootnoteReferenceHint, createSiyuanBlockLinkHint, createUnresolvedBlockRefHint, hasBlockRefIdFallbackAnchors, hasFootnoteReferences, hasSiyuanBlockLinks } from '../internal/kramdown-safe';
@@ -397,6 +397,13 @@ const handleCreate: DocumentActionHandler = async ({ client, permMgr, rawArgs })
     const path = parsed.path ?? normalizeChildDocPath(parentPath!, parsed.title!);
     let sourceMarkdown = parsed.markdown ?? '';
     let usedTemplate: string | undefined;
+    let copiedFrom: string | undefined;
+    if (parsed.copyFrom) {
+        const src = await ensurePermissionForDocumentId(client, permMgr, parsed.copyFrom, 'read');
+        if (src.denied) return src.denied;
+        sourceMarkdown = await readDocumentEditableMarkdown(client, parsed.copyFrom);
+        copiedFrom = parsed.copyFrom;
+    }
     if (parsed.template) {
         try {
             const tpl = await templateApi.resolveTemplate(client, parsed.template);
@@ -434,6 +441,7 @@ const handleCreate: DocumentActionHandler = async ({ client, permMgr, rawArgs })
         ...(parentPath && parentPath !== parsed.parentPath ? { resolvedParentPath: parentPath } : {}),
         ...(parsed.title ? { title: parsed.title } : {}),
         ...(usedTemplate ? { template: usedTemplate } : {}),
+        ...(copiedFrom ? { copiedFrom } : {}),
         id: docId,
         iconHint: createSetIconReminder('document', Boolean(parsed.icon)),
     }), parsed.icon
