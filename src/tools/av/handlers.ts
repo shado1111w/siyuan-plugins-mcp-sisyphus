@@ -39,7 +39,9 @@ import {
     AvUpsertRowSchema,
     AvGetRowSchema,
     AvUpdateRowSchema,
+    AvQuerySchema,
 } from '../../core/types';
+import { filterRows, parseFilterExpression, parseSortExpression, resolveColumn, sortRows, type AvQueryColumn, type ParsedFilter, type ParsedSort } from './query-filter';
 import { createResultResolutionCache, ensurePermissionForDocumentId, ensurePermissionForNotebook, escapeSqlString, resolveDocumentContextById, resolveResultItemContext } from '../internal/context';
 import { computePageCount } from '../internal/pagination';
 import type { ToolActionHandler, ToolHandlerContext } from '../internal/define-tool';
@@ -3791,6 +3793,7 @@ export const AV_ACTION_HANDLERS: Record<AvAction, ToolActionHandler> = {
     create_table: handleCreateTable,
     get_row: handleGetRow,
     update_row: handleUpdateRow,
+    query: handleQuery,
 };
 
 
@@ -4174,4 +4177,86 @@ async function handleUpdateRow({ client, permMgr, rawArgs }: ToolHandlerContext)
         rowID: parsed.rowID,
         cellsWritten: applied.updated,
     }), refreshOperations);
+}
+
+// ---------------------------------------------------------------------------
+// query: read-only row query with a human filter/sort grammar. Unlike
+// set_filters (which rewrites the stored view), this evaluates filters in
+// process on the rendered rows and never writes a transaction.
+// ---------------------------------------------------------------------------
+
+async function handleQuery({ client, permMgr, rawArgs }: ToolHandlerContext): Promise<ToolResult> {
+    const parsed = AvQuerySchema.parse(rawArgs);
+    const { denied } = await ensurePermissionForAvId(client, permMgr, parsed.avID, 'read', { blockID: parsed.blockID, action: 'query' });
+    if (denied) return denied;
+
+    const response = await avApi.renderAttributeView(client, {
+        id: parsed.avID,
+        blockID: parsed.blockID,
+        pageSize: -1,
+        query: parsed.query,
+    });
+    const responseObj = (response && typeof response === 'object' && !Array.isArray(response))
+        ? response as Record<string, unknown>
+        : {};
+    const view = (responseObj.view && typeof responseObj.view === 'object' && !Array.isArray(responseObj.view))
+        ? responseObj.view as Record<string, unknown>
+        : undefined;
+    const { items: rawRows } = extractViewItems(view);
+    const columns = extractAvTableColumns(view ?? responseObj);
+    const tableRows = extractAvTableRows(rawRows);
+
+    const queryColumns: AvQueryColumn[] = columns.map((c) => ({ id: c.id, name: c.name ?? '', type: c.type ?? '' }));
+
+    const rawFilters = [...(parsed.filters ?? []), ...(parsed.filter ? [parsed.filter] : [])];
+    const rawSorts = [...(parsed.sorts ?? []), ...(parsed.sort ? [parsed.sort] : [])];
+
+    // Parse + resolve filters
+    const filters: ParsedFilter[] = [];
+    for (const raw of rawFilters) {
+        const parsedFilter = parseFilterExpression(raw);
+        if (parsedFilter.ok === false) {
+            return createAvValidationErrorResult('query', { reason: 'invalid_filter', message: parsedFilter.message, avID: parsed.avID });
+        }
+        const resolved = resolveColumn(queryColumns, parsedFilter.value.column, 'filter');
+        if (resolved.ok === false) {
+            return createAvValidationErrorResult('query', { reason: 'unknown_column', message: resolved.message, avID: parsed.avID });
+        }
+        filters.push({ ...parsedFilter.value, columnID: resolved.column.id, columnName: resolved.column.name });
+    }
+
+    // Parse + resolve sorts
+    const sorts: ParsedSort[] = [];
+    for (const raw of rawSorts) {
+        const parsedSort = parseSortExpression(raw);
+        if (parsedSort.ok === false) {
+            return createAvValidationErrorResult('query', { reason: 'invalid_sort', message: parsedSort.message, avID: parsed.avID });
+        }
+        const resolved = resolveColumn(queryColumns, parsedSort.value.column, 'sort');
+        if (resolved.ok === false) {
+            return createAvValidationErrorResult('query', { reason: 'unknown_column', message: resolved.message, avID: parsed.avID });
+        }
+        sorts.push({ ...parsedSort.value, columnID: resolved.column.id, columnName: resolved.column.name });
+    }
+
+    const matched = sortRows(filterRows(tableRows, filters), sorts);
+    const total = matched.length;
+    const page = parsed.page ?? 1;
+    const pageSize = (typeof parsed.pageSize === 'number' && parsed.pageSize > 0) ? parsed.pageSize : total || 1;
+    const pageCount = computePageCount(total, pageSize);
+    const start = (page - 1) * pageSize;
+    const data = matched.slice(start, start + pageSize);
+
+    return createPaginatedResult(data, {
+        total,
+        page,
+        pageSize,
+        pageCount,
+        hasNextPage: page < pageCount,
+    }, {
+        avID: parsed.avID,
+        table: { columns, rows: matched, rowCount: total },
+        appliedFilters: filters.map((f) => ({ column: f.columnName ?? f.columnID, op: f.op, value: f.value })),
+        appliedSorts: sorts.map((s) => ({ column: s.columnName ?? s.columnID, order: s.order })),
+    });
 }

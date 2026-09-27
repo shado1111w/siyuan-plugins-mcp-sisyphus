@@ -7,7 +7,7 @@ description: MCP playbook for SiYuan attribute views. Use to inspect database me
 
 Never guess attribute-view identifiers. Inspect the AV and its views before changing rows or cells.
 
-`av` actions operate on existing database blocks, and the CLI can now create one too. Use `av create_table` with the host `blockID` and an ordered `columns` list to materialize a NodeAttributeView block and add its non-primary-key columns in one flow. To insert-or-update a row by its primary-key text without first rendering the view, use `av upsert_row` — it creates a detached row when the key is absent and applies any `cells` after the row resolves; keep `add_rows` + `set_cells` for bound-row control when you already hold row IDs. To read one record as a column-name map without rendering the whole view, use `av get_row`; to write several cells on a known row in one call, use `av update_row` with `rowID` + `cells[]` (columnID or columnName).
+`av` actions operate on existing database blocks, and the CLI can now create one too. Use `av create_table` with the host `blockID` and an ordered `columns` list to materialize a NodeAttributeView block and add its non-primary-key columns in one flow. To insert-or-update a row by its primary-key text without first rendering the view, use `av upsert_row` — it creates a detached row when the key is absent and applies any `cells` after the row resolves; keep `add_rows` + `set_cells` for bound-row control when you already hold row IDs. To read one record as a column-name map without rendering the whole view, use `av get_row`; to write several cells on a known row in one call, use `av update_row` with `rowID` + `cells[]` (columnID or columnName). To read rows matching a condition without mutating the saved view, prefer `av query` — it takes human `filters[]` (Status=done, Priority>2, Name~report, !Due for empty) and `sorts[]` (Created:desc) evaluated in process. Never call `av set_filters` just to read; that rewrites the stored view.
 
 ```text
 av(action="get", avID="<av-id>")
@@ -17,6 +17,9 @@ av(action="render", avID="<av-id>", page=1, pageSize=50)
 ```
 ```text
 av(action="search", keyword="project")
+```
+```text
+av(action="query", avID="<av-id>", filters=["Status=done"], sorts=["Created:desc"])
 ```
 
 Keep these identifiers distinct: AV ID identifies the database; view ID identifies a table/board view; row ID identifies a key value; column ID identifies a key; block ID identifies note content.

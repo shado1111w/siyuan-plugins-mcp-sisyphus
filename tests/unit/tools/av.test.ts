@@ -4910,4 +4910,124 @@ describe('av tool', () => {
         expect(JSON.parse(result.content[0].text).error?.reason).toBe('row_not_found');
         expect(vi.mocked(transactionApi.performTransactions)).not.toHaveBeenCalled();
     });
+
+    it('query filters and sorts rows without writing a transaction', async () => {
+        const avApi = await import('@/api/av');
+        const transactionApi = await import('@/api/transaction');
+        vi.mocked(avApi.getMirrorDatabaseBlocks).mockResolvedValue({ refDefs: [{ refID: 'db-block-1', defIDs: [] }] } as never);
+        vi.mocked(avApi.getAttributeView).mockResolvedValue({
+            av: { id: 'av-1', keyValues: [{ key: { id: 'key-pk', type: 'block' }, values: [] }], views: [{ id: 'view-1', type: 'table' }] },
+        } as never);
+        vi.mocked(avApi.renderAttributeView).mockResolvedValue({
+            id: 'av-1',
+            view: {
+                id: 'view-1', pageSize: 50,
+                columns: [
+                    { key: { id: 'key-pk', name: 'Name', type: 'block' } },
+                    { key: { id: 'key-status', name: 'Status', type: 'select' } },
+                    { key: { id: 'key-prio', name: 'Priority', type: 'number' } },
+                ],
+                rows: [
+                    { id: 'row-1', values: [
+                        { id: 'c1', value: { keyID: 'key-pk', type: 'block', block: { content: 'Alpha' } }, valueType: 'block' },
+                        { id: 'c2', value: { keyID: 'key-status', type: 'mSelect', mSelect: [{ content: 'done' }] }, valueType: 'mSelect' },
+                        { id: 'c3', value: { keyID: 'key-prio', type: 'number', number: { content: 3, isNotEmpty: true } }, valueType: 'number' },
+                    ] },
+                    { id: 'row-2', values: [
+                        { id: 'c4', value: { keyID: 'key-pk', type: 'block', block: { content: 'Beta' } }, valueType: 'block' },
+                        { id: 'c5', value: { keyID: 'key-status', type: 'mSelect', mSelect: [{ content: 'todo' }] }, valueType: 'mSelect' },
+                        { id: 'c6', value: { keyID: 'key-prio', type: 'number', number: { content: 9, isNotEmpty: true } }, valueType: 'number' },
+                    ] },
+                    { id: 'row-3', values: [
+                        { id: 'c7', value: { keyID: 'key-pk', type: 'block', block: { content: 'Gamma' } }, valueType: 'block' },
+                        { id: 'c8', value: { keyID: 'key-status', type: 'mSelect', mSelect: [{ content: 'done' }] }, valueType: 'mSelect' },
+                        { id: 'c9', value: { keyID: 'key-prio', type: 'number', number: { content: 7, isNotEmpty: true } }, valueType: 'number' },
+                    ] },
+                ],
+                rowCount: 3,
+            },
+        } as never);
+
+        const result = await callAvTool(client, {
+            action: 'query', avID: 'av-1', blockID: 'db-block-1',
+            filters: ['Status=done'], sorts: ['Priority:desc'],
+        }, enabledActions('query'), permMgr);
+
+        const payload = JSON.parse(result.content[0].text);
+        expect(payload.total).toBe(2);
+        expect(payload.data.map((r: any) => r.id)).toEqual(['row-3', 'row-1']);
+        expect(payload.appliedFilters).toEqual([{ column: 'Status', op: 'eq', value: 'done' }]);
+        expect(payload.appliedSorts).toEqual([{ column: 'Priority', order: 'desc' }]);
+        // read-only: renderAttributeView is the only data call, zero transactions
+        expect(vi.mocked(transactionApi.performTransactions)).not.toHaveBeenCalled();
+        expect(vi.mocked(avApi.renderAttributeView)).toHaveBeenCalledWith(client, expect.objectContaining({ id: 'av-1', pageSize: -1 }));
+    });
+    it('query rejects an unknown filter column with available names', async () => {
+        const avApi = await import('@/api/av');
+        vi.mocked(avApi.getMirrorDatabaseBlocks).mockResolvedValue({ refDefs: [{ refID: 'db-block-1', defIDs: [] }] } as never);
+        vi.mocked(avApi.getAttributeView).mockResolvedValue({
+            av: { id: 'av-1', keyValues: [{ key: { id: 'key-pk', type: 'block' }, values: [] }], views: [{ id: 'view-1', type: 'table' }] },
+        } as never);
+        vi.mocked(avApi.renderAttributeView).mockResolvedValue({
+            id: 'av-1',
+            view: { id: 'view-1', pageSize: 50, columns: [{ key: { id: 'key-status', name: 'Status', type: 'select' } }], rows: [], rowCount: 0 },
+        } as never);
+
+        const result = await callAvTool(client, {
+            action: 'query', avID: 'av-1', blockID: 'db-block-1', filters: ['Nope=done'],
+        }, enabledActions('query'), permMgr);
+
+        const payload = JSON.parse(result.content[0].text);
+        expect(payload.error?.reason).toBe('unknown_column');
+        expect(payload.error?.message).toContain('Status');
+    });
+
+    it('query rejects a malformed filter expression', async () => {
+        const avApi = await import('@/api/av');
+        vi.mocked(avApi.getMirrorDatabaseBlocks).mockResolvedValue({ refDefs: [{ refID: 'db-block-1', defIDs: [] }] } as never);
+        vi.mocked(avApi.getAttributeView).mockResolvedValue({
+            av: { id: 'av-1', keyValues: [{ key: { id: 'key-pk', type: 'block' }, values: [] }], views: [{ id: 'view-1', type: 'table' }] },
+        } as never);
+        vi.mocked(avApi.renderAttributeView).mockResolvedValue({
+            id: 'av-1',
+            view: { id: 'view-1', pageSize: 50, columns: [{ key: { id: 'key-status', name: 'Status', type: 'select' } }], rows: [], rowCount: 0 },
+        } as never);
+
+        const result = await callAvTool(client, {
+            action: 'query', avID: 'av-1', blockID: 'db-block-1', filters: ['Priority>abc'],
+        }, enabledActions('query'), permMgr);
+
+        expect(JSON.parse(result.content[0].text).error?.reason).toBe('invalid_filter');
+    });
+
+    it('query paginates the matched rows', async () => {
+        const avApi = await import('@/api/av');
+        vi.mocked(avApi.getMirrorDatabaseBlocks).mockResolvedValue({ refDefs: [{ refID: 'db-block-1', defIDs: [] }] } as never);
+        vi.mocked(avApi.getAttributeView).mockResolvedValue({
+            av: { id: 'av-1', keyValues: [{ key: { id: 'key-pk', type: 'block' }, values: [] }], views: [{ id: 'view-1', type: 'table' }] },
+        } as never);
+        const mkRow = (id: string, name: string) => ({
+            id, values: [{ id: id + '-c', value: { keyID: 'key-pk', type: 'block', block: { content: name } }, valueType: 'block' }],
+        });
+        vi.mocked(avApi.renderAttributeView).mockResolvedValue({
+            id: 'av-1',
+            view: {
+                id: 'view-1', pageSize: 50,
+                columns: [{ key: { id: 'key-pk', name: 'Name', type: 'block' } }],
+                rows: [mkRow('r1', 'a'), mkRow('r2', 'b'), mkRow('r3', 'c')],
+                rowCount: 3,
+            },
+        } as never);
+
+        const result = await callAvTool(client, {
+            action: 'query', avID: 'av-1', blockID: 'db-block-1', page: 2, pageSize: 2,
+        }, enabledActions('query'), permMgr);
+
+        const payload = JSON.parse(result.content[0].text);
+        expect(payload.total).toBe(3);
+        expect(payload.data.map((r: any) => r.id)).toEqual(['r3']);
+        expect(payload.page).toBe(2);
+        expect(payload.pageCount).toBe(2);
+        expect(payload.hasNextPage).toBe(false);
+    });
 });

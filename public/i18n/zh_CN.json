@@ -363,6 +363,8 @@
     "desc_av_action_get_row": "按 rowID 读取一条数据库记录，返回列名到值的映射。",
     "av_action_update_row": "更新行",
     "desc_av_action_update_row": "按 rowID 在一条数据库记录上批量写入单元格。",
+    "av_action_query": "查询行",
+    "desc_av_action_query": "只读行查询。用 Status=done、Priority>2 这类表达式过滤、用 Created:desc 排序，不改已存视图。",
     "av_action_upsert_row": "更新或插入行",
     "desc_av_action_upsert_row": "主键文本不存在时插入 detached 行，存在时原地更新该行。",
     "av_action_create_table": "创建数据库表",

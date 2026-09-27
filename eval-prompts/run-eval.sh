@@ -166,6 +166,11 @@ r13|edit|Call document append with BOTH --id and --notebook --hpath. Confirm a v
 r14|edit|Call document append with NEITHER --id NOR --notebook/--hpath (only --data-type and --data). Confirm a validation error asking for a document locator.
 r15|edit|Call document append --notebook <id> --hpath /eval-append/nonexistent --data-type markdown --data "x". Confirm a clean not_found error naming the missing hpath (not an internal crash).
 r16|edit|End-to-end: document create "/eval-flow/notes" with "## Plan". document append --id to add "## Doing" section + a task. document read --scope outline to confirm 2 headings. document read --scope section --anchor Doing to read just that section. document prepend --id to add a title-adjacent intro line at top. Finally document read --scope full to show the whole assembled doc.
+q01|av-query|In the av-create-table-test database (avID from av search on e2e-test), list all rows where Status equals "done". Use av query with a filter — do NOT call av set_filters. Report the primary-key names of the matched rows.
+q02|av-query|In the av-create-table-test database, list all rows where Status is NOT "done". Use av query with a != filter. Report matched primary keys.
+q03|av-query|In the av-create-table-test database, show all rows sorted by the Task column descending. Use av query with a sort. Report the ordered primary-key names.
+q04|av-query|In the av-create-table-test database, find rows whose Task contains "report". Use av query with a ~ (contains) filter. Report matched names.
+q05|av-query|In the av-create-table-test database, use av query to show only the first 2 rows (pageSize=2) with no filter. Confirm the total is larger than 2 and page reports correctly.
 SCENARIOS
 
 echo "=== SiYuan Sisyphus Agent Evaluation ==="

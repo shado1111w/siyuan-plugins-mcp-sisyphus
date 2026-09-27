@@ -69,7 +69,7 @@ export const ACTION_SAFETY_POLICIES: {
         set_new_item_templates: mutation('state'), create_from_template: mutation('state'),
         configure_two_way_relation: mutation('state'), configure_rollup: mutation('state'), set_relation: mutation('state'),
         upsert_row: mutation('manifest'), create_table: mutation('state'),
-        get_row: read(), update_row: mutation('manifest'),
+        get_row: read(), update_row: mutation('manifest'), query: read(),
     },
     file: {
         list_templates: read(), read_template: read(), render: read(), export_md: read(), export_markdown_snapshot: read(), list_unused_assets: read(),

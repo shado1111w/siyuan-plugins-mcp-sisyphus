@@ -34,6 +34,7 @@ import {
     AvCreateTableSchema,
     AvGetRowSchema,
     AvUpdateRowSchema,
+    AvQuerySchema,
 } from '../../core/types';
 import { defineTool } from '../internal/define-tool';
 import { createZodActionVariant, type ActionVariant, type ToolResult } from '../internal/shared';
@@ -71,6 +72,7 @@ export const AV_VARIANTS: ActionVariant<AvAction>[] = [
     createZodActionVariant('create_table', AvCreateTableSchema, 'Create a fresh attribute view under a document/block and add its non-primary-key columns in one flow.'),
     createZodActionVariant('get_row', AvGetRowSchema, 'Read one database row as a column-name -> value map by rowID.'),
     createZodActionVariant('update_row', AvUpdateRowSchema, 'Write a batch of cells on one existing row by rowID; cells take columnID or columnName.'),
+    createZodActionVariant('query', AvQuerySchema, 'Read-only database query. Filter rows with human expressions (for example Status=done, Priority>2) and sort (Created:desc) without mutating the view. Prefer this over set_filters for reading.'),
 ];
 
 for (const variant of AV_VARIANTS) {

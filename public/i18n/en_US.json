@@ -373,6 +373,8 @@
     "desc_av_action_get_row": "Read one database row as a column-name to value map by rowID.",
     "av_action_update_row": "Update Row",
     "desc_av_action_update_row": "Write a batch of cells on one existing database row by rowID.",
+    "av_action_query": "Query Rows",
+    "desc_av_action_query": "Read-only row query. Filter with expressions like Status=done or Priority>2 and sort with Created:desc, without mutating the saved view.",
     "av_action_upsert_row": "Upsert Row",
     "desc_av_action_upsert_row": "Insert a detached row when the primary-key text is absent, otherwise update that row in place.",
     "av_action_create_table": "Create Database Table",
