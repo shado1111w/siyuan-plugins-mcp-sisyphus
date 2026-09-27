@@ -136,6 +136,40 @@ describe('cli/flag-mapper', () => {
         expect(args).toEqual({ blockIDs: ['block-b', 'block-c'] });
     });
 
+    it('parses JSON strings for union schema flags with object branches', () => {
+        const unionSchema = {
+            type: 'object',
+            properties: {
+                id: { type: 'string' },
+                edit: {
+                    anyOf: [
+                        { type: 'object', properties: { old: { type: 'string' }, new: { type: 'string' } } },
+                        { type: 'array', items: { type: 'object' } },
+                    ],
+                },
+            },
+        };
+        const { args } = mapFlagsToArgs([
+            '--id', 'blk-1',
+            '--edit', '{"old":"draft","new":"final"}',
+        ], unionSchema);
+        expect(args.edit).toEqual({ old: 'draft', new: 'final' });
+    });
+
+    it('still passes plain strings for union schema flags', () => {
+        const { args } = mapFlagsToArgs([
+            '--id', 'blk-1',
+            '--edit', 'not json',
+        ], {
+            type: 'object',
+            properties: {
+                id: { type: 'string' },
+                edit: { anyOf: [{ type: 'object' }, { type: 'array' }] },
+            },
+        });
+        expect(args.edit).toBe('not json');
+    });
+
     it('accepts JSON sidecars for complex array payloads', () => {
         const { args } = mapFlagsToArgs([
             '--assets-json',

@@ -180,8 +180,32 @@ function coerce(key: string, value: unknown, schema: JsonSchema): unknown {
         return value;
     }
 
+    // Union schemas (anyOf/oneOf) may contain object or array branches while
+    // inferType reports 'string'. When a string value looks like JSON and at
+    // least one branch is an object or array, parse it so callers can pass
+    // --edit '{"old":"...","new":"..."}' without the -json sidecar.
+    if (typeof value === 'string' && unionHasStructuredBranch(schema)) {
+        const trimmed = value.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+            try { return JSON.parse(trimmed); } catch { /* fall through to string */ }
+        }
+    }
+
     // string fallback
     return typeof value === 'string' ? value : String(value);
+}
+
+function unionHasStructuredBranch(schema: JsonSchema): boolean {
+    const branches = Array.isArray(schema?.anyOf)
+        ? schema.anyOf
+        : Array.isArray(schema?.oneOf)
+            ? schema.oneOf
+            : null;
+    if (!branches) return false;
+    return branches.some((branch: JsonSchema) => {
+        const t = inferType(branch);
+        return t === 'object' || t === 'array';
+    });
 }
 
 function coerceItem(item: unknown, itemSchema?: JsonSchema): unknown {
