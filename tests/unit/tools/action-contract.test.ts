@@ -105,7 +105,12 @@ function createContractClient() {
             if (endpoint === '/api/block/getBlockInfo') return { id: body?.id, rootID: 'doc-1' };
             if (endpoint === '/api/block/getDocInfo') return { id: body?.id, rootID: body?.id, name: 'Doc 1' };
             if (endpoint === '/api/block/getBlockBreadcrumb') return [{ id: 'doc-1', name: 'Doc' }];
-            if (endpoint === '/api/block/getBlockDOM') return { id: body?.id as string, dom: '<p>content</p>' };
+            if (endpoint === '/api/block/getBlockDOM') {
+                const dom = body?.id === 'task-1'
+                    ? '<div data-subtype="t" data-type="NodeList" class="list"><div data-subtype="t" data-task=" " data-type="NodeListItem" class="li"><div class="protyle-action protyle-action--task"><svg><use xlink:href="#iconUncheck"></use></svg></div><div data-type="NodeParagraph" class="p"><div>todo</div></div></div></div>'
+                    : '<p>content</p>';
+                return { id: body?.id as string, dom };
+            }
             if (endpoint === '/api/block/getRecentUpdatedBlocks') return [{ id: 'block-1', rootID: 'doc-1', box: 'nb-1', path: '/doc-1.sy', type: 'p' }];
             if (endpoint === '/api/block/getBlocksWordCount') return { wordCount: 3 };
             if (endpoint === '/api/block/appendDailyNoteBlock') return [{ doOperations: [{ id: 'daily-block' }] }];
@@ -271,6 +276,8 @@ describe('tool action contract coverage', () => {
             { action: 'word_count', args: { action: 'word_count', ids: ['doc-1'] }, expectedEndpoint: '/api/block/getBlocksWordCount' },
             { action: 'add_to_daily_note', args: { action: 'add_to_daily_note', notebook: 'nb-1', dataType: 'markdown', data: 'hello', position: 'append' }, expectedEndpoint: '/api/block/appendDailyNoteBlock' },
             { action: 'docs_info', args: { action: 'docs_info', id: 'doc-1' }, expectedEndpoint: '/api/block/getDocsInfo' },
+            { action: 'update_task_marker', args: { action: 'update_task_marker', id: 'task-1', checked: true }, expectedEndpoint: '/api/block/getBlockDOM' },
+            { action: 'text', args: { action: 'text', id: 'doc-1' }, expectedEndpoint: '/api/block/getBlockDOM' },
         ]);
     });
 

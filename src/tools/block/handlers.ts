@@ -25,7 +25,9 @@ import {
     BlockSetAttrsSchema,
     BlockTransferReferencesSchema,
     BlockUpdateSchema,
+    BlockUpdateTaskMarkerSchema,
     BlockWordCountSchema,
+    BlockTextSchema,
 } from '../../core/types';
 import { isMissingBlockError } from '../internal/errorTranslation';
 import { createResultResolutionCache, ensurePermissionForDocumentId, ensurePermissionForNotebook, resolveDocumentContextById, resolveResultItemContext } from '../internal/context';
@@ -35,6 +37,8 @@ import { createJsonResult, createPaginatedResult, createWriteSuccessResult, pagi
 import { applyUiRefresh } from '../internal/ui-refresh';
 import { createFootnoteReferenceHint, createSiyuanBlockLinkHint, createUnresolvedBlockRefHint, hasBlockRefIdFallbackAnchors, hasFootnoteReferences, hasSiyuanBlockLinks, normalizeDomInlineRefsAndTags, replaceEditTouchesIndexedInline, replaceSingleKramdownBlockContentInDom } from '../internal/kramdown-safe';
 import { normalizeMarkdownInputRefs, normalizeReplaceEditsRefs } from '../internal/markdown-input';
+import { setTaskMarker } from './task-marker';
+import { domToPlainText } from './plain-text';
 
 
 type RecentUpdatedDocumentSummary = {
@@ -836,6 +840,75 @@ const handleDocsInfo: BlockActionHandler = async ({ client, permMgr, rawArgs }) 
     return createJsonResult(result);
 };
 
+// ---------------------------------------------------------------------------
+// update_task_marker: toggle a task (todo) block without rewriting content.
+// Reads the rendered DOM, flips data-task / done class / icon via setTaskMarker,
+// then writes the block back with dataType=dom. Accepts one id or a batch ids[].
+// ---------------------------------------------------------------------------
+
+const handleUpdateTaskMarker: BlockActionHandler = async ({ client, permMgr, rawArgs }) => {
+    const parsed = BlockUpdateTaskMarkerSchema.parse(rawArgs);
+    const ids = parsed.ids ?? [parsed.id!];
+    const results: Array<{ id: string; ok: boolean; changed?: boolean; taskItems?: number; message?: string }> = [];
+    const refreshedDocs = new Set<string>();
+
+    for (const id of ids) {
+        const { denied, context } = await ensurePermissionForDocumentId(client, permMgr, id, 'write');
+        if (denied) {
+            if (ids.length === 1) return denied;
+            results.push({ id, ok: false, message: 'permission denied' });
+            continue;
+        }
+        const domResult = await blockApi.getBlockDOM(client, id);
+        const rewritten = setTaskMarker(domResult.dom ?? '', parsed.checked);
+        if (rewritten.ok === false) {
+            if (ids.length === 1) {
+                return createJsonResult({ error: { type: 'validation_error', action: 'update_task_marker', reason: 'not_a_task_block', message: rewritten.message, id } });
+            }
+            results.push({ id, ok: false, message: rewritten.message });
+            continue;
+        }
+        if (rewritten.changed) {
+            await blockApi.updateBlock(client, 'dom', rewritten.dom, id);
+            if (context?.documentId) refreshedDocs.add(context.documentId);
+        }
+        results.push({ id, ok: true, changed: rewritten.changed, taskItems: rewritten.taskItems });
+    }
+
+    if (ids.length === 1) {
+        const single = results[0];
+        return applyUiRefresh(client, createWriteSuccessResult({
+            action: 'update_task_marker',
+            id: single.id,
+            checked: parsed.checked,
+            changed: single.changed === true,
+            taskItems: single.taskItems,
+        }), [...refreshedDocs].map((docId) => ({ type: 'reloadProtyle' as const, id: docId })));
+    }
+    return applyUiRefresh(client, createWriteSuccessResult({
+        action: 'update_task_marker',
+        checked: parsed.checked,
+        total: results.length,
+        updated: results.filter((r) => r.ok && r.changed).length,
+        unchanged: results.filter((r) => r.ok && !r.changed).length,
+        failed: results.filter((r) => !r.ok).length,
+        results,
+    }), [...refreshedDocs].map((docId) => ({ type: 'reloadProtyle' as const, id: docId })));
+};
+
+// ---------------------------------------------------------------------------
+// text: read a block as plain readable text with markup stripped.
+// ---------------------------------------------------------------------------
+
+const handleText: BlockActionHandler = async ({ client, permMgr, rawArgs }) => {
+    const parsed = BlockTextSchema.parse(rawArgs);
+    const { denied } = await ensurePermissionForDocumentId(client, permMgr, parsed.id, 'read');
+    if (denied) return denied;
+    const domResult = await blockApi.getBlockDOM(client, parsed.id);
+    const text = domToPlainText(domResult.dom ?? '');
+    return createJsonResult({ id: parsed.id, text, length: text.length });
+};
+
 export const BLOCK_ACTION_HANDLERS: Record<BlockAction, BlockActionHandler> = {
     insert: handleInsert,
     prepend: handlePrepend,
@@ -858,4 +931,6 @@ export const BLOCK_ACTION_HANDLERS: Record<BlockAction, BlockActionHandler> = {
     word_count: handleWordCount,
     add_to_daily_note: handleAddToDailyNote,
     docs_info: handleDocsInfo,
+    update_task_marker: handleUpdateTaskMarker,
+    text: handleText,
 };

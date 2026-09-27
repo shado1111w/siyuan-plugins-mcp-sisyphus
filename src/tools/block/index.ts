@@ -22,7 +22,9 @@ import {
     BlockSetFoldStateSchema,
     BlockTransferReferencesSchema,
     BlockUpdateSchema,
+    BlockUpdateTaskMarkerSchema,
     BlockWordCountSchema,
+    BlockTextSchema,
 } from '../../core/types';
 import { defineTool } from '../internal/define-tool';
 import { createZodActionVariant, type ActionVariant } from '../internal/shared';
@@ -52,6 +54,8 @@ export const BLOCK_VARIANTS: ActionVariant<BlockAction>[] = [
     createZodActionVariant('word_count', BlockWordCountSchema, 'Get word-count statistics for blocks.'),
     createZodActionVariant('add_to_daily_note', BlockAddToDailyNoteSchema, 'Add a block to today\'s daily note, creating the note if needed.'),
     createZodActionVariant('docs_info', BlockDocsInfoSchema, 'Get document info for one or more documents.'),
+    createZodActionVariant('update_task_marker', BlockUpdateTaskMarkerSchema, 'Set the checked state of a task (todo) block without rewriting its content. Pass id for one task list/item or ids[] for a batch. checked=true marks done, false marks todo.'),
+    createZodActionVariant('text', BlockTextSchema, 'Read a block as plain readable text with HTML and markup stripped. Use this instead of dom or get_kramdown when you only need the words.'),
 ];
 
 const blockTool = defineTool<BlockAction>({

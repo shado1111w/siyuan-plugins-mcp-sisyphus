@@ -57,7 +57,13 @@ siyuan-sisyphus document append --notebook '<notebook-id>' --hpath '/Folder/Doc'
 
 To instantiate a recurring skeleton (daily standup, weekly review, meeting notes) stored as a SiYuan workspace template, use `document create --template <name-or-path>`. It renders Sprig placeholders such as `{{now}}` through the kernel before writing, so the result is finished content, not a raw template. Discover templates with `file list_templates`. Do not also pass `markdown` — the template supplies the body. To clone an existing document's body into a new path without saving it as a template first, use `document create --copy-from <source-doc-id>`. It reads the source document's editable Markdown and writes it to the new document; combine with a fresh path or parentPath + title.
 
-When updating a task-list item, provide the complete list prefix (`- [x] ` or `- [ ] `) in the markdown data. A bare text replacement causes the block to be re-parsed as a paragraph and rejected by the list's parent.
+To check or uncheck a task (todo) block, prefer `block update_task_marker` with `id` (or `ids[]` for a batch) and `checked` — it flips the marker in place without rewriting the block, so you never need the full `- [x] ` markdown prefix.
+
+```bash
+siyuan-sisyphus block update-task-marker --id '<task-block-id>' --checked --json
+```
+
+When editing a task-list item text via `block update`, provide the complete list prefix (`- [x] ` or `- [ ] `) in the markdown data. A bare text replacement causes the block to be re-parsed as a paragraph and rejected by the list's parent.
 
 Use block `update` only when replacing the whole block is intended. Prefer a scoped replacement for a small textual change:
 

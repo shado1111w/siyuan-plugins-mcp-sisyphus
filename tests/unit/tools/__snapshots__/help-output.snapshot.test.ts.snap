@@ -1944,6 +1944,35 @@ AV actions operate on real SiYuan attribute views (database blocks), not Markdow
         ],
         "tool": "block",
       },
+      "text": {
+        "action": "text",
+        "example": {
+          "action": "text",
+          "id": "20240318112233-abc123",
+        },
+        "fullDocResource": "siyuan://help/action/block/text",
+        "guidance": [
+          "block(action="prepend") or block(action="append") with a document ID targets the document start or end.",
+          "block(action="update") is best for single-block replacement. One table, fenced code block, or list may contain many lines and still be one block. Use append/prepend/insert for multiple sibling blocks; verify the resulting structure after replacement.",
+          "block(action="replace") only searches the kramdown of the single block identified by id. It does not traverse child blocks, sibling blocks, headings with their following content, or the whole document.",
+          "Before block(action="replace"), call block(action="get_kramdown", id=...) and copy an exact old snippet from that result. It writes back through the original DOM text nodes; naked ((id)) references, footnotes, and siyuan://blocks links are allowed with backlink-semantics hints.",
+          "block(action="prepend") or block(action="append") with a block ID targets that block's child list.",
+          "To create real SiYuan tags inside markdown content, use the syntax #tag# with both leading and trailing # characters, then verify with tag(action="list", query="tag").",
+          "To turn a block into a flashcard, prefer flashcard(action="create_card"). It writes "custom-riff-decks" and registers the riff card together.",
+          "block(action="set_fold_state") requires a foldable block ID, not a document ID.",
+          "block(action="recent_updated") is read-only; MCP filters unreadable notebooks first and then applies count.",
+          "block(action="recent_updated") now presents the document-grouped summary as the primary user-facing view while keeping the raw block stream for advanced consumers.",
+        ],
+        "hint": "Read a block as plain readable text with HTML tags and markup stripped. Prefer this over dom or get_kramdown when you only need the words; returns text plus length.",
+        "requiredFields": [
+          "id",
+        ],
+        "requiresConfirmation": false,
+        "shapes": [
+          "id",
+        ],
+        "tool": "block",
+      },
       "transfer_references": {
         "action": "transfer_references",
         "example": {
@@ -1997,6 +2026,35 @@ AV actions operate on real SiYuan attribute views (database blocks), not Markdow
         "requiresConfirmation": false,
         "shapes": [
           "action only",
+        ],
+        "tool": "block",
+      },
+      "update_task_marker": {
+        "action": "update_task_marker",
+        "example": {
+          "action": "update_task_marker",
+          "checked": false,
+        },
+        "fullDocResource": "siyuan://help/action/block/update_task_marker",
+        "guidance": [
+          "block(action="prepend") or block(action="append") with a document ID targets the document start or end.",
+          "block(action="update") is best for single-block replacement. One table, fenced code block, or list may contain many lines and still be one block. Use append/prepend/insert for multiple sibling blocks; verify the resulting structure after replacement.",
+          "block(action="replace") only searches the kramdown of the single block identified by id. It does not traverse child blocks, sibling blocks, headings with their following content, or the whole document.",
+          "Before block(action="replace"), call block(action="get_kramdown", id=...) and copy an exact old snippet from that result. It writes back through the original DOM text nodes; naked ((id)) references, footnotes, and siyuan://blocks links are allowed with backlink-semantics hints.",
+          "block(action="prepend") or block(action="append") with a block ID targets that block's child list.",
+          "To create real SiYuan tags inside markdown content, use the syntax #tag# with both leading and trailing # characters, then verify with tag(action="list", query="tag").",
+          "To turn a block into a flashcard, prefer flashcard(action="create_card"). It writes "custom-riff-decks" and registers the riff card together.",
+          "block(action="set_fold_state") requires a foldable block ID, not a document ID.",
+          "block(action="recent_updated") is read-only; MCP filters unreadable notebooks first and then applies count.",
+          "block(action="recent_updated") now presents the document-grouped summary as the primary user-facing view while keeping the raw block stream for advanced consumers.",
+        ],
+        "hint": "Set the checked state of a task (todo) block without rewriting its content — prefer this over block(action="update") for check/uncheck. Pass id for one task list/item or ids[] for a batch of the same target state. checked=true marks done [x], false marks todo [ ]. Idempotent: reports changed=false when already in the target state.",
+        "requiredFields": [
+          "checked",
+        ],
+        "requiresConfirmation": false,
+        "shapes": [
+          "checked",
         ],
         "tool": "block",
       },
@@ -2054,7 +2112,7 @@ AV actions operate on real SiYuan attribute views (database blocks), not Markdow
     },
     "description": "🧱 Grouped block operations. Use the "action" field to select the operation.
 
-Common actions: insert, prepend, append, update, replace, get_kramdown, batch_kramdown, get_children, get_attrs, info. Required fields: insert: no additional fields; prepend: dataType, data, parentID; append: dataType, data, parentID; update: no additional fields; replace: id, edit; get_kramdown: id; batch_kramdown: ids; get_children: id; get_attrs: id; info: id.
+Common actions: insert, prepend, append, update, replace, get_kramdown, batch_kramdown, get_children, get_attrs, info, update_task_marker, text. Required fields: insert: no additional fields; prepend: dataType, data, parentID; append: dataType, data, parentID; update: no additional fields; replace: id, edit; get_kramdown: id; batch_kramdown: ids; get_children: id; get_attrs: id; info: id; update_task_marker: checked; text: id.
 
 Additional actions: delete, move, set_fold_state, transfer_references, set_attrs, breadcrumb, dom, recent_updated, word_count, add_to_daily_note, docs_info. Read siyuan://help/action/block/{action} for details, or call action="help" if resources are unavailable.
 
@@ -2080,6 +2138,8 @@ block.recent_updated: required [] | optional [count]
 block.word_count: required [ids] | optional []
 block.add_to_daily_note: required [notebook, dataType, data, position] | optional []
 block.docs_info: required [] | optional [id, ids, refCount, av]
+block.update_task_marker: required [checked] | optional [id, ids]
+block.text: required [id] | optional []
 
 block(action="prepend") or block(action="append") with a document ID targets the document start or end. block(action="update") is best for single-block replacement. One table, fenced code block, or list may contain many lines and still be one block. Use append/prepend/insert for multiple sibling blocks; verify the resulting structure after replacement. Requires user confirmation before: delete, move.",
     "overview": {
@@ -2102,8 +2162,10 @@ block(action="prepend") or block(action="append") with a document ID targets the
         "replace": "Use id + edit to replace exact text inside one block kramdown content only. First read block(action="get_kramdown", id=...) and copy old from the block body. The writeback patches original DOM text nodes, preserving inline structure while rejecting IAL metadata edits. Naked ((id)) refs are normalized; footnotes and siyuan://blocks links are allowed but do not create backlinks.",
         "set_attrs": "Use attrs to write block attributes such as custom metadata. For flashcards, this only writes metadata such as {"custom-riff-decks":"<deck-id>"}; prefer flashcard(action="create_card") when you want a block to become a real review card.",
         "set_fold_state": "Use a foldable block ID + folded (true to fold, false to unfold).",
+        "text": "Read a block as plain readable text with HTML tags and markup stripped. Prefer this over dom or get_kramdown when you only need the words; returns text plus length.",
         "transfer_references": "requires: fromID, toID",
         "update": "Use dataType + data + id to replace block content. Returns a slim success object instead of raw DOM operations. block(action="update") is best for single-block replacement; one table or fenced code block can contain multiple lines. Use append/prepend/insert for multiple sibling blocks and verify the resulting structure. If the content should create tags, write them as #tag#.",
+        "update_task_marker": "Set the checked state of a task (todo) block without rewriting its content — prefer this over block(action="update") for check/uncheck. Pass id for one task list/item or ids[] for a batch of the same target state. checked=true marks done [x], false marks todo [ ]. Idempotent: reports changed=false when already in the target state.",
         "word_count": "Provide one or more block IDs to receive aggregate stat data.",
       },
       "actions": {
@@ -2176,11 +2238,19 @@ block(action="prepend") or block(action="append") with a document ID targets the
           "hint": "Use a foldable block ID + folded (true to fold, false to unfold).",
           "requiresConfirmation": false,
         },
+        "text": {
+          "hint": "Read a block as plain readable text with HTML tags and markup stripped. Prefer this over dom or get_kramdown when you only need the words; returns text plus length.",
+          "requiresConfirmation": false,
+        },
         "transfer_references": {
           "requiresConfirmation": false,
         },
         "update": {
           "hint": "Use dataType + data + id to replace block content. Returns a slim success object instead of raw DOM operations. block(action="update") is best for single-block replacement; one table or fenced code block can contain multiple lines. Use append/prepend/insert for multiple sibling blocks and verify the resulting structure. If the content should create tags, write them as #tag#.",
+          "requiresConfirmation": false,
+        },
+        "update_task_marker": {
+          "hint": "Set the checked state of a task (todo) block without rewriting its content — prefer this over block(action="update") for check/uncheck. Pass id for one task list/item or ids[] for a batch of the same target state. checked=true marks done [x], false marks todo [ ]. Idempotent: reports changed=false when already in the target state.",
           "requiresConfirmation": false,
         },
         "word_count": {
@@ -2212,6 +2282,8 @@ block(action="prepend") or block(action="append") with a document ID targets the
         "get_children",
         "get_attrs",
         "info",
+        "update_task_marker",
+        "text",
       ],
       "detailsHint": "Call block(action="help", topic="<actionName>") for required fields, shapes, and a minimal example.",
       "guidance": [

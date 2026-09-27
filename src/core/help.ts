@@ -241,6 +241,8 @@ export const BLOCK_ACTION_HINTS: Partial<Record<BlockAction, string>> = {
     recent_updated: 'Returns recent updates across the workspace, then MCP filters unreadable notebooks and applies count when provided. documents is the primary user-facing summary; items remains the raw block stream.',
     word_count: 'Provide one or more block IDs to receive aggregate stat data.',
     add_to_daily_note: 'Use notebook + dataType + data + position ("append" or "prepend") to add content to today’s daily note.',
+    update_task_marker: 'Set the checked state of a task (todo) block without rewriting its content — prefer this over block(action="update") for check/uncheck. Pass id for one task list/item or ids[] for a batch of the same target state. checked=true marks done [x], false marks todo [ ]. Idempotent: reports changed=false when already in the target state.',
+    text: 'Read a block as plain readable text with HTML tags and markup stripped. Prefer this over dom or get_kramdown when you only need the words; returns text plus length.',
 };
 
 export const AV_ACTION_HINTS: Partial<Record<AvAction, string>> = {

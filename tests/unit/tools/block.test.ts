@@ -874,4 +874,101 @@ describe('block tool', () => {
         });
         expect(moveCalls.map((call) => call.id)).toEqual(['block-c', 'block-b', 'block-a']);
     });
+
+
+    function createTaskMarkerClient(domByBlock: Record<string, string>) {
+        const updateCalls: Array<{ id: string; data: string; dataType: string }> = [];
+        const client = createMockClient({
+            request: vi.fn(async (endpoint: string, body?: Record<string, unknown>) => {
+                if (endpoint === '/api/query/sql') {
+                    return [{
+                        id: body?.id ?? 'block-1',
+                        root_id: 'doc-1',
+                        box: 'nb-1',
+                        path: '/doc-1.sy',
+                        hpath: '/Doc 1',
+                        content: 'Doc 1',
+                        type: 'l',
+                    }];
+                }
+                if (endpoint === '/api/block/getBlockDOM') {
+                    return { id: body?.id, dom: domByBlock[String(body?.id)] ?? '' };
+                }
+                if (endpoint === '/api/block/updateBlock') {
+                    updateCalls.push({ id: String(body?.id), data: String(body?.data), dataType: String(body?.dataType) });
+                    return { updated: true };
+                }
+                if (endpoint.startsWith('/api/ui/')) return null;
+                throw new Error('Unexpected endpoint: ' + endpoint);
+            }),
+        });
+        return { client, updateCalls };
+    }
+
+    const UNCHECKED_DOM = '<div data-subtype="t" data-node-id="l1" data-type="NodeList" class="list"><div data-marker="*" data-subtype="t" data-task=" " data-type="NodeListItem" class="li"><div class="protyle-action protyle-action--task"><svg><use xlink:href="#iconUncheck"></use></svg></div><div data-type="NodeParagraph" class="p"><div>todo A</div></div></div></div>';
+    const CHECKED_DOM = UNCHECKED_DOM.replace('data-task=" "', 'data-task="X"').replace('class="li"', 'class="li protyle-task--done"').replace('#iconUncheck', '#iconCheck');
+
+    it('update_task_marker checks a task block by rewriting the DOM marker', async () => {
+        const { client, updateCalls } = createTaskMarkerClient({ 'task-1': UNCHECKED_DOM });
+        const result = await callBlockTool(client, {
+            action: 'update_task_marker', id: 'task-1', checked: true,
+        }, buildDefaultToolConfig().block, permMgr as never);
+        const payload = parseResult(result);
+        expect(payload.success).toBe(true);
+        expect(payload.changed).toBe(true);
+        expect(updateCalls).toHaveLength(1);
+        expect(updateCalls[0].dataType).toBe('dom');
+        expect(updateCalls[0].data).toContain('data-task="X"');
+        expect(updateCalls[0].data).toContain('#iconCheck');
+    });
+
+    it('update_task_marker is idempotent and writes nothing when already checked', async () => {
+        const { client, updateCalls } = createTaskMarkerClient({ 'task-1': CHECKED_DOM });
+        const result = await callBlockTool(client, {
+            action: 'update_task_marker', id: 'task-1', checked: true,
+        }, buildDefaultToolConfig().block, permMgr as never);
+        const payload = parseResult(result);
+        expect(payload.changed).toBe(false);
+        expect(updateCalls).toHaveLength(0);
+    });
+
+    it('update_task_marker rejects a non-task block', async () => {
+        const { client } = createTaskMarkerClient({ 'para-1': '<div data-type="NodeParagraph" class="p"><div>plain</div></div>' });
+        const result = await callBlockTool(client, {
+            action: 'update_task_marker', id: 'para-1', checked: true,
+        }, buildDefaultToolConfig().block, permMgr as never);
+        const payload = parseResult(result);
+        expect(payload.error?.reason).toBe('not_a_task_block');
+    });
+
+    it('update_task_marker batches ids and reports per-block outcomes', async () => {
+        const { client, updateCalls } = createTaskMarkerClient({ 't1': UNCHECKED_DOM, 't2': CHECKED_DOM });
+        const result = await callBlockTool(client, {
+            action: 'update_task_marker', ids: ['t1', 't2'], checked: true,
+        }, buildDefaultToolConfig().block, permMgr as never);
+        const payload = parseResult(result);
+        expect(payload.total).toBe(2);
+        expect(payload.updated).toBe(1);
+        expect(payload.unchanged).toBe(1);
+        expect(updateCalls).toHaveLength(1);
+    });
+
+    it('text returns plain text from a block DOM', async () => {
+        const client = createMockClient({
+            request: vi.fn(async (endpoint: string, body?: Record<string, unknown>) => {
+                if (endpoint === '/api/query/sql') {
+                    return [{ id: body?.id ?? 'b1', root_id: 'doc-1', box: 'nb-1', path: '/d.sy', hpath: '/D', content: 'D', type: 'p' }];
+                }
+                if (endpoint === '/api/block/getBlockDOM') {
+                    return { id: body?.id, dom: '<div data-type="NodeParagraph" class="p"><div contenteditable="true">hello <strong>world</strong></div></div>' };
+                }
+                if (endpoint.startsWith('/api/ui/')) return null;
+                throw new Error('Unexpected endpoint: ' + endpoint);
+            }),
+        });
+        const result = await callBlockTool(client, { action: 'text', id: 'b1' }, buildDefaultToolConfig().block, permMgr as never);
+        const payload = parseResult(result);
+        expect(payload.text).toBe('hello world');
+        expect(payload.length).toBe(11);
+    });
 });

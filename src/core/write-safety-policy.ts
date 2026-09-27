@@ -54,6 +54,7 @@ export const ACTION_SAFETY_POLICIES: {
         insert: mutation(), prepend: mutation(), append: mutation(), add_to_daily_note: mutation(),
         update: mutation('state'), replace: mutation('state'), delete: mutation('state'), move: mutation('structure'),
         set_fold_state: mutation('state'), transfer_references: mutation('manifest'), set_attrs: mutation('state'),
+        update_task_marker: mutation('state'), text: read(),
     },
     av: {
         get: read(), render: mutation(), get_attribute_view_keys: read(), get_attribute_view_filter_sort: read(),

@@ -106,8 +106,9 @@ Use search-assisted discovery when the path is unknown:
 {{call document}}
 {{call block}}
 {{call readScope}}
+{{call blockText}}
 
-Prefer \`document read\` over \`document get_doc\` + manual block stitching when you need only part of a document: \`--scope outline\` returns headings only, \`--scope section --anchor <heading-id-or-title>\` returns one heading subtree, \`--scope range --start-id/--end-id\` returns a block-id span, and \`--scope keyword --pattern a|b [--context-before N --context-after N]\` returns matched blocks with surrounding context. \`get_doc\` remains the right choice for full-text windowed pagination. \`fs.read\` stays the human-readable-path convenience layer.
+Prefer \`document read\` over \`document get_doc\` + manual block stitching when you need only part of a document: \`--scope outline\` returns headings only, \`--scope section --anchor <heading-id-or-title>\` returns one heading subtree, \`--scope range --start-id/--end-id\` returns a block-id span, and \`--scope keyword --pattern a|b [--context-before N --context-after N]\` returns matched blocks with surrounding context. \`get_doc\` remains the right choice for full-text windowed pagination. \`fs.read\` stays the human-readable-path convenience layer. When you only need the readable words of one block (not kramdown markup or rendered DOM), use \`block text\` — it returns clean plain text.
 
 \`document lookup\` returns \`{humanPath, idPath}\` — there is no top-level \`id\` field. To get a document/block ID, strip the \`.sy\` suffix from \`idPath.path\` (e.g., \`/20260712123000-abc123.sy\` -> \`20260712123000-abc123\`).
 
@@ -140,6 +141,7 @@ Discovery identifies candidates; it does not authorize a write. Before changing 
             document: call('document', 'get_doc', { id: '<doc-id>', mode: 'markdown' }),
             readScope: call('document', 'read', { id: '<doc-id>', scope: 'section', anchor: '<heading-title>' }),
             block: call('block', 'get_kramdown', { id: '<block-id>' }),
+            blockText: call('block', 'text', { id: '<block-id>' }),
             image: call('file', 'read_image', { id: '<doc-id>', path: 'assets/question.png' }),
         },
     },
@@ -187,7 +189,11 @@ To add content to the start or end of a whole document without first resolving a
 
 To instantiate a recurring skeleton (daily standup, weekly review, meeting notes) stored as a SiYuan workspace template, use \`document create --template <name-or-path>\`. It renders Sprig placeholders such as \`{{now}}\` through the kernel before writing, so the result is finished content, not a raw template. Discover templates with \`file list_templates\`. Do not also pass \`markdown\` — the template supplies the body. To clone an existing document's body into a new path without saving it as a template first, use \`document create --copy-from <source-doc-id>\`. It reads the source document's editable Markdown and writes it to the new document; combine with a fresh path or parentPath + title.
 
-When updating a task-list item, provide the complete list prefix (\`- [x] \` or \`- [ ] \`) in the markdown data. A bare text replacement causes the block to be re-parsed as a paragraph and rejected by the list's parent.
+To check or uncheck a task (todo) block, prefer \`block update_task_marker\` with \`id\` (or \`ids[]\` for a batch) and \`checked\` — it flips the marker in place without rewriting the block, so you never need the full \`- [x] \` markdown prefix.
+
+{{call taskMarker}}
+
+When editing a task-list item text via \`block update\`, provide the complete list prefix (\`- [x] \` or \`- [ ] \`) in the markdown data. A bare text replacement causes the block to be re-parsed as a paragraph and rejected by the list's parent.
 
 Use block \`update\` only when replacing the whole block is intended. Prefer a scoped replacement for a small textual change:
 
@@ -227,6 +233,7 @@ Before rename, move, delete, or broad replacement, resolve the exact target, sho
             insert: call('block', 'insert', { previousID: '<block-id>', dataType: 'markdown', data: 'Inserted paragraph.' }),
             update: call('block', 'update', { id: '<block-id>', dataType: 'markdown', data: 'Replacement block content.' }),
             replace: call('block', 'replace', { id: '<block-id>', edit: { old: 'draft', new: 'final' } }),
+            taskMarker: call('block', 'update_task_marker', { id: '<task-block-id>', checked: true }),
             attrs: call('block', 'set_attrs', { id: '<block-id>', attrs: { 'custom-source': 'agent' } }),
             daily: call('document', 'create_daily_note', { notebook: '<notebook-id>' }),
             dn_create: call('dailynote', 'create', { notebook: '<notebook-id>', date: '2026-09-25' }),

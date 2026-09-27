@@ -50,8 +50,11 @@ block(action="get_kramdown", id="<block-id>")
 ```text
 document(action="read", id="<doc-id>", scope="section", anchor="<heading-title>")
 ```
+```text
+block(action="text", id="<block-id>")
+```
 
-Prefer `document read` over `document get_doc` + manual block stitching when you need only part of a document: `--scope outline` returns headings only, `--scope section --anchor <heading-id-or-title>` returns one heading subtree, `--scope range --start-id/--end-id` returns a block-id span, and `--scope keyword --pattern a|b [--context-before N --context-after N]` returns matched blocks with surrounding context. `get_doc` remains the right choice for full-text windowed pagination. `fs.read` stays the human-readable-path convenience layer.
+Prefer `document read` over `document get_doc` + manual block stitching when you need only part of a document: `--scope outline` returns headings only, `--scope section --anchor <heading-id-or-title>` returns one heading subtree, `--scope range --start-id/--end-id` returns a block-id span, and `--scope keyword --pattern a|b [--context-before N --context-after N]` returns matched blocks with surrounding context. `get_doc` remains the right choice for full-text windowed pagination. `fs.read` stays the human-readable-path convenience layer. When you only need the readable words of one block (not kramdown markup or rendered DOM), use `block text` — it returns clean plain text.
 
 `document lookup` returns `{humanPath, idPath}` — there is no top-level `id` field. To get a document/block ID, strip the `.sy` suffix from `idPath.path` (e.g., `/20260712123000-abc123.sy` -> `20260712123000-abc123`).
 

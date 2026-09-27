@@ -554,6 +554,10 @@
     "desc_block_action_add_to_daily_note": "Append Markdown content to today's daily note in a notebook.",
     "block_action_docs_info": "Documents Info",
     "desc_block_action_docs_info": "Get document metadata for one or more block or document IDs.",
+    "block_action_update_task_marker": "Update Task Marker",
+    "desc_block_action_update_task_marker": "Set the checked state of a task (todo) block without rewriting content. Pass id or ids[] for a batch.",
+    "block_action_text": "Block Text",
+    "desc_block_action_text": "Read a block as plain readable text with HTML and markup stripped.",
 
     "file_action_upload_asset": "Upload Asset",
     "desc_file_action_upload_asset": "Read a local file path and upload that file to the assets directory. Files larger than the configured threshold must stop and ask the user before retrying with confirmLargeFile=true.",

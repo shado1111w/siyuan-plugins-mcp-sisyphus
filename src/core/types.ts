@@ -859,6 +859,22 @@ export const BlockDocsInfoSchema = z.object({
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Provide exactly one of id or ids.", path: ["ids"] });
     }
 });
+export const BlockUpdateTaskMarkerSchema = z.object({
+    action: z.literal("update_task_marker"),
+    id: z.string().optional().describe("Block ID of a task list or single task item"),
+    ids: z.array(z.string()).optional().describe("Batch: multiple task block IDs to set to the same state"),
+    checked: z.boolean().describe("true to mark done ([x]), false to mark todo ([ ])"),
+}).superRefine((value, ctx) => {
+    if ((value.id && value.ids) || (!value.id && !value.ids)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Provide exactly one of id or ids.", path: ["id"] });
+    }
+});
+
+export const BlockTextSchema = z.object({
+    action: z.literal("text"),
+    id: z.string().describe("Block ID"),
+});
+
 
 const AvValueTypeSchema = z.enum(["text", "number", "date", "checkbox", "select", "multi_select", "relation", "url", "email", "phone", "mAsset"]);
 
