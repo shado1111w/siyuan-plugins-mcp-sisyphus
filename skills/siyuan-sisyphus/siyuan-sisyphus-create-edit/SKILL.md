@@ -13,6 +13,15 @@ For a mutation covered by strict safe writes, call the same action and business 
 
 If the connection fails after execution may have started, or the result says `outcome_unknown` or `readback_mismatch`, do not retry with a new request ID. Inspect the target and resolve the outcome first. A CLI command, raw MCP payload, or Agent-generated call is not by itself evidence that this coordinator path or its guarantees applied; use the current safety response and runtime help.
 
+## After creating
+
+Do not search for the new document to verify creation — search indexing has a brief delay. Instead, use the returned `id` directly, or `document lookup --id <id>` or `fs read --path <path>` which do not depend on indexing.
+
+```bash
+siyuan-sisyphus document lookup --id '<returned-id>' --json
+siyuan-sisyphus fs read --path '/Notebook/Doc' --json
+```
+
 ## Create documents
 
 Use a workspace path for convenient path-based creation:
@@ -23,6 +32,12 @@ siyuan-sisyphus fs write --path '/Notebook/Project/Notes' --markdown '# Notes
 Initial content.' --json
 ```
 
+For content containing shell-sensitive characters (backticks, dollar signs, quotes), use --markdown-json to pass a JSON-encoded string:
+
+```bash
+siyuan-sisyphus fs write --path '/Notebook/Project/Notes' --markdown-json '"# Notes\n\n```python\nprint(1)\n```"' --json
+```
+
 Use a notebook ID plus notebook-local hpath when low-level control is needed:
 
 ```bash
@@ -30,6 +45,8 @@ siyuan-sisyphus document create --notebook '<notebook-id>' --path '/Project/Note
 ```
 
 Do not include the notebook name in the low-level hpath.
+
+`fs write` requires the parent document to already exist. For nested paths like `/Notebook/Folder/Sub/Doc`, create the intermediate parent first with `fs write --path '/Notebook/Folder/Sub'` (empty or minimal markdown), then write the child.
 
 ## Edit blocks
 

@@ -1397,8 +1397,8 @@ export const SearchGetBacklinksSchema = z.object({
     action: z.literal("get_backlinks"),
     id: z.string().describe("Block or document ID to find backlinks for"),
     keyword: z.string().optional().describe("Filter backlinks by keyword"),
-    refTreeID: z.string().optional().describe("Optional document tree ID to narrow backlink scope"),
-    scopeRootId: z.string().optional().describe("Semantic alias for refTreeID. Overrides refTreeID when both are provided."),
+    refTreeID: z.string().optional().describe("The root document ID that contains the references (i.e., the document you are viewing backlinks in). This is NOT the target document being referenced. If omitted, returns backlinks from all documents."),
+    scopeRootId: z.string().optional().describe("Semantic alias for refTreeID — the root document ID that contains the references. Overrides refTreeID when both are provided."),
     mode: z.enum(["links", "mentions", "both"]).optional().describe('Result mode: "links", "mentions", or "both" (default).'),
 });
 
