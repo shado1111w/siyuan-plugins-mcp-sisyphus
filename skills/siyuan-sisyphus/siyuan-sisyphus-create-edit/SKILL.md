@@ -59,12 +59,15 @@ siyuan-sisyphus block replace --id '<block-id>' --edit-json '{"old":"draft","new
 
 ## Metadata and daily notes
 
-Prefer the `dailynote` tool over `document create_daily_note` / `block add_to_daily_note` whenever a date is involved: it resolves the note through the notebook `dailyNoteSavePath` template, so `create`/`get`/`read`/`append`/`prepend`/`delete` all accept `date=YYYY-MM-DD` and work for past or future days, not only today. `dailynote list` enumerates existing notes under the configured prefix and filters by `from`/`to`.
+Use the `dailynote` tool for any operation that targets a daily note — it is the daily-note manager, not a general document editor. Prefer it over `document create_daily_note` / `block add_to_daily_note` whenever a date is involved: it resolves the note through the notebook `dailyNoteSavePath` template, so `create`/`get`/`read`/`append`/`prepend`/`delete` all accept `date=YYYY-MM-DD` and work for past or future days, not only today. For non-daily documents (meeting notes, project pages, MOCs) keep using `fs write` / `document create` / `block` — `dailynote` will not place content under an arbitrary hpath.
 
-For `date` values other than today, `append` and `prepend` create the note first if it does not exist; no separate `create` call is needed. When the notebook `dailyNoteSavePath` contains unsupported template expressions, only today's note can be resolved — fall back to `document create_daily_note` for that case.
+Efficiency: one dated call beats a resolve-then-write sequence. `dailynote append --date 2026-09-25 --data ...` finds-or-creates that day's note and writes in a single step — do not `get` then `create` then `append` unless you genuinely need to branch on existence. For `date` values other than today, `append` and `prepend` create the note first if it does not exist; no separate `create` call is needed. When the notebook `dailyNoteSavePath` contains unsupported template expressions, only today's note can be resolved — fall back to `document create_daily_note` for that case.
+
+Behavior to rely on: `create` is idempotent — `created:true` only when a new file was written, `created:false` when it already existed (treat both as success). `append`/`prepend` on today's note go through the native daily-note API and may omit the `id` field; other dates return the document `id`. `dailynote list` enumerates existing notes under the configured prefix and filters by `from`/`to`, but the blocktree index lags writes by a second or two — if a just-created date does not appear, allow a brief delay and retry rather than recreating. `delete` is safe to call on a missing date: it returns `success:false` with an `existed:false` flag and a warning instead of failing.
 
 {{call dn_create}}
 {{call dn_append}}
+{{call dn_read}}
 {{call dn_list}}
 
 ## Structural constraints
