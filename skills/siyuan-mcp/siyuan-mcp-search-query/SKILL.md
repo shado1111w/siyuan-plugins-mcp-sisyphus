@@ -29,6 +29,8 @@ search(action="search_refs", id="<block-id>", beforeLen=512)
 search(action="search_assets", query="diagram", exts=["png","jpg","webp"])
 ```
 
+Search results mix `NodeDocument`, `NodeHeading`, `NodeParagraph`, and other node types in the `data[]` array. Check `type` before using `id` — a `NodeDocument` id is a doc root, not a content block, and cannot be used with block-level actions like `block update` or `block replace`.
+
 SQL must be read-only and must include `LIMIT`. Useful tables include `blocks`, `blocks_fts`, `attributes`, `refs`, `spans`, and `assets`.
 
 ## Find and replace

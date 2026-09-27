@@ -28,6 +28,8 @@ timeline(action="compare_node", documentId="<doc-id>", tag="<timeline-tag>", pag
 
 ## Delete or roll back
 
+`delete_node`, `rollback_document`, and `rollback_block` are DISABLED BY DEFAULT. Inspect `siyuan://help/action/timeline/rollback_document` first; if the runtime reports `action_disabled`, ask the user to enable that action under Settings -> Plugins -> SiYuan MCP sisyphus -> timeline before attempting. Do not silently retry.
+
 `delete_node` removes the protective tag but retains the underlying snapshot. `rollback_document` restores only the selected document file, not the whole workspace. `rollback_block` accepts only a fresh opaque `changeKey` from `compare_node`; it recalculates the diff and rejects stale or unsafe changes.
 
 Before any delete or rollback, show the exact document, node name/tag, and consequence, then obtain explicit approval. These actions require `rwd` permission and may be disabled by default. Never bypass an unavailable dangerous action; inspect `siyuan://help/action/timeline/rollback_document` and ask the user to enable it when appropriate.

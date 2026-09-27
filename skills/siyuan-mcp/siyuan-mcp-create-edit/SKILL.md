@@ -18,7 +18,7 @@ If the connection fails after execution may have started, or the result says `ou
 Use a workspace path for convenient path-based creation:
 
 ```text
-fs(action="write", path="/Notebook/Project/Notes", markdown="# Notes\n\nInitial content.")
+fs(action="write", path="/Notebook/Project/Notes", markdown="Initial content paragraph.\n\n## Section\n\nMore content.")
 ```
 
 Use a notebook ID plus notebook-local hpath when low-level control is needed:
@@ -28,6 +28,8 @@ document(action="create", notebook="<notebook-id>", path="/Project/Notes", markd
 ```
 
 Do not include the notebook name in the low-level hpath.
+
+The document title comes from the path or `title`, not from markdown. Do not start markdown with `# Title`; the leading H1 is stripped only when it exactly matches the document title. For `block append/insert/update --data`, no stripping occurs, so a leading `# Title` would persist as an H1 block.
 
 ## Edit blocks
 

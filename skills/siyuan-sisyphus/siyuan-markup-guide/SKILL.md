@@ -56,8 +56,8 @@ flowchart TD
 
 - Block reference: `((<block-id> "Optional label"))`
 - Embed query: `{{SELECT id, content FROM blocks WHERE content LIKE '%TODO%' LIMIT 20}}`
-- Horizontal super block: wrap sibling blocks in `{{{row` and `}}}`.
-- Vertical super block: wrap sibling blocks in `{{{col` and `}}}`.
+- Horizontal (side-by-side) super block: wrap sibling blocks in `{{{col` and `}}}`. SiYuan stores this as `data-sb-layout="col"` = `flex-direction: row` = side-by-side columns.
+- Vertical (stacked) super block: wrap sibling blocks in `{{{row` and `}}}`. `row` maps to `data-sb-layout="row"` = `flex-direction: column` = stacked rows.
 - IAL attributes: `{: custom-key="value"}`; use dedicated attribute actions for programmatic metadata.
 
 Do not invent unsupported Markdown extensions. For detailed layout rules or unfamiliar write fields, inspect `siyuan-sisyphus help block append` before writing.

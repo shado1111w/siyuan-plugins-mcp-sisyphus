@@ -29,6 +29,8 @@ siyuan-sisyphus search search-refs --id '<block-id>' --before-len '512' --json
 siyuan-sisyphus search search-assets --query 'diagram' --exts-json '["png","jpg","webp"]' --json
 ```
 
+Search results mix `NodeDocument`, `NodeHeading`, `NodeParagraph`, and other node types in the `data[]` array. Check `type` before using `id` — a `NodeDocument` id is a doc root, not a content block, and cannot be used with block-level actions like `block update` or `block replace`.
+
 SQL must be read-only and must include `LIMIT`. Useful tables include `blocks`, `blocks_fts`, `attributes`, `refs`, `spans`, and `assets`.
 
 ## Find and replace

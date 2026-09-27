@@ -43,6 +43,8 @@ document(action="get_doc", id="<doc-id>", mode="markdown")
 block(action="get_kramdown", id="<block-id>")
 ```
 
+`document lookup` returns `{humanPath, idPath}` — there is no top-level `id` field. To get a document/block ID, strip the `.sy` suffix from `idPath.path` (e.g., `/20260712123000-abc123.sy` -> `20260712123000-abc123`).
+
 If the Markdown contains an `assets/...` image and the task depends on its visual content, a vision-capable client should read one relevant image directly:
 
 ```text

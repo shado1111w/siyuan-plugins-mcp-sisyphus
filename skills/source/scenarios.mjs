@@ -101,6 +101,8 @@ Use search-assisted discovery when the path is unknown:
 {{call document}}
 {{call block}}
 
+\`document lookup\` returns \`{humanPath, idPath}\` — there is no top-level \`id\` field. To get a document/block ID, strip the \`.sy\` suffix from \`idPath.path\` (e.g., \`/20260712123000-abc123.sy\` -> \`20260712123000-abc123\`).
+
 If the Markdown contains an \`assets/...\` image and the task depends on its visual content, a vision-capable client should read one relevant image directly:
 
 {{call image}}
@@ -162,6 +164,8 @@ Use a notebook ID plus notebook-local hpath when low-level control is needed:
 
 Do not include the notebook name in the low-level hpath.
 
+The document title comes from the path or \`title\`, not from markdown. Do not start markdown with \`# Title\`; the leading H1 is stripped only when it exactly matches the document title. For \`block append/insert/update --data\`, no stripping occurs, so a leading \`# Title\` would persist as an H1 block.
+
 ## Edit blocks
 
 {{call append}}
@@ -180,7 +184,7 @@ Use block \`update\` only when replacing the whole block is intended. Prefer a s
 Before rename, move, delete, or broad replacement, resolve the exact target, show the affected scope, and obtain approval. After every mutation, read by stable ID when possible. Use {{help block append}} when any parameter is uncertain.
 `,
         calls: {
-            write: call('fs', 'write', { path: '/Notebook/Project/Notes', markdown: '# Notes\n\nInitial content.' }),
+            write: call('fs', 'write', { path: '/Notebook/Project/Notes', markdown: 'Initial content paragraph.\n\n## Section\n\nMore content.' }),
             create: call('document', 'create', { notebook: '<notebook-id>', path: '/Project/Notes', markdown: '# Notes' }),
             append: call('block', 'append', { parentID: '<doc-id>', dataType: 'markdown', data: '## New section\n\nParagraph.' }),
             insert: call('block', 'insert', { previousID: '<block-id>', dataType: 'markdown', data: 'Inserted paragraph.' }),
@@ -209,6 +213,8 @@ Before rename, move, delete, or broad replacement, resolve the exact target, sho
 {{call backlinks}}
 {{call refs}}
 {{call assets}}
+
+Search results mix \`NodeDocument\`, \`NodeHeading\`, \`NodeParagraph\`, and other node types in the \`data[]\` array. Check \`type\` before using \`id\` — a \`NodeDocument\` id is a doc root, not a content block, and cannot be used with block-level actions like \`block update\` or \`block replace\`.
 
 SQL must be read-only and must include \`LIMIT\`. Useful tables include \`blocks\`, \`blocks_fts\`, \`attributes\`, \`refs\`, \`spans\`, and \`assets\`.
 
@@ -549,6 +555,8 @@ Keep the returned \`tag\` as the stable identifier. After content changes, compa
 
 ## Delete or roll back
 
+\`delete_node\`, \`rollback_document\`, and \`rollback_block\` are DISABLED BY DEFAULT. Inspect {{help timeline rollback_document}} first; if the runtime reports \`action_disabled\`, ask the user to enable that action under Settings -> Plugins -> SiYuan MCP sisyphus -> timeline before attempting. Do not silently retry.
+
 \`delete_node\` removes the protective tag but retains the underlying snapshot. \`rollback_document\` restores only the selected document file, not the whole workspace. \`rollback_block\` accepts only a fresh opaque \`changeKey\` from \`compare_node\`; it recalculates the diff and rejects stale or unsafe changes.
 
 Before any delete or rollback, show the exact document, node name/tag, and consequence, then obtain explicit approval. These actions require \`rwd\` permission and may be disabled by default. Never bypass an unavailable dangerous action; inspect {{help timeline rollback_document}} and ask the user to enable it when appropriate.
@@ -691,8 +699,8 @@ flowchart TD
 
 - Block reference: \`((<block-id> "Optional label"))\`
 - Embed query: \`{{SELECT id, content FROM blocks WHERE content LIKE '%TODO%' LIMIT 20}}\`
-- Horizontal super block: wrap sibling blocks in \`{{{row\` and \`}}}\`.
-- Vertical super block: wrap sibling blocks in \`{{{col\` and \`}}}\`.
+- Horizontal (side-by-side) super block: wrap sibling blocks in \`{{{col\` and \`}}}\`. SiYuan stores this as \`data-sb-layout="col"\` = \`flex-direction: row\` = side-by-side columns.
+- Vertical (stacked) super block: wrap sibling blocks in \`{{{row\` and \`}}}\`. \`row\` maps to \`data-sb-layout="row"\` = \`flex-direction: column\` = stacked rows.
 - IAL attributes: \`{: custom-key="value"}\`; use dedicated attribute actions for programmatic metadata.
 
 Do not invent unsupported Markdown extensions. For detailed layout rules or unfamiliar write fields, inspect {{help block append}} before writing.
