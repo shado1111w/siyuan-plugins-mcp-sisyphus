@@ -1181,7 +1181,7 @@ av.upsert_row: required [avID, primaryKey] | optional [blockID, cells, viewID, g
 av.create_table: required [blockID, columns] | optional [avID]
 av.get_row: required [avID, rowID] | optional [blockID]
 av.update_row: required [avID, rowID, cells] | optional [blockID]
-av.query: required [avID] | optional [blockID, filters, filter, sorts, sort, page, pageSize, query]
+av.query: required [avID] | optional [blockID, filters, filter, sorts, sort, page, pageSize, query, filterJson]
 
 AV actions operate on real SiYuan attribute views (database blocks), not Markdown tables. To initialize a new AV definition, call av(action="render", blockID, createIfNotExist=true). MCP can generate the AV ID automatically and materialize a SiYuan-style NodeAttributeView block in the target document through a transaction. Requires user confirmation before: set_column_options, duplicate_rows, set_new_item_templates, create_from_template, configure_two_way_relation, configure_rollup, set_relation.",
     "overview": {
@@ -2948,6 +2948,42 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
         ],
         "tool": "document",
       },
+      "get_attr": {
+        "action": "get_attr",
+        "example": {
+          "action": "get_attr",
+          "id": "20240318112233-abc123",
+        },
+        "fullDocResource": "siyuan://help/action/document/get_attr",
+        "guidance": [
+          "For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"write"|"search") because it accepts human-readable paths and hides storage paths and IDs.",
+          "document(action="create") creates both non-empty and empty documents. Prefer path for child documents; path is a notebook-local human-readable hpath such as /Folder/Parent/New Child, not /Notebook/Folder/... and not a .sy storage path.",
+          "Do not put # Title at the start of document(action="create") markdown. SiYuan renders the document title as H1 automatically, and MCP strips a matching leading H1 to avoid duplicate titles.",
+          "document(action="create", parentPath=..., title=...) is also supported. parentPath accepts either a notebook-local human-readable parent hpath such as /Folder/Parent, or a storage path ending in .sy returned by document(action="lookup").",
+          "fs(action="write", path="/Notebook/Folder/Doc") uses a workspace path and should include the notebook name for unambiguous resolution; omission works only for a unique existing document or parent. document(action="create", notebook=..., path="/Folder/Doc") uses a notebook-local hpath and must omit the notebook name. Do not mix these two path formats.",
+          "For document(action="lookup"), path means a storage path such as /20240318112233-abc123.sy; use hpath/hPath for human-readable paths, which are notebook-local and MUST NOT include the notebook name (e.g., /Folder/Weekly Note, not /NotebookName/Folder/Weekly Note).",
+          "Other document actions that use notebook + path expect storage paths returned by document(action="lookup").",
+          "If document(action="create") reports a duplicate-name error, verify the intended child with document(action="lookup", notebook=..., hpath="/Folder/Parent/New Child", include=["id","path","hpath"]) or document(action="get_child_docs", id=<parent-doc-id>). New create results may take a short indexing delay before lookup/search sees them.",
+          "document(action="ensure_link_targets") is the bounded import-link provisioner: scope it with notebook + parentId, reuse only explicit child document IDs, and use create only for explicit new titles. It never guesses an existing target from a title; same-title children are unresolved and require an ID decision.",
+          "A safe path-based workflow is lookup -> rename/remove/move.",
+          "document(action="reorder") applies a complete manual order to every visible direct child under parentID and switches the notebook to custom sorting. Read the current child documents first and include each child ID exactly once.",
+          "document(action="get_child_blocks") and document(action="get_child_docs") return direct children for a document ID.",
+          "document(action="set_attr") sets document metadata. Prefer key+value for one attribute (icon, title-img, custom-*); use attrs for icon/cover, customAttrs for a map. Empty value clears.",
+          "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
+          "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "CLI-only: pass --file <path> (or --file - for stdin) to block/document create, append, prepend, insert, and update to load block content or markdown from a local file instead of inlining it into --data/--markdown. --file is mutually exclusive with --data/--markdown.",
+          "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
+        ],
+        "hint": "Read document attributes as JSON. key narrows to one attribute; omitted returns the full set (icon, cover, custom-*).",
+        "requiredFields": [
+          "id",
+        ],
+        "requiresConfirmation": false,
+        "shapes": [
+          "id",
+        ],
+        "tool": "document",
+      },
       "get_child_blocks": {
         "action": "get_child_blocks",
         "example": {
@@ -3491,7 +3527,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
     },
     "description": "📝 Grouped document operations. Use the "action" field to select the operation.
 
-Common actions: create, lookup, rename, get_child_blocks, get_child_docs, search_docs, get_doc, read, append, prepend, get_outline. Required fields: create: notebook, path | notebook, parentPath, title; lookup: no additional fields; rename: title; get_child_blocks: id; get_child_docs: id; search_docs: notebook, query; get_doc: id; append: dataType, data; prepend: dataType, data; read: id; get_outline: id.
+Common actions: create, lookup, rename, get_child_blocks, get_child_docs, get_attr, search_docs, get_doc, read, append, prepend, get_outline. Required fields: create: notebook, path | notebook, parentPath, title; lookup: no additional fields; rename: title; get_child_blocks: id; get_child_docs: id; get_attr: id; search_docs: notebook, query; get_doc: id; append: dataType, data; prepend: dataType, data; read: id; get_outline: id.
 
 Additional actions: ensure_link_targets, remove, move, reorder, set_attr, list_tree, create_daily_note, duplicate, copy, heading_to_doc, doc_to_heading. Read siyuan://help/action/document/{action} for details, or call action="help" if resources are unavailable.
 
@@ -3506,6 +3542,7 @@ document.reorder: required [parentID, orderedIDs] | optional []
 document.get_child_blocks: required [id] | optional []
 document.get_child_docs: required [id] | optional []
 document.set_attr: required [id] | optional [attrs, key, value, customAttrs]
+document.get_attr: required [id] | optional [key]
 document.list_tree: required [notebook, path] | optional [maxDepth]
 document.search_docs: required [notebook, query] | optional [path]
 document.get_doc: required [id] | optional [mode, size, blockStart, blockLimit, tokenBudget, includeBlockIds]
@@ -3529,6 +3566,7 @@ For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"writ
         "doc_to_heading": "requires: srcID, targetID",
         "duplicate": "requires: id",
         "ensure_link_targets": "Scope every request with an explicit notebook ID and parent document ID. resolve/reuse require existing child document IDs and never fall back to titles. create accepts explicit new titles only; if a same-title child already exists, it is returned as unresolved rather than guessed or reused. dryRun performs zero writes only for create. resolve/reuse are read-only; create uses strict validateOnly preflight, then one commit with the server-issued requestId plus expectedStructureHash. Responses contain exact ID/path/HPath readback and resolved/created/reused/unresolved accounting.",
+        "get_attr": "Read document attributes as JSON. key narrows to one attribute; omitted returns the full set (icon, cover, custom-*).",
         "get_child_blocks": "Use a document ID. Returns direct child blocks only.",
         "get_child_docs": "Use a document ID. Returns direct child documents only.",
         "get_doc": "Use a document ID. mode="markdown" tries full clean Markdown by default, bounded to 256 KiB UTF-8 and 2000 complete blocks, with a window-scoped outline and nextWindow; totalBlocks is null until EOF; use blockStart/blockLimit/tokenBudget and optionally includeBlockIds. page/pageSize character pagination was removed. mode="html" uses the current focus view.",
@@ -3569,6 +3607,10 @@ For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"writ
         },
         "ensure_link_targets": {
           "hint": "Scope every request with an explicit notebook ID and parent document ID. resolve/reuse require existing child document IDs and never fall back to titles. create accepts explicit new titles only; if a same-title child already exists, it is returned as unresolved rather than guessed or reused. dryRun performs zero writes only for create. resolve/reuse are read-only; create uses strict validateOnly preflight, then one commit with the server-issued requestId plus expectedStructureHash. Responses contain exact ID/path/HPath readback and resolved/created/reused/unresolved accounting.",
+          "requiresConfirmation": false,
+        },
+        "get_attr": {
+          "hint": "Read document attributes as JSON. key narrows to one attribute; omitted returns the full set (icon, cover, custom-*).",
           "requiresConfirmation": false,
         },
         "get_child_blocks": {
@@ -3648,6 +3690,7 @@ For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"writ
         "rename",
         "get_child_blocks",
         "get_child_docs",
+        "get_attr",
         "search_docs",
         "get_doc",
         "read",
@@ -4711,7 +4754,7 @@ file.update_template: required [path, markdown] | optional []
 file.delete_template: required [path] | optional []
 file.save_doc_as_template: required [id, name] | optional [overwrite]
 file.render: required [engine] | optional [id, path, template, preview]
-file.export_md: required [id] | optional []
+file.export_md: required [id] | optional [withFrontmatter]
 file.export_markdown_snapshot: required [notebookID] | optional [roots, documentIDs, limit, cursor]
 file.export_resources: required [paths] | optional [name, outputPath]
 file.list_unused_assets: required [] | optional []

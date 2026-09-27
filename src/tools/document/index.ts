@@ -25,6 +25,7 @@ import {
     DocumentRemoveSchema,
     DocumentRenameSchema,
     DocumentSearchDocsSchema,
+    DocumentGetAttrSchema,
     DocumentSetAttrSchema,
 } from '../../core/types';
 import { defineTool } from '../internal/define-tool';
@@ -44,6 +45,7 @@ export const DOCUMENT_VARIANTS: ActionVariant<DocumentAction>[] = [
     createZodActionVariant('get_child_blocks', DocumentGetChildBlocksSchema, 'Get top-level blocks of a document'),
     createZodActionVariant('get_child_docs', DocumentGetChildDocsSchema, 'Get child documents'),
     createZodActionVariant('set_attr', DocumentSetAttrSchema, 'Set document metadata such as icon and cover image.'),
+    createZodActionVariant('get_attr', DocumentGetAttrSchema, 'Read a document attributes (icon, cover, custom-*) as JSON. --key narrows to one value.'),
     createZodActionVariant('list_tree', DocumentListTreeSchema, 'Get document tree'),
     createZodActionVariant('search_docs', DocumentSearchDocsSchema, 'Search documents by title'),
     createZodActionVariant('get_doc', DocumentGetDocSchema, 'Read document Markdown in complete block windows, or return the current HTML view.'),

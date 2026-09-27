@@ -405,6 +405,12 @@ export const DocumentGetChildDocsSchema = z.object({
     id: z.string().describe("Document ID"),
 });
 
+export const DocumentGetAttrSchema = z.object({
+    action: z.literal("get_attr"),
+    id: z.string().describe("Document ID"),
+    key: z.string().optional().describe("Return only this attribute value when set"),
+});
+
 export const DocumentSetAttrSchema = z.object({
     action: z.literal("set_attr"),
     id: z.string().describe("Document ID"),
@@ -1480,6 +1486,7 @@ export const FileRenderSchema = z.object({
 
 export const FileExportMdSchema = z.object({
     action: z.literal("export_md"),
+    withFrontmatter: z.boolean().optional().describe("Prepend a YAML frontmatter block built from the document attributes (default false)"),
     id: z.string().describe("Document ID to export"),
 });
 

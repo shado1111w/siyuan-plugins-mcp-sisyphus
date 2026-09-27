@@ -454,6 +454,8 @@
     "desc_document_action_get_child_docs": "Get direct child documents by document ID.",
     "document_action_set_attr": "Set Document Metadata",
     "desc_document_action_set_attr": "Set metadata attributes for a document.",
+    "document_action_get_attr": "Get Document Metadata",
+    "desc_document_action_get_attr": "Read document attributes (icon, cover, custom-*) as JSON.",
     "document_action_set_icon": "Set Document Icon",
     "desc_document_action_set_icon": "Set the icon for a document or folder.",
     "document_action_set_cover": "Set Document Cover",

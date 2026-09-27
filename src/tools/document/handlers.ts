@@ -1,3 +1,4 @@
+import * as attributeApi from '../../api/block';
 import type { SiYuanClient } from '../../api/client';
 import * as blockApi from '../../api/block';
 import * as documentApi from '../../api/document';
@@ -29,6 +30,7 @@ import {
     DocumentRemoveSchema,
     DocumentRenameSchema,
     DocumentSearchDocsSchema,
+    DocumentGetAttrSchema,
     DocumentSetAttrSchema,
 } from '../../core/types';
 import {
@@ -1288,6 +1290,19 @@ const handleCopy: DocumentActionHandler = async ({ client, permMgr, rawArgs }) =
     }), [{ type: 'reloadFiletree' }]);
 };
 
+
+const handleGetAttr: DocumentActionHandler = async ({ client, permMgr, rawArgs }) => {
+    const parsed = DocumentGetAttrSchema.parse(rawArgs);
+    const { denied } = await ensurePermissionForDocumentId(client, permMgr, parsed.id, 'read');
+    if (denied) return denied;
+    const attrs = await attributeApi.getBlockAttrs(client, parsed.id);
+    const obj = (attrs && typeof attrs === 'object' ? attrs : {}) as Record<string, string>;
+    if (parsed.key !== undefined) {
+        return createJsonResult({ id: parsed.id, key: parsed.key, value: obj[parsed.key] ?? null });
+    }
+    return createJsonResult({ id: parsed.id, attrs: obj });
+};
+
 export const DOCUMENT_ACTION_HANDLERS: Record<DocumentAction, DocumentActionHandler> = {
     create: handleCreate,
     lookup: handleLookup,
@@ -1299,6 +1314,7 @@ export const DOCUMENT_ACTION_HANDLERS: Record<DocumentAction, DocumentActionHand
     get_child_blocks: handleGetChildBlocks,
     get_child_docs: handleGetChildDocs,
     set_attr: handleSetAttr,
+    get_attr: handleGetAttr,
     list_tree: handleListTree,
     search_docs: handleSearchDocs,
     get_doc: handleGetDoc,

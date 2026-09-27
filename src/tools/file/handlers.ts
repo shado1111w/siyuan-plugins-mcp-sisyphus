@@ -4,6 +4,7 @@ import type { SiYuanClient } from '../../api/client';
 import * as fileApi from '../../api/file';
 import * as templateApi from '../../api/template';
 import * as documentApi from '../../api/document';
+import * as attributeApi from '../../api/block';
 import { normalizeMarkdownContent } from '../../core/normalize';
 import type { FileAction } from '../../core/config';
 import type { PermissionManager } from '../../core/permissions';
@@ -472,11 +473,32 @@ const handleSaveDocAsTemplate: ToolActionHandler = async ({ client, permMgr, raw
     }
 };
 
+function yamlScalar(value: string): string {
+    const unsafe = value === '' || /^\s|\s$/.test(value) || /[\u003a\u0023\u005b\u005d\u007b\u007d]/.test(value) || /^[\u003e\u007c\u002a\u0026\u0021\u0025\u0040\u0060]/.test(value);
+    if (!unsafe) return value;
+    return JSON.stringify(value);
+}
+
+function buildFrontmatter(attrs: Record<string, string>): string {
+    const keys = Object.keys(attrs).filter(k => attrs[k] !== undefined && attrs[k] !== null && String(attrs[k]).length > 0);
+    if (keys.length === 0) return '';
+    const lines = keys.map(k => k + ': ' + yamlScalar(String(attrs[k])));
+    return ['---', ...lines, '---', '', ''].join('\n');
+}
+
 const handleExportMd: ToolActionHandler = async ({ client, permMgr, rawArgs }) => {
     const parsed = FileExportMdSchema.parse(rawArgs);
     const { denied } = await ensurePermissionForDocumentId(client, permMgr, parsed.id, 'read');
     if (denied) return denied;
     const result = normalizeMarkdownContent(await fileApi.exportMdContent(client, parsed.id));
+    if (parsed.withFrontmatter === true) {
+        const attrs = await attributeApi.getBlockAttrs(client, parsed.id).catch(() => ({}));
+        const fm = buildFrontmatter((attrs && typeof attrs === 'object' ? attrs : {}) as Record<string, string>);
+        const content = typeof result === 'object' && result !== null && 'content' in (result as Record<string, unknown>)
+            ? String((result as Record<string, unknown>).content) : String(result);
+        const body = fm + content;
+        return createJsonResult({ ...(typeof result === 'object' && result !== null ? result : {}), content: body, frontmatter: Object.keys(attrs).length > 0 });
+    }
     return createJsonResult(result);
 };
 

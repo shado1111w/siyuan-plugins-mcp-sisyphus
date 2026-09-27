@@ -442,6 +442,8 @@
     "desc_document_action_get_child_docs": "通过文档 ID 获取直属子文档。",
     "document_action_set_attr": "设置文档元数据",
     "desc_document_action_set_attr": "设置文档的元数据属性。",
+    "document_action_get_attr": "获取文档元数据",
+    "desc_document_action_get_attr": "读取文档的属性（图标、封面、custom-*）为 JSON。",
     "document_action_set_icon": "设置文档图标",
     "desc_document_action_set_icon": "设置文档或文件夹的图标。",
     "document_action_set_cover": "设置文档头图",

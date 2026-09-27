@@ -216,6 +216,7 @@ export const DOCUMENT_ACTION_HINTS: Partial<Record<DocumentAction, string>> = {
     get_child_blocks: 'Use a document ID. Returns direct child blocks only.',
     get_child_docs: 'Use a document ID. Returns direct child documents only.',
     set_attr: 'Prefer key+value for a single attribute (icon, title-img, or custom-*). Use attrs for icon/cover (cover takes an http(s) URL or /assets/... path; null/empty clears). Use customAttrs for an arbitrary map. key+value and attrs are mutually exclusive.',
+    get_attr: 'Read document attributes as JSON. key narrows to one attribute; omitted returns the full set (icon, cover, custom-*).',
     list_tree: 'Use notebook + path, where path is a storage path such as / or /20240318112233-abc123.sy.',
     search_docs: 'Use notebook + query, and optionally path as a storage-path scope. Search is title-based in SiYuan; MCP then filters by notebook permission and optional storage path.',
     get_doc: 'Use a document ID. mode="markdown" tries full clean Markdown by default, bounded to 256 KiB UTF-8 and 2000 complete blocks, with a window-scoped outline and nextWindow; totalBlocks is null until EOF; use blockStart/blockLimit/tokenBudget and optionally includeBlockIds. page/pageSize character pagination was removed. mode="html" uses the current focus view.',

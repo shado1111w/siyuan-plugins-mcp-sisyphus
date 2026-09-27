@@ -21,6 +21,10 @@ vi.mock('@/api/document', () => ({
     getHPathByID: vi.fn(),
 }));
 
+vi.mock('@/api/block', () => ({
+    getBlockAttrs: vi.fn(),
+}));
+
 vi.mock('@/api/template', () => ({
     normalizeTemplatePath: vi.fn((input: string) => {
         const normalized = input.replace(/\\/g, '/');
@@ -906,4 +910,26 @@ describe('file tool asset actions', () => {
         expect(parsed.skippedAssetCount).toBe(0);
         expect(readFileBinary).toHaveBeenCalledWith('data/assets/cover.png');
     });
+
+    it('export_md --with-frontmatter prepends a YAML block from doc attrs', async () => {
+        const attributeApi = await import('@/api/block');
+        vi.mocked(attributeApi.getBlockAttrs).mockResolvedValue({ icon: '1f4d4', title: 'My Doc' });
+        const result = await callFileTool(client, {
+            action: 'export_md',
+            id: 'doc-1',
+            withFrontmatter: true,
+        }, config.file, {} as never);
+        const payload = parseResult(result);
+        expect(String(payload.content)).toMatch(/^---/);
+        expect(String(payload.content)).toMatch(/title: My Doc/);
+        expect(payload.frontmatter).toBe(true);
+    });
+
+    it('export_md without the flag leaves content untouched', async () => {
+        const result = await callFileTool(client, { action: 'export_md', id: 'doc-1' }, config.file, {} as never);
+        const payload = parseResult(result);
+        expect(String(payload.content)).not.toMatch(/^---/);
+        expect(payload.frontmatter).toBeUndefined();
+    });
+
 });
