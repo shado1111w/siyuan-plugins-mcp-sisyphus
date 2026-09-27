@@ -105,6 +105,9 @@ Use search-assisted discovery when the path is unknown:
 {{call lookup}}
 {{call document}}
 {{call block}}
+{{call readScope}}
+
+Prefer \`document read\` over \`document get_doc\` + manual block stitching when you need only part of a document: \`--scope outline\` returns headings only, \`--scope section --anchor <heading-id-or-title>\` returns one heading subtree, \`--scope range --start-id/--end-id\` returns a block-id span, and \`--scope keyword --pattern a|b [--context-before N --context-after N]\` returns matched blocks with surrounding context. \`get_doc\` remains the right choice for full-text windowed pagination. \`fs.read\` stays the human-readable-path convenience layer.
 
 \`document lookup\` returns \`{humanPath, idPath}\` — there is no top-level \`id\` field. To get a document/block ID, strip the \`.sy\` suffix from \`idPath.path\` (e.g., \`/20260712123000-abc123.sy\` -> \`20260712123000-abc123\`).
 
@@ -135,6 +138,7 @@ Discovery identifies candidates; it does not authorize a write. Before changing 
             fulltext: call('search', 'fulltext', { query: 'keyword', page: 1, pageSize: 20 }),
             lookup: call('document', 'lookup', { id: '<doc-id>', include: ['id', 'path', 'hpath', 'docInfo'] }),
             document: call('document', 'get_doc', { id: '<doc-id>', mode: 'markdown' }),
+            readScope: call('document', 'read', { id: '<doc-id>', scope: 'section', anchor: '<heading-title>' }),
             block: call('block', 'get_kramdown', { id: '<block-id>' }),
             image: call('file', 'read_image', { id: '<doc-id>', path: 'assets/question.png' }),
         },

@@ -42,7 +42,7 @@ export const ACTION_SAFETY_POLICIES: {
     },
     document: {
         lookup: read(), get_child_blocks: read(), get_child_docs: read(), list_tree: read(), search_docs: read(),
-        get_doc: read(), get_outline: read(),
+        get_doc: read(), read: read(), get_outline: read(),
         create: mutation(), ensure_link_targets: mutation('structure'), create_daily_note: mutation(), duplicate: mutation('state'), rename: mutation('state'),
         remove: mutation('state'), move: mutation('structure'), reorder: mutation('structure'), set_attr: mutation('state'),
         heading_to_doc: mutation('structure'), doc_to_heading: mutation('structure'),

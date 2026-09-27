@@ -16,6 +16,7 @@ import {
     DocumentGetChildDocsSchema,
     DocumentGetDocSchema,
     DocumentGetOutlineSchema,
+    DocumentReadSchema,
     DocumentHeadingToDocSchema,
     DocumentListTreeSchema,
     DocumentMoveSchema,
@@ -51,6 +52,7 @@ import { applyUiRefresh, type UiRefreshOperation } from '../internal/ui-refresh'
 import { sleep } from '../../shared/async';
 import { stripRedundantTitleHeading } from '../internal/kramdown-safe';
 import { readDocumentBlockWindow } from '../internal/document-kramdown';
+import { readDocumentScoped } from './read-scope';
 import { createFootnoteReferenceHint, createSiyuanBlockLinkHint, createUnresolvedBlockRefHint, hasBlockRefIdFallbackAnchors, hasFootnoteReferences, hasSiyuanBlockLinks } from '../internal/kramdown-safe';
 import { normalizeMarkdownInputRefs } from '../internal/markdown-input';
 import { applyDocumentReorder, readDocumentReorderState } from '../internal/helpers/document-reorder';
@@ -1087,6 +1089,33 @@ const handleDocToHeading: DocumentActionHandler = async ({ client, permMgr, rawA
     ]);
 };
 
+
+const handleRead: DocumentActionHandler = async ({ client, permMgr, rawArgs }) => {
+    const parsed = DocumentReadSchema.parse(rawArgs);
+    const { denied, context } = await ensurePermissionForDocumentId(client, permMgr, parsed.id, 'read');
+    if (denied) return denied;
+    const notebookName = await resolveNotebookName(client, context.notebook);
+    const result = await readDocumentScoped(client, context.documentId, {
+        scope: parsed.scope ?? 'full',
+        anchor: parsed.anchor,
+        startId: parsed.startId,
+        endId: parsed.endId,
+        pattern: parsed.pattern,
+        contextBefore: parsed.contextBefore,
+        contextAfter: parsed.contextAfter,
+        maxDepth: parsed.maxDepth,
+        includeBlockIds: parsed.includeBlockIds,
+        tokenBudget: parsed.tokenBudget,
+    });
+    return createJsonResult({
+        id: context.documentId,
+        notebook: context.notebook,
+        ...(notebookName ? { notebookName } : {}),
+        hPath: await getHPathByIdWithRetry(client, context.documentId),
+        ...result,
+    });
+};
+
 export const DOCUMENT_ACTION_HANDLERS: Record<DocumentAction, DocumentActionHandler> = {
     create: handleCreate,
     lookup: handleLookup,
@@ -1101,6 +1130,7 @@ export const DOCUMENT_ACTION_HANDLERS: Record<DocumentAction, DocumentActionHand
     list_tree: handleListTree,
     search_docs: handleSearchDocs,
     get_doc: handleGetDoc,
+    read: handleRead,
     get_outline: handleGetOutline,
     create_daily_note: handleCreateDailyNote,
     duplicate: handleDuplicate,

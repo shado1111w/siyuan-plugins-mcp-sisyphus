@@ -444,6 +444,8 @@
     "desc_document_action_search_docs": "按标题关键词搜索文档。",
     "document_action_get_doc": "获取文档内容",
     "desc_document_action_get_doc": "根据文档 ID 获取文档内容和元数据。",
+    "document_action_read": "按范围读取文档",
+    "desc_document_action_read": "按范围读取文档：full 全文、outline 大纲、section 标题子树、range 块区间、keyword 匹配块（可带上下文）。",
     "document_action_get_outline": "获取文档大纲",
     "desc_document_action_get_outline": "不读取正文，获取文档的原生标题树。",
     "document_action_create_daily_note": "创建日记",

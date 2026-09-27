@@ -456,6 +456,31 @@ export const DocumentGetOutlineSchema = z.object({
     preview: z.boolean().optional().describe("Use SiYuan preview-mode outline semantics (default false)"),
 });
 
+export const DocumentReadSchema = z.object({
+    action: z.literal("read"),
+    id: z.string().describe("Document ID"),
+    scope: z.enum(["full", "outline", "section", "range", "keyword"]).optional().describe('Read scope: "full" whole doc (default), "outline" headings only, "section" a heading subtree via --anchor, "range" between --start-id/--end-id block ids, "keyword" blocks matching --pattern'),
+    anchor: z.string().optional().describe('For scope="section": a heading block id or exact heading title to expand.'),
+    startId: z.string().optional().describe('For scope="range": the first block id to include.'),
+    endId: z.string().optional().describe('For scope="range": the last block id to include; omit or "-1" reads through document end.'),
+    pattern: z.string().optional().describe('For scope="keyword": case-insensitive substring, or "a|b" for OR branches.'),
+    contextBefore: z.number().int().min(0).optional().describe('Sibling blocks to include before each keyword hit or before the section (default 0).'),
+    contextAfter: z.number().int().min(0).optional().describe('Sibling blocks to include after each keyword hit or after the section (default 0).'),
+    maxDepth: z.number().int().optional().describe('For scope="outline": cap heading level (e.g. 2 keeps h1+h2). -1 = unlimited (default -1).'),
+    tokenBudget: z.number().int().min(1).max(32000).optional().describe("Optional soft token budget. Complete blocks may exceed it, but never the 256 KiB hard content limit."),
+    includeBlockIds: z.boolean().optional().describe("Include a sidecar blockRefs mapping (default false)"),
+}).passthrough().superRefine((value, ctx) => {
+    if (value.scope === "section" && !value.anchor) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["anchor"], message: 'scope="section" requires --anchor.' });
+    }
+    if (value.scope === "range" && !value.startId) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["startId"], message: 'scope="range" requires --start-id.' });
+    }
+    if (value.scope === "keyword" && !value.pattern) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["pattern"], message: 'scope="keyword" requires --pattern.' });
+    }
+});
+
 export const DocumentCreateDailyNoteSchema = z.object({
     action: z.literal("create_daily_note"),
     notebook: z.string().describe("Notebook ID"),
