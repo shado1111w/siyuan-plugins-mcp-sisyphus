@@ -51,7 +51,7 @@ describe('setTaskMarker', () => {
     it('rejects a non-task block', () => {
         const r = setTaskMarker(PARA, true);
         expect(r.ok).toBe(false);
-        if (!r.ok) expect(r.message).toContain('not a task');
+        if (r.ok === false) expect(r.message).toContain('not a task');
     });
     it('counts task items', () => {
         const r = setTaskMarker(UNCHECKED, true);

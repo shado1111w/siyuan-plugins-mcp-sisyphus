@@ -410,10 +410,25 @@ export const DocumentSetAttrSchema = z.object({
     attrs: z.object({
         icon: z.string().optional().describe("Icon value. Prefer a Unicode hex code string such as '1f4d4'."),
         cover: z.union([z.string(), z.null()]).optional().describe("Cover source. Use null or empty string to clear the cover."),
-    }).describe("Document metadata attributes to set"),
+    }).optional().describe("Document metadata attributes to set. Omit when using key/value or customAttrs."),
+    key: z.string().optional().describe("Single attribute name shorthand, e.g. icon, title-img, or a custom-* key. Use with value."),
+    value: z.string().optional().describe("Single attribute value for key. Pass an empty string to clear the attribute."),
+    customAttrs: z.record(z.string(), z.string()).optional().describe("Arbitrary attribute map to set, including custom-* keys. Merged with attrs."),
 }).superRefine((value, ctx) => {
-    if (value.attrs.icon === undefined && value.attrs.cover === undefined) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Provide at least one of attrs.icon or attrs.cover.", path: ["attrs"] });
+    const hasAttrs = value.attrs !== undefined && (value.attrs.icon !== undefined || value.attrs.cover !== undefined);
+    const hasKey = value.key !== undefined;
+    const hasValue = value.value !== undefined;
+    const hasCustom = value.customAttrs !== undefined && Object.keys(value.customAttrs).length > 0;
+    if (hasKey !== hasValue) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Provide key and value together.", path: ["key"] });
+        return;
+    }
+    if (hasKey && hasAttrs) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Use either key/value shorthand or attrs, not both.", path: ["key"] });
+        return;
+    }
+    if (!hasAttrs && !hasKey && !hasCustom) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Provide attrs, key/value, or customAttrs.", path: ["attrs"] });
     }
 });
 

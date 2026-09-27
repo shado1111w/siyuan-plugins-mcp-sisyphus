@@ -67,6 +67,13 @@ const SUCCESS_KEEP_KEYS = new Set([
     // Never hide whether a successful mutation went through the strict
     // coordinator when response slimming is enabled.
     'safety',
+    'icon',
+    'attrs',
+    'cleared',
+    'customAttrs',
+    'clearedCover',
+    'cover',
+    'titleImg',
 ]);
 
 const SAFETY_TOP_LEVEL_KEYS = [
@@ -129,6 +136,7 @@ const ITEM_DROP_KEYS = new Set([
     'newFlashcardCount',
     'dueFlashcardCount',
     'flashcardCount',
+    'icon',
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {

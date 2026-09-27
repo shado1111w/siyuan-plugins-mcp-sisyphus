@@ -605,6 +605,127 @@ describe('tool result normalization', () => {
         expect(refreshClient.request).toHaveBeenCalledWith('/api/ui/reloadFiletree', {});
     });
 
+    it('sets a single attribute via key/value shorthand', async () => {
+        const transactionApi = await import('@/api/transaction');
+        const refreshClient = { request: vi.fn().mockResolvedValue(null) } as any;
+
+        const result = await callDocumentTool(refreshClient, {
+            action: 'set_attr',
+            id: 'doc-1',
+            key: 'custom-status',
+            value: 'testing',
+        }, enabledActions('set_attr'), permMgr);
+
+        expect(vi.mocked(transactionApi.performTransactions)).toHaveBeenCalledWith(refreshClient, [{
+            doOperations: [{
+                action: 'setAttrs',
+                id: 'doc-1',
+                data: JSON.stringify({ 'custom-status': 'testing' }),
+            }],
+            undoOperations: [],
+        }]);
+        expect(JSON.parse(result.content[0].text)).toEqual({
+            success: true,
+            id: 'doc-1',
+            attrs: { 'custom-status': 'testing' },
+        });
+    });
+
+    it('clears a single attribute via key with empty value', async () => {
+        const transactionApi = await import('@/api/transaction');
+        const refreshClient = { request: vi.fn().mockResolvedValue(null) } as any;
+
+        const result = await callDocumentTool(refreshClient, {
+            action: 'set_attr',
+            id: 'doc-1',
+            key: 'custom-status',
+            value: '',
+        }, enabledActions('set_attr'), permMgr);
+
+        expect(vi.mocked(transactionApi.performTransactions)).toHaveBeenCalledWith(refreshClient, [{
+            doOperations: [{
+                action: 'setAttrs',
+                id: 'doc-1',
+                data: JSON.stringify({ 'custom-status': '' }),
+            }],
+            undoOperations: [],
+        }]);
+        expect(JSON.parse(result.content[0].text)).toEqual({
+            success: true,
+            id: 'doc-1',
+            attrs: { 'custom-status': '' },
+            cleared: ['custom-status'],
+        });
+    });
+
+    it('routes key/value cover to the cover branch', async () => {
+        const transactionApi = await import('@/api/transaction');
+        const refreshClient = { request: vi.fn().mockResolvedValue(null) } as any;
+
+        const result = await callDocumentTool(refreshClient, {
+            action: 'set_attr',
+            id: 'doc-1',
+            key: 'cover',
+            value: '/assets/c.png',
+        }, enabledActions('set_attr'), permMgr);
+
+        expect(vi.mocked(transactionApi.performTransactions)).toHaveBeenCalledWith(refreshClient, [{
+            doOperations: [{
+                action: 'setAttrs',
+                id: 'doc-1',
+                data: JSON.stringify({ 'title-img': 'background-image:url("/assets/c.png");' }),
+            }],
+            undoOperations: [],
+        }]);
+        const body = JSON.parse(result.content[0].text);
+        expect(body.cover).toBe('/assets/c.png');
+        expect(body.titleImg).toContain('background-image');
+    });
+
+    it('sets arbitrary attributes via customAttrs map', async () => {
+        const transactionApi = await import('@/api/transaction');
+        const refreshClient = { request: vi.fn().mockResolvedValue(null) } as any;
+
+        const result = await callDocumentTool(refreshClient, {
+            action: 'set_attr',
+            id: 'doc-1',
+            customAttrs: { 'custom-a': '1', 'custom-b': '2' },
+        }, enabledActions('set_attr'), permMgr);
+
+        expect(vi.mocked(transactionApi.performTransactions)).toHaveBeenCalledWith(refreshClient, [{
+            doOperations: [{
+                action: 'setAttrs',
+                id: 'doc-1',
+                data: JSON.stringify({ 'custom-a': '1', 'custom-b': '2' }),
+            }],
+            undoOperations: [],
+        }]);
+        expect(JSON.parse(result.content[0].text)).toEqual({
+            success: true,
+            id: 'doc-1',
+            attrs: { 'custom-a': '1', 'custom-b': '2' },
+            customAttrs: { 'custom-a': '1', 'custom-b': '2' },
+        });
+    });
+
+    it('rejects key/value combined with attrs', async () => {
+        const { DocumentSetAttrSchema } = await import('@/core/types');
+        expect(DocumentSetAttrSchema.safeParse({
+            action: 'set_attr',
+            id: 'doc-1',
+            key: 'icon',
+            value: '1f4d4',
+            attrs: { icon: '1f4d8' },
+        }).success).toBe(false);
+    });
+
+    it('rejects key without value and empty attribute set', async () => {
+        const { DocumentSetAttrSchema } = await import('@/core/types');
+        expect(DocumentSetAttrSchema.safeParse({ action: 'set_attr', id: 'doc-1', key: 'icon' }).success).toBe(false);
+        expect(DocumentSetAttrSchema.safeParse({ action: 'set_attr', id: 'doc-1' }).success).toBe(false);
+        expect(DocumentSetAttrSchema.safeParse({ action: 'set_attr', id: 'doc-1', key: 'icon', value: '1f4d4' }).success).toBe(true);
+    });
+
     it('adds plainContent when search.fulltext stripHtml is enabled', async () => {
         const searchApi = await import('@/api/search');
         vi.mocked(searchApi.fullTextSearchBlock).mockResolvedValue({

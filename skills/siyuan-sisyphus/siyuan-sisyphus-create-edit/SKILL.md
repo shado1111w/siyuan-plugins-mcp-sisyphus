@@ -92,6 +92,11 @@ Behavior to rely on: `create` is idempotent — `created:true` only when a new f
 siyuan-sisyphus block set-attrs --id '<block-id>' --attrs-json '{"custom-source":"agent"}' --json
 ```
 ```bash
+siyuan-sisyphus document set-attr --id '<doc-id>' --key 'custom-status' --value 'done' --json
+```
+
+For document metadata (icon, cover, custom attributes) prefer the single-attribute `key` + `value` shorthand over assembling an attrs map. An empty `value` clears the attribute. `key`/`value` and `attrs` are mutually exclusive; `customAttrs` merges an arbitrary map including `custom-*` keys.
+```bash
 siyuan-sisyphus document create-daily-note --notebook '<notebook-id>' --json
 ```
 

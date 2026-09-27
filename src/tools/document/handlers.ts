@@ -895,12 +895,39 @@ const handleSetAttr: DocumentActionHandler = async ({ client, permMgr, rawArgs }
     const attrs: Record<string, string> = {};
     const response: Record<string, unknown> = { success: true, id: parsed.id };
     const operations: UiRefreshOperation[] = [];
-    if (parsed.attrs.icon !== undefined) {
+
+    // key/value shorthand: a single attribute name. "cover"/"title-img" route to
+    // the cover branch so clearing and source normalization stay consistent.
+    if (parsed.key !== undefined) {
+        const key = parsed.key;
+        const value = parsed.value ?? '';
+        if (key === 'cover' || key === 'title-img') {
+            parsed.attrs = { ...(parsed.attrs ?? {}), cover: value === '' ? null : value };
+        } else {
+            attrs[key] = value;
+            ((response.attrs ??= {}) as Record<string, string>)[key] = value;
+            if (value === '') response.cleared = [...(response.cleared as string[] ?? []), key];
+        }
+    }
+    // customAttrs / arbitrary attribute map, including custom-* keys.
+    if (parsed.customAttrs) {
+        for (const [k, v] of Object.entries(parsed.customAttrs)) {
+            if (k === 'cover' || k === 'title-img') {
+                parsed.attrs = { ...(parsed.attrs ?? {}), cover: v === '' ? null : v };
+                continue;
+            }
+            attrs[k] = v;
+            ((response.attrs ??= {}) as Record<string, string>)[k] = v;
+        }
+        response.customAttrs = parsed.customAttrs;
+    }
+
+    if (parsed.attrs?.icon !== undefined) {
         attrs.icon = parsed.attrs.icon;
         response.icon = parsed.attrs.icon;
         operations.push({ type: 'reloadIcon' }, { type: 'reloadFiletree' });
     }
-    if (parsed.attrs.cover !== undefined) {
+    if (parsed.attrs?.cover !== undefined) {
         const source = parsed.attrs.cover;
         if (!source) {
             attrs['title-img'] = '';

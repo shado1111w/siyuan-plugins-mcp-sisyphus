@@ -218,6 +218,9 @@ Behavior to rely on: \`create\` is idempotent — \`created:true\` only when a n
 \`query_embed\` blocks and other structural block types cannot be inserted inside a \`NodeList\` or \`NodeListItem\`. Insert them as top-level siblings in the document body — for example, after the parent list block rather than after an individual list item.
 
 {{call attrs}}
+{{call docAttr}}
+
+For document metadata (icon, cover, custom attributes) prefer the single-attribute \`key\` + \`value\` shorthand over assembling an attrs map. An empty \`value\` clears the attribute. \`key\`/\`value\` and \`attrs\` are mutually exclusive; \`customAttrs\` merges an arbitrary map including \`custom-*\` keys.
 {{call daily}}
 
 ## Heading/document conversion
@@ -236,6 +239,7 @@ Before rename, move, delete, or broad replacement, resolve the exact target, sho
             replace: call('block', 'replace', { id: '<block-id>', edit: { old: 'draft', new: 'final' } }),
             taskMarker: call('block', 'update_task_marker', { id: '<task-block-id>', checked: true }),
             attrs: call('block', 'set_attrs', { id: '<block-id>', attrs: { 'custom-source': 'agent' } }),
+            docAttr: call('document', 'set_attr', { id: '<doc-id>', key: 'custom-status', value: 'done' }),
             daily: call('document', 'create_daily_note', { notebook: '<notebook-id>' }),
             dn_create: call('dailynote', 'create', { notebook: '<notebook-id>', date: '2026-09-25' }),
             dn_append: call('dailynote', 'append', { notebook: '<notebook-id>', date: '2026-09-25', dataType: 'markdown', data: '- 完成了周报' }),

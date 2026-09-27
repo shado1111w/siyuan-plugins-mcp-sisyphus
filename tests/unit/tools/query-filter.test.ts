@@ -85,7 +85,7 @@ describe('resolveColumn', () => {
     it('errors on unknown column listing available', () => {
         const r = resolveColumn(columns, 'Nope', 'filter');
         expect(r.ok).toBe(false);
-        if (!r.ok) expect(r.message).toContain('Status');
+        if (r.ok === false) expect(r.message).toContain('Status');
     });
     it('errors on ambiguous name', () => {
         const dup = [...columns, { id: 'col-status2', name: 'Status', type: 'select' }];

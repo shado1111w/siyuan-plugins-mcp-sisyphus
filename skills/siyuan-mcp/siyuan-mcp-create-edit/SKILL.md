@@ -86,6 +86,11 @@ Behavior to rely on: `create` is idempotent — `created:true` only when a new f
 block(action="set_attrs", id="<block-id>", attrs={"custom-source":"agent"})
 ```
 ```text
+document(action="set_attr", id="<doc-id>", key="custom-status", value="done")
+```
+
+For document metadata (icon, cover, custom attributes) prefer the single-attribute `key` + `value` shorthand over assembling an attrs map. An empty `value` clears the attribute. `key`/`value` and `attrs` are mutually exclusive; `customAttrs` merges an arbitrary map including `custom-*` keys.
+```text
 document(action="create_daily_note", notebook="<notebook-id>")
 ```
 
