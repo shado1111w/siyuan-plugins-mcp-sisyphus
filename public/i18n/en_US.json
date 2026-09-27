@@ -709,6 +709,8 @@
     "desc_system_action_get_version": "Get the SiYuan system version.",
     "system_action_get_current_time": "Get Current Time",
     "desc_system_action_get_current_time": "Get the current system time.",
+    "system_action_whoami": "Who Am I",
+    "desc_system_action_whoami": "Get the current identity: workspace dir, SiYuan version, language, and signed-in account if any.",
 
     "flashcard_tool_title": "Flashcard Tool",
     "flashcard_tool_desc": "Expose grouped flashcard review and deck operations to MCP clients.",

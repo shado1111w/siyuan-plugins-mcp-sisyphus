@@ -7,6 +7,7 @@ import {
     SystemChangelogSchema,
     SystemConfSchema,
     SystemGetCurrentTimeSchema,
+    SystemWhoamiSchema,
     SystemGetVersionSchema,
     SystemNetworkSchema,
     SystemNotifySchema,
@@ -205,6 +206,33 @@ const handleGetCurrentTime: ToolActionHandler = async ({ client, rawArgs }) => {
     return createJsonResult({ currentTime, iso: new Date(currentTime).toISOString() });
 };
 
+const handleWhoami: ToolActionHandler = async ({ client, rawArgs }) => {
+    SystemWhoamiSchema.parse(rawArgs);
+    const [workspaceInfo, conf, version] = await Promise.all([
+        systemApi.getWorkspaceInfo(client).catch(() => null),
+        systemApi.getConf(client).catch(() => null),
+        systemApi.getVersion(client).catch(() => null),
+    ]);
+    const ws = (workspaceInfo && typeof workspaceInfo === 'object' ? workspaceInfo : {}) as Record<string, unknown>;
+    const confObj = (conf && typeof conf === 'object' ? (conf as { conf?: Record<string, unknown> }).conf ?? conf : {}) as Record<string, unknown>;
+    // conf.userData is a JSON string of the signed-in cloud account, empty when offline.
+    let user: unknown = null;
+    const userData = confObj.userData ?? (confObj as { userData?: unknown }).userData;
+    if (typeof userData === 'string' && userData.trim().length > 0) {
+        try { user = JSON.parse(userData); } catch { user = userData; }
+    } else if (userData && typeof userData === 'object') {
+        user = userData;
+    }
+    return createJsonResult({
+        workspaceDir: ws.workspaceDir ?? null,
+        siyuanVer: ws.siyuanVer ?? version ?? null,
+        lang: confObj.lang ?? null,
+        user,
+        signedIn: user !== null,
+        transport: process.env.SIYUAN_MCP_TRANSPORT ?? 'stdio',
+    });
+};
+
 export const SYSTEM_ACTION_HANDLERS: Record<SystemAction, ToolActionHandler> = {
     workspace_info: handleWorkspaceInfo,
     network: handleNetwork,
@@ -214,4 +242,5 @@ export const SYSTEM_ACTION_HANDLERS: Record<SystemAction, ToolActionHandler> = {
     perform_sync: handlePerformSync,
     get_version: handleGetVersion,
     get_current_time: handleGetCurrentTime,
+    whoami: handleWhoami,
 };

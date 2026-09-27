@@ -11,6 +11,9 @@ Start with a connectivity check and inspect live help before unfamiliar actions.
 system(action="get_version")
 ```
 ```text
+system(action="whoami")
+```
+```text
 system(action="get_current_time")
 ```
 ```text

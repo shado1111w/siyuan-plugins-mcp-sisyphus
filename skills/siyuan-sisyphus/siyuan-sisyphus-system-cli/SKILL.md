@@ -11,6 +11,9 @@ Start with a connectivity check and inspect live help before unfamiliar actions.
 siyuan-sisyphus system get-version --json
 ```
 ```bash
+siyuan-sisyphus system whoami --json
+```
+```bash
 siyuan-sisyphus system get-current-time --json
 ```
 ```bash

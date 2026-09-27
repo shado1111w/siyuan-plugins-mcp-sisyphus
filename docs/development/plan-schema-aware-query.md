@@ -278,9 +278,24 @@ system api --list                            # every known kernel endpoint + met
 system api --list --match block              # filtered to /api/block/* endpoints
 system api --describe /api/block/getBlockKramdown   # method, required vs optional params, types, defaults
 system api POST /api/block/getBlockKramdown --describe   # same describe, then the call
+system api --body-template /api/block/insertBlock   # ready-to-fill JSON: required params + defaults
 ```
 
 - `--list` returns the catalog index (path, method, handler name, one-line summary). `--describe` returns that endpoint’s full parameter table: name, Go type, required/optional, the default the kernel applies, and any enum/validation the handler enforces.
+
+**Parameter documentation completeness (this is the point of the escape hatch):** the catalog entry for every endpoint must carry enough per-parameter detail that an agent can build a correct body on the first attempt, without opening kernel source. Each `params[]` entry carries:
+
+| Field | Meaning |
+|---|---|
+| `name` | exact JSON body key the kernel reads |
+| `jsonType` | Go type mapped to JSON (`string`, `number`, `boolean`, `array`, `object`), taken from the `ParseJsonArg[T]` type parameter or the `arg["k"].(T)` assertion |
+| `required` | true when the kernel rejects or short-circuits without it (`required=true`, `rejectEmpty`, or a non-`ok` early return) |
+| `default` | the kernel fallback when the param is omitted, so leaving a field out has a documented meaning |
+| `enum` | the fixed set of accepted values when the handler validates against one (sort modes, export formats, boolean-ish strings) |
+| `example` | one concrete valid value (a block-ID-shaped string, a date layout) so the expected format is shown, not inferred |
+| `sourceRef` | `kernel/api/<file>.go:<line>` — the authoritative definition a human can open when extraction looks uncertain |
+
+`--describe` renders that table in CLI output; the identical structure is embedded in error responses (below), so a failed call self-corrects in one turn instead of needing a second discovery call.
 
 **Catalog generation (`scripts/gen-api-catalog.mjs`, run at build like `api:audit`):**
 
@@ -290,18 +305,20 @@ system api POST /api/block/getBlockKramdown --describe   # same describe, then t
   - `util.BindJsonArg("name", &dst, required, rejectEmpty)` -> name + required.
   - `util.ParseJsonArgs(arg, ret, BindJsonArg...)` groups -> same.
   - Direct `arg["key"]` / `arg["key"].(type)` map reads -> name (required-ness inferred from the surrounding `if !ok` / default assignment, best-effort).
-- Emit `cli/dist/api-catalog.json` (and a checked-in `api-catalog.json` for MCP) mapping path -> { method, handler, params: [{ name, type, required, default? }] }. ~582 endpoints from `api:audit` are the coverage floor; endpoints with no extractable params get a `params: []` + a `note: "inspect kernel source"` marker rather than being dropped.
+- Emit `cli/dist/api-catalog.json` (and a checked-in `api-catalog.json` for MCP) mapping path -> { method, handler, params: [{ name, jsonType, required, default?, enum?, example?, sourceRef }] }. ~582 endpoints from `api:audit` are the coverage floor; endpoints with no extractable params get a `params: []` + a `note: "inspect kernel source"` marker rather than being dropped.
 
 **Runtime behavior:**
 
 - `system api <path>` with an unknown/misspelled path does a fuzzy `--list` match and suggests the closest endpoints instead of a bare 404.
 - When a call fails, the error response includes the described params for that endpoint so the agent can self-correct in one turn.
+- Pre-flight validation: before forwarding, `system api` compares the supplied body against the catalog — missing `required` params and unknown keys fail locally with the valid-key list, instead of a wasted kernel round-trip. `--no-validate` bypasses this for `dynamic: true` endpoints whose params cannot be extracted.
+- `system api --body-template <path>` prints a ready-to-fill JSON body: required params pre-populated with their `example` value, optional params present with their `default`, so the agent edits values rather than reconstructing shape from memory.
 - The param extraction is best-effort static analysis; handlers that compute params dynamically fall back to a `dynamic: true` note naming the source file+line for manual inspection.
 
 **Tests:**
 
 - Generator: router triples parsed, `ParseJsonArg`/`BindJsonArg`/direct-read extraction, required-flag correctness, ~582-endpoint coverage vs api:audit.
-- Handler: `--list`/`--match`/`--describe` output shape, fuzzy suggestion on bad path, describe-then-call, error embeds the param table.
+- Handler: `--list`/`--match`/`--describe`/`--body-template` output shape, fuzzy suggestion on bad path, describe-then-call, pre-flight required/unknown-key validation, `--no-validate` opt-out, error embeds the param table.
 - Eval prompt: "\u8c03\u7528\u5185\u6838\u63a5\u53e3\u83b7\u53d6\u67d0\u5757\u7684 kramdown" - agent should discover getBlockKramdown via --describe, pass the right `id` param, and succeed in one shot.
 
 

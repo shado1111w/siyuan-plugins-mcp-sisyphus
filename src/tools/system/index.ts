@@ -11,6 +11,7 @@ import {
     SystemNetworkSchema,
     SystemNotifySchema,
     SystemPerformSyncSchema,
+    SystemWhoamiSchema,
     SystemWorkspaceInfoSchema,
 } from '../../core/types';
 import { defineTool } from '../internal/define-tool';
@@ -28,6 +29,7 @@ export const SYSTEM_VARIANTS: ActionVariant<SystemAction>[] = [
     createZodActionVariant('perform_sync', SystemPerformSyncSchema, 'Trigger SiYuan sync immediately. High-risk: affects local and remote sync state.'),
     createZodActionVariant('get_version', SystemGetVersionSchema, 'Get the SiYuan system version.'),
     createZodActionVariant('get_current_time', SystemGetCurrentTimeSchema, 'Get the current system time.'),
+    createZodActionVariant('whoami', SystemWhoamiSchema, 'Get the current identity: workspace dir, SiYuan version, language, and signed-in account if any.'),
 ];
 
 const systemTool = defineTool<SystemAction>({

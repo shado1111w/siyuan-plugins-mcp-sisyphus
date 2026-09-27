@@ -661,6 +661,7 @@ After rollback, read the document again. After node creation or deletion, list n
         body: `Start with a connectivity check and inspect live help before unfamiliar actions.
 
 {{call version}}
+{{call whoami}}
 {{call time}}
 {{call permissions}}
 
@@ -697,6 +698,7 @@ CLI execution is an explicit command, but that consent does not prove strict saf
         calls: {
             version: call('system', 'get_version'),
             time: call('system', 'get_current_time'),
+            whoami: call('system', 'whoami'),
             permissions: call('notebook', 'get_permissions'),
             conf: call('system', 'conf', { mode: 'summary' }),
             network: call('system', 'network'),

@@ -344,6 +344,7 @@ export const SYSTEM_ACTION_HINTS: Partial<Record<SystemAction, string>> = {
     perform_sync: 'Triggers SiYuan sync immediately through /api/sync/performSync. This action can change local and remote sync state and requires explicit user confirmation.',
     get_version: 'Returns the current SiYuan version as {version}.',
     get_current_time: 'Returns the current system time as {currentTime} epoch milliseconds and {iso} ISO 8601 text.',
+    whoami: 'Returns the current identity as {workspaceDir, siyuanVer, lang, user, signedIn, transport}. user is the signed-in cloud account when one is configured, else null.',
 };
 
 export const FLASHCARD_ACTION_HINTS: Partial<Record<FlashcardAction, string>> = {

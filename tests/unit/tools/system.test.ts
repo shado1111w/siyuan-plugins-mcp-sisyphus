@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { buildDefaultToolConfig, isDangerousAction } from '@/core/config';
 import { callSystemTool, listSystemTools, SYSTEM_VARIANTS } from '@/tools/system';
@@ -60,5 +60,46 @@ describe('system tool schemas', () => {
             affectedVersions: expect.any(Array),
             affectedAreas: expect.any(Array),
         }));
+    });
+
+    it('whoami aggregates workspace, version, language and account', async () => {
+        const config = buildDefaultToolConfig().system;
+        const client = {
+            requestRead: vi.fn(async (endpoint: string) => {
+                if (endpoint === '/api/system/getWorkspaceInfo') return { workspaceDir: '/w', siyuanVer: '3.8.5' };
+                if (endpoint === '/api/system/getConf') return { conf: { lang: 'zh_CN', userData: '' } };
+                if (endpoint === '/api/system/version') return '3.8.5';
+                return null;
+            }),
+        } as never;
+        const result = await callSystemTool(client, { action: 'whoami' }, config, {} as never);
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed).toMatchObject({
+            workspaceDir: '/w',
+            siyuanVer: '3.8.5',
+            lang: 'zh_CN',
+            user: null,
+            signedIn: false,
+        });
+        expect(parsed.transport).toBeDefined();
+    });
+
+    it('whoami parses a signed-in userData string and degrades on kernel errors', async () => {
+        const config = buildDefaultToolConfig().system;
+        const client = {
+            requestRead: vi.fn(async (endpoint: string) => {
+                if (endpoint === '/api/system/getWorkspaceInfo') throw new Error('down');
+                if (endpoint === '/api/system/getConf') return { conf: { lang: 'en', userData: JSON.stringify({ userNickname: 'alice' }) } };
+                if (endpoint === '/api/system/version') return '3.8.5';
+                return null;
+            }),
+        } as never;
+        const result = await callSystemTool(client, { action: 'whoami' }, config, {} as never);
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.user).toEqual({ userNickname: 'alice' });
+        expect(parsed.signedIn).toBe(true);
+        // workspaceDir fell back but version still resolved from getVersion.
+        expect(parsed.workspaceDir).toBeNull();
+        expect(parsed.siyuanVer).toBe('3.8.5');
     });
 });

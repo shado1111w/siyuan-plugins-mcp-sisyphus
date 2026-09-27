@@ -95,7 +95,7 @@ export const ACTION_SAFETY_POLICIES: {
     },
     system: {
         workspace_info: read(), network: read(), conf: read(), changelog: read(), get_version: read(),
-        get_current_time: read(), notify: external(), perform_sync: external(),
+        get_current_time: read(), whoami: read(), notify: external(), perform_sync: external(),
     },
     flashcard: {
         list_cards: read(), get_decks: read(), get_cards: read(), review_card: mutation('state'),

@@ -695,6 +695,8 @@
     "desc_system_action_get_version": "获取思源版本。",
     "system_action_get_current_time": "获取当前时间",
     "desc_system_action_get_current_time": "获取当前系统时间。",
+    "system_action_whoami": "当前身份",
+    "desc_system_action_whoami": "获取当前身份：工作区目录、思源版本、语言，以及已登录账号（如有）。",
     "flashcard_tool_title": "闪卡工具",
     "flashcard_tool_desc": "向 MCP 客户端暴露聚合后的闪卡复习与卡包操作。",
     "flashcard_action_list_cards": "列出卡片",

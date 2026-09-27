@@ -1800,6 +1800,10 @@ export const SystemGetCurrentTimeSchema = z.object({
     action: z.literal("get_current_time"),
 });
 
+export const SystemWhoamiSchema = z.object({
+    action: z.literal("whoami"),
+});
+
 // --- Dailynote schemas ---
 
 const DailynoteDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD").optional().describe("Target date in YYYY-MM-DD; defaults to today");

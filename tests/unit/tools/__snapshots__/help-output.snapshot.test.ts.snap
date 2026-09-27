@@ -6665,6 +6665,28 @@ All search actions are read-only except find_replace, which modifies content and
         ],
         "tool": "system",
       },
+      "whoami": {
+        "action": "whoami",
+        "example": {
+          "action": "whoami",
+        },
+        "fullDocResource": "siyuan://help/action/system/whoami",
+        "guidance": [
+          "Most system actions in this tool are read-only; perform_sync is the mutating exception and requires explicit user confirmation before execution.",
+          "system(action="workspace_info") exposes the workspace path and is high-risk; it is disabled by default.",
+          "system(action="perform_sync") triggers SiYuan sync immediately; it does not modify sync provider settings.",
+          "system(action="conf") returns masked configuration, not raw secrets.",
+          "Use system(action="changelog", fromVersion="<previousVersion>") after plugin upgrades to see whether old personalized settings, rules, memory, or connection snippets need review.",
+          "Use system(action="conf", mode="summary") first, then mode="get" + keyPath such as conf.appearance.mode or conf.langs[0].",
+        ],
+        "hint": "Returns the current identity as {workspaceDir, siyuanVer, lang, user, signedIn, transport}. user is the signed-in cloud account when one is configured, else null.",
+        "requiredFields": [],
+        "requiresConfirmation": false,
+        "shapes": [
+          "action only",
+        ],
+        "tool": "system",
+      },
       "workspace_info": {
         "action": "workspace_info",
         "example": {
@@ -6690,7 +6712,7 @@ All search actions are read-only except find_replace, which modifies content and
     },
     "description": "🖥️ Grouped system and notification operations. Use the "action" field to select the operation.
 
-Common actions: conf, changelog, get_version, get_current_time. Required fields: conf: no additional fields; changelog: no additional fields; get_version: no additional fields; get_current_time: no additional fields.
+Common actions: conf, changelog, get_version, get_current_time, whoami. Required fields: conf: no additional fields; changelog: no additional fields; get_version: no additional fields; get_current_time: no additional fields; whoami: no additional fields.
 
 Additional actions: workspace_info, network, notify, perform_sync. Read siyuan://help/action/system/{action} for details, or call action="help" if resources are unavailable.
 
@@ -6703,6 +6725,7 @@ system.changelog: required [] | optional [version, fromVersion, limit, includeRa
 system.perform_sync: required [] | optional []
 system.get_version: required [] | optional []
 system.get_current_time: required [] | optional []
+system.whoami: required [] | optional []
 
 Most system actions in this tool are read-only; perform_sync is the mutating exception and requires explicit user confirmation before execution. system(action="workspace_info") exposes the workspace path and is high-risk; it is disabled by default. Requires user confirmation before: workspace_info, perform_sync.",
     "overview": {
@@ -6714,6 +6737,7 @@ Most system actions in this tool are read-only; perform_sync is the mutating exc
         "network": "Returns masked proxy information only.",
         "notify": "Show an info or error notification in the SiYuan UI. Optional timeout is in milliseconds.",
         "perform_sync": "Triggers SiYuan sync immediately through /api/sync/performSync. This action can change local and remote sync state and requires explicit user confirmation.",
+        "whoami": "Returns the current identity as {workspaceDir, siyuanVer, lang, user, signedIn, transport}. user is the signed-in cloud account when one is configured, else null.",
         "workspace_info": "Returns workspace path metadata and current SiYuan version. High-risk: leaks the absolute workspace path; disabled by default and requires explicit user confirmation.",
       },
       "actions": {
@@ -6745,6 +6769,10 @@ Most system actions in this tool are read-only; perform_sync is the mutating exc
           "hint": "Triggers SiYuan sync immediately through /api/sync/performSync. This action can change local and remote sync state and requires explicit user confirmation.",
           "requiresConfirmation": true,
         },
+        "whoami": {
+          "hint": "Returns the current identity as {workspaceDir, siyuanVer, lang, user, signedIn, transport}. user is the signed-in cloud account when one is configured, else null.",
+          "requiresConfirmation": false,
+        },
         "workspace_info": {
           "hint": "Returns workspace path metadata and current SiYuan version. High-risk: leaks the absolute workspace path; disabled by default and requires explicit user confirmation.",
           "requiresConfirmation": true,
@@ -6761,6 +6789,7 @@ Most system actions in this tool are read-only; perform_sync is the mutating exc
         "changelog",
         "get_version",
         "get_current_time",
+        "whoami",
       ],
       "detailsHint": "Call system(action="help", topic="<actionName>") for required fields, shapes, and a minimal example.",
       "guidance": [
