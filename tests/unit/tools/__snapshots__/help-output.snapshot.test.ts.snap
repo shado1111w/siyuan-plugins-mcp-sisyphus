@@ -2352,6 +2352,42 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
   },
   "document": {
     "actions": {
+      "append": {
+        "action": "append",
+        "example": {
+          "action": "append",
+          "data": "- New item",
+          "dataType": "markdown",
+        },
+        "fullDocResource": "siyuan://help/action/document/append",
+        "guidance": [
+          "For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"write"|"search") because it accepts human-readable paths and hides storage paths and IDs.",
+          "document(action="create") creates both non-empty and empty documents. Prefer path for child documents; path is a notebook-local human-readable hpath such as /Folder/Parent/New Child, not /Notebook/Folder/... and not a .sy storage path.",
+          "Do not put # Title at the start of document(action="create") markdown. SiYuan renders the document title as H1 automatically, and MCP strips a matching leading H1 to avoid duplicate titles.",
+          "document(action="create", parentPath=..., title=...) is also supported. parentPath accepts either a notebook-local human-readable parent hpath such as /Folder/Parent, or a storage path ending in .sy returned by document(action="lookup").",
+          "fs(action="write", path="/Notebook/Folder/Doc") uses a workspace path and should include the notebook name for unambiguous resolution; omission works only for a unique existing document or parent. document(action="create", notebook=..., path="/Folder/Doc") uses a notebook-local hpath and must omit the notebook name. Do not mix these two path formats.",
+          "For document(action="lookup"), path means a storage path such as /20240318112233-abc123.sy; use hpath/hPath for human-readable paths, which are notebook-local and MUST NOT include the notebook name (e.g., /Folder/Weekly Note, not /NotebookName/Folder/Weekly Note).",
+          "Other document actions that use notebook + path expect storage paths returned by document(action="lookup").",
+          "If document(action="create") reports a duplicate-name error, verify the intended child with document(action="lookup", notebook=..., hpath="/Folder/Parent/New Child", include=["id","path","hpath"]) or document(action="get_child_docs", id=<parent-doc-id>). New create results may take a short indexing delay before lookup/search sees them.",
+          "document(action="ensure_link_targets") is the bounded import-link provisioner: scope it with notebook + parentId, reuse only explicit child document IDs, and use create only for explicit new titles. It never guesses an existing target from a title; same-title children are unresolved and require an ID decision.",
+          "A safe path-based workflow is lookup -> rename/remove/move.",
+          "document(action="reorder") applies a complete manual order to every visible direct child under parentID and switches the notebook to custom sorting. Read the current child documents first and include each child ID exactly once.",
+          "document(action="get_child_blocks") and document(action="get_child_docs") return direct children for a document ID.",
+          "document(action="set_attr") updates document metadata such as icon and cover; use attrs.cover=null or an empty string to clear the cover.",
+          "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
+          "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
+        ],
+        "requiredFields": [
+          "dataType",
+          "data",
+        ],
+        "requiresConfirmation": false,
+        "shapes": [
+          "dataType + data",
+        ],
+        "tool": "document",
+      },
       "create": {
         "action": "create",
         "example": {
@@ -2857,6 +2893,42 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
         ],
         "tool": "document",
       },
+      "prepend": {
+        "action": "prepend",
+        "example": {
+          "action": "prepend",
+          "data": "- New item",
+          "dataType": "markdown",
+        },
+        "fullDocResource": "siyuan://help/action/document/prepend",
+        "guidance": [
+          "For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"write"|"search") because it accepts human-readable paths and hides storage paths and IDs.",
+          "document(action="create") creates both non-empty and empty documents. Prefer path for child documents; path is a notebook-local human-readable hpath such as /Folder/Parent/New Child, not /Notebook/Folder/... and not a .sy storage path.",
+          "Do not put # Title at the start of document(action="create") markdown. SiYuan renders the document title as H1 automatically, and MCP strips a matching leading H1 to avoid duplicate titles.",
+          "document(action="create", parentPath=..., title=...) is also supported. parentPath accepts either a notebook-local human-readable parent hpath such as /Folder/Parent, or a storage path ending in .sy returned by document(action="lookup").",
+          "fs(action="write", path="/Notebook/Folder/Doc") uses a workspace path and should include the notebook name for unambiguous resolution; omission works only for a unique existing document or parent. document(action="create", notebook=..., path="/Folder/Doc") uses a notebook-local hpath and must omit the notebook name. Do not mix these two path formats.",
+          "For document(action="lookup"), path means a storage path such as /20240318112233-abc123.sy; use hpath/hPath for human-readable paths, which are notebook-local and MUST NOT include the notebook name (e.g., /Folder/Weekly Note, not /NotebookName/Folder/Weekly Note).",
+          "Other document actions that use notebook + path expect storage paths returned by document(action="lookup").",
+          "If document(action="create") reports a duplicate-name error, verify the intended child with document(action="lookup", notebook=..., hpath="/Folder/Parent/New Child", include=["id","path","hpath"]) or document(action="get_child_docs", id=<parent-doc-id>). New create results may take a short indexing delay before lookup/search sees them.",
+          "document(action="ensure_link_targets") is the bounded import-link provisioner: scope it with notebook + parentId, reuse only explicit child document IDs, and use create only for explicit new titles. It never guesses an existing target from a title; same-title children are unresolved and require an ID decision.",
+          "A safe path-based workflow is lookup -> rename/remove/move.",
+          "document(action="reorder") applies a complete manual order to every visible direct child under parentID and switches the notebook to custom sorting. Read the current child documents first and include each child ID exactly once.",
+          "document(action="get_child_blocks") and document(action="get_child_docs") return direct children for a document ID.",
+          "document(action="set_attr") updates document metadata such as icon and cover; use attrs.cover=null or an empty string to clear the cover.",
+          "document(action="search_docs") remains title-based, but MCP now post-filters results by notebook permission and optional storage path scope.",
+          "For recently created documents, document(action="lookup", hpath=...) may briefly lag behind create because it depends on SiYuan indexing; retry if needed.",
+          "document(action="lookup", id=...) may hit the same short indexing delay right after create; MCP retries briefly and then returns a timing-specific hint if indexing still has not settled.",
+        ],
+        "requiredFields": [
+          "dataType",
+          "data",
+        ],
+        "requiresConfirmation": false,
+        "shapes": [
+          "dataType + data",
+        ],
+        "tool": "document",
+      },
       "read": {
         "action": "read",
         "example": {
@@ -3076,7 +3148,7 @@ dailynote manages per-notebook daily notes with explicit date support, layered o
     },
     "description": "📝 Grouped document operations. Use the "action" field to select the operation.
 
-Common actions: create, lookup, rename, get_child_blocks, get_child_docs, search_docs, get_doc, read, get_outline. Required fields: create: notebook, path | notebook, parentPath, title; lookup: no additional fields; rename: title; get_child_blocks: id; get_child_docs: id; search_docs: notebook, query; get_doc: id; read: id; get_outline: id.
+Common actions: create, lookup, rename, get_child_blocks, get_child_docs, search_docs, get_doc, read, append, prepend, get_outline. Required fields: create: notebook, path | notebook, parentPath, title; lookup: no additional fields; rename: title; get_child_blocks: id; get_child_docs: id; search_docs: notebook, query; get_doc: id; append: dataType, data; prepend: dataType, data; read: id; get_outline: id.
 
 Additional actions: ensure_link_targets, remove, move, reorder, set_attr, list_tree, create_daily_note, duplicate, heading_to_doc, doc_to_heading. Read siyuan://help/action/document/{action} for details, or call action="help" if resources are unavailable.
 
@@ -3094,6 +3166,8 @@ document.set_attr: required [id, attrs] | optional []
 document.list_tree: required [notebook, path] | optional [maxDepth]
 document.search_docs: required [notebook, query] | optional [path]
 document.get_doc: required [id] | optional [mode, size, blockStart, blockLimit, tokenBudget, includeBlockIds]
+document.append: required [dataType, data] | optional [id, notebook, hpath, hPath]
+document.prepend: required [dataType, data] | optional [id, notebook, hpath, hPath]
 document.read: required [id] | optional [scope, anchor, startId, endId, pattern, contextBefore, contextAfter, maxDepth, tokenBudget, includeBlockIds]
 document.get_outline: required [id] | optional [preview]
 document.create_daily_note: required [notebook] | optional [app]
@@ -3104,6 +3178,7 @@ document.doc_to_heading: required [srcID, targetID] | optional [after]
 For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"write"|"search") because it accepts human-readable paths and hides storage paths and IDs. document(action="create") creates both non-empty and empty documents. Prefer path for child documents; path is a notebook-local human-readable hpath such as /Folder/Parent/New Child, not /Notebook/Folder/... and not a .sy storage path. Requires user confirmation before: remove, move.",
     "overview": {
       "actionSummaries": {
+        "append": "requires: dataType, data",
         "create": "Use notebook + path for the most direct child-document flow. path is a notebook-local hpath like /Folder/Parent/New Child, not /Notebook/... and not .sy. parentPath + title is also supported. markdown is optional and must not start with # Title; a matching leading H1 is stripped to avoid duplicate titles.",
         "create_daily_note": "Use a notebook ID and optionally pass app for downstream SiYuan event routing. When the user asks for a diary, journal entry, daily log, or today’s note in a notebook, prefer this action over manually creating a path and then appending content.",
         "doc_to_heading": "requires: srcID, targetID",
@@ -3117,6 +3192,7 @@ For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"writ
         "list_tree": "Use notebook + path, where path is a storage path such as / or /20240318112233-abc123.sy.",
         "lookup": "Look up one reference at a time. Use id, notebook + storage path, or notebook + hpath/hPath. The path field means storage path like /20240318112233-abc123.sy; use hpath for human-readable paths.",
         "move": "Use either fromIDs + toID or fromPaths + toNotebook + toPath. For path-based moves, toPath must be the storage path of an existing destination document. This action requires explicit user confirmation.",
+        "prepend": "requires: dataType, data",
         "read": "requires: id",
         "remove": "Use either id or notebook + storage path. This action requires explicit user confirmation. If bulk ids/paths hit SiYuan's short indexing window, retry by deleting one document at a time with notebook + storage path.",
         "rename": "Use either id + title or notebook + path + title.",
@@ -3125,6 +3201,9 @@ For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"writ
         "set_attr": "Use id + attrs. attrs.icon sets the document icon; attrs.cover sets an http(s) URL or /assets/... cover, and null/empty clears it.",
       },
       "actions": {
+        "append": {
+          "requiresConfirmation": false,
+        },
         "create": {
           "hint": "Use notebook + path for the most direct child-document flow. path is a notebook-local hpath like /Folder/Parent/New Child, not /Notebook/... and not .sy. parentPath + title is also supported. markdown is optional and must not start with # Title; a matching leading H1 is stripped to avoid duplicate titles.",
           "requiresConfirmation": false,
@@ -3174,6 +3253,9 @@ For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"writ
           "hint": "Use either fromIDs + toID or fromPaths + toNotebook + toPath. For path-based moves, toPath must be the storage path of an existing destination document. This action requires explicit user confirmation.",
           "requiresConfirmation": true,
         },
+        "prepend": {
+          "requiresConfirmation": false,
+        },
         "read": {
           "requiresConfirmation": false,
         },
@@ -3219,6 +3301,8 @@ For ordinary document file operations, prefer fs(action="ls"|"tree"|"read"|"writ
         "search_docs",
         "get_doc",
         "read",
+        "append",
+        "prepend",
         "get_outline",
       ],
       "detailsHint": "Call document(action="help", topic="<actionName>") for required fields, shapes, and a minimal example.",

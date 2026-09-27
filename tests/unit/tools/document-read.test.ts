@@ -199,3 +199,89 @@ describe('document.read', () => {
         expect(r.content[0].text).toContain('before start-id');
     });
 });
+
+describe('document.append / document.prepend', () => {
+    function writeClient(calls: Array<[string, unknown]>) {
+        return createMockClient({
+            request: vi.fn(async (endpoint: string, body?: Record<string, unknown>) => {
+                calls.push([endpoint, body]);
+                if (endpoint === '/api/block/getDocInfo') {
+                    return { id: body?.id, rootID: 'doc-1', box: 'nb-1', path: '/doc-1.sy' };
+                }
+                if (endpoint === '/api/filetree/getPathByID') {
+                    return { notebook: 'nb-1', path: '/doc-1.sy' };
+                }
+                if (endpoint === '/api/notebook/lsNotebooks') {
+                    return { notebooks: [{ id: 'nb-1', name: 'Notebook', closed: false }] };
+                }
+                if (endpoint === '/api/filetree/getIDsByHPath') return ['doc-1'];
+                if (endpoint === '/api/query/sql') return [];
+                if (endpoint === '/api/block/appendBlock') return [{ id: 'new-tail' }];
+                if (endpoint === '/api/block/prependBlock') return [{ id: 'new-head' }];
+                if (endpoint === '/api/filetree/getHPathByID') return '/Doc 1';
+                return null;
+            }),
+        });
+    }
+
+    it('append by id calls appendBlock on the document', async () => {
+        const calls: Array<[string, unknown]> = [];
+        const r = await callDocumentTool(writeClient(calls), { action: 'append', id: 'doc-1', dataType: 'markdown', data: 'tail' }, dc(), permMgr);
+        const p = parseResult(r);
+        expect(p.success).toBe(true);
+        expect(p.id).toBe('doc-1');
+        const call = calls.find(([e]) => e === '/api/block/appendBlock');
+        expect(call?.[1]).toMatchObject({ parentID: 'doc-1', dataType: 'markdown' });
+    });
+
+    it('append by notebook + hpath resolves the doc id then appends', async () => {
+        const calls: Array<[string, unknown]> = [];
+        const r = await callDocumentTool(writeClient(calls), { action: 'append', notebook: 'nb-1', hpath: '/Doc 1', dataType: 'markdown', data: 'tail' }, dc(), permMgr);
+        const p = parseResult(r);
+        expect(p.success).toBe(true);
+        expect(calls.some(([e]) => e === '/api/filetree/getIDsByHPath')).toBe(true);
+        expect(calls.some(([e]) => e === '/api/block/appendBlock')).toBe(true);
+    });
+
+    it('append accepts hPath alias', async () => {
+        const calls: Array<[string, unknown]> = [];
+        const r = await callDocumentTool(writeClient(calls), { action: 'append', notebook: 'nb-1', hPath: '/Doc 1', dataType: 'markdown', data: 'tail' }, dc(), permMgr);
+        const p = parseResult(r);
+        expect(p.success).toBe(true);
+    });
+
+    it('prepend by notebook + hpath calls prependBlock', async () => {
+        const calls: Array<[string, unknown]> = [];
+        const r = await callDocumentTool(writeClient(calls), { action: 'prepend', notebook: 'nb-1', hpath: '/Doc 1', dataType: 'markdown', data: 'head' }, dc(), permMgr);
+        const p = parseResult(r);
+        expect(p.success).toBe(true);
+        const call = calls.find(([e]) => e === '/api/block/prependBlock');
+        expect(call?.[1]).toMatchObject({ parentID: 'doc-1', dataType: 'markdown' });
+    });
+
+    it('rejects when both id and hpath are provided', async () => {
+        const r = await callDocumentTool(writeClient([]), { action: 'append', id: 'doc-1', notebook: 'nb-1', hpath: '/Doc 1', dataType: 'markdown', data: 'x' }, dc(), permMgr);
+        expect(r.isError).toBe(true);
+        expect(r.content[0].text).toContain('not both');
+    });
+
+    it('rejects when neither id nor hpath is provided', async () => {
+        const r = await callDocumentTool(writeClient([]), { action: 'append', dataType: 'markdown', data: 'x' }, dc(), permMgr);
+        expect(r.isError).toBe(true);
+        expect(r.content[0].text).toContain('locate the target document');
+    });
+
+    it('returns not_found when hpath resolves to no document', async () => {
+        const cl = createMockClient({
+            request: vi.fn(async (endpoint: string) => {
+                if (endpoint === '/api/notebook/lsNotebooks') return { notebooks: [{ id: 'nb-1', name: 'N', closed: false }] };
+                if (endpoint === '/api/filetree/getIDsByHPath') return [];
+                if (endpoint === '/api/query/sql') return [];
+                return null;
+            }),
+        });
+        const r = await callDocumentTool(cl, { action: 'append', notebook: 'nb-1', hpath: '/Missing', dataType: 'markdown', data: 'x' }, dc(), permMgr);
+        const p = parseResult(r);
+        expect(p.error?.type).toBe('not_found');
+    });
+});

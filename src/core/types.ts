@@ -481,6 +481,42 @@ export const DocumentReadSchema = z.object({
     }
 });
 
+export const DocumentAppendSchema = z.object({
+    action: z.literal("append"),
+    id: z.string().optional().describe("Target document ID. Provide this OR notebook + hpath, not both."),
+    notebook: z.string().optional().describe("Notebook ID; required with hpath."),
+    hpath: z.string().optional().describe("Notebook-local human-readable path of the target document (e.g. /Folder/Doc), used with notebook when id is omitted."),
+    hPath: z.string().optional().describe("Alias for hpath (notebook-local, MUST NOT include the notebook name)."),
+    dataType: z.enum(["markdown", "dom"]).describe('Payload type: "markdown" (default) or "dom".'),
+    data: z.string().describe("Block content to append to the end of the document."),
+}).passthrough().superRefine((value, ctx) => {
+    const effHpath = value.hpath ?? value.hPath;
+    if (value.id && (value.notebook || effHpath)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["id"], message: "Provide id OR notebook + hpath, not both." });
+    }
+    if (!value.id && !(value.notebook && effHpath)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["hpath"], message: "Provide id, or notebook + hpath, to locate the target document." });
+    }
+});
+
+export const DocumentPrependSchema = z.object({
+    action: z.literal("prepend"),
+    id: z.string().optional().describe("Target document ID. Provide this OR notebook + hpath, not both."),
+    notebook: z.string().optional().describe("Notebook ID; required with hpath."),
+    hpath: z.string().optional().describe("Notebook-local human-readable path of the target document, used with notebook when id is omitted."),
+    hPath: z.string().optional().describe("Alias for hpath (notebook-local, MUST NOT include the notebook name)."),
+    dataType: z.enum(["markdown", "dom"]).describe('Payload type: "markdown" (default) or "dom".'),
+    data: z.string().describe("Block content to prepend to the start of the document."),
+}).passthrough().superRefine((value, ctx) => {
+    const effHpath = value.hpath ?? value.hPath;
+    if (value.id && (value.notebook || effHpath)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["id"], message: "Provide id OR notebook + hpath, not both." });
+    }
+    if (!value.id && !(value.notebook && effHpath)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["hpath"], message: "Provide id, or notebook + hpath, to locate the target document." });
+    }
+});
+
 export const DocumentCreateDailyNoteSchema = z.object({
     action: z.literal("create_daily_note"),
     notebook: z.string().describe("Notebook ID"),

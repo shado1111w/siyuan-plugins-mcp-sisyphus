@@ -16,6 +16,8 @@ import {
     DocumentGetChildDocsSchema,
     DocumentGetDocSchema,
     DocumentGetOutlineSchema,
+    DocumentAppendSchema,
+    DocumentPrependSchema,
     DocumentReadSchema,
     DocumentHeadingToDocSchema,
     DocumentListTreeSchema,
@@ -47,11 +49,12 @@ import {
 import type { ToolActionHandler } from '../internal/define-tool';
 import { resolveNotebookName } from '../internal/helpers/notebook-names';
 import { filterBacklinkResultByPermission, filterItemsByPermissionAndPath } from '../search';
-import { createJsonResult, createPermissionDeniedResult, createSetIconReminder } from '../internal/shared';
+import { createJsonResult, createPermissionDeniedResult, createSetIconReminder, type ToolResult } from '../internal/shared';
 import { applyUiRefresh, type UiRefreshOperation } from '../internal/ui-refresh';
 import { sleep } from '../../shared/async';
 import { stripRedundantTitleHeading } from '../internal/kramdown-safe';
 import { readDocumentBlockWindow } from '../internal/document-kramdown';
+import { normalizeDomInlineRefsAndTags } from '../internal/kramdown-safe';
 import { readDocumentScoped } from './read-scope';
 import { createFootnoteReferenceHint, createSiyuanBlockLinkHint, createUnresolvedBlockRefHint, hasBlockRefIdFallbackAnchors, hasFootnoteReferences, hasSiyuanBlockLinks } from '../internal/kramdown-safe';
 import { normalizeMarkdownInputRefs } from '../internal/markdown-input';
@@ -1116,6 +1119,70 @@ const handleRead: DocumentActionHandler = async ({ client, permMgr, rawArgs }) =
     });
 };
 
+
+async function resolveDocumentWriteTarget(
+    client: SiYuanClient,
+    permMgr: PermissionManager,
+    args: { id?: string; notebook?: string; hpath?: string },
+): Promise<{ denied?: ToolResult; documentId: string; notebook?: string }> {
+    if (args.id) {
+        const { denied, context } = await ensurePermissionForDocumentId(client, permMgr, args.id, 'write');
+        if (denied) return { denied, documentId: '' };
+        return { documentId: context.documentId, notebook: context.notebook };
+    }
+    const denied = await ensurePermissionForNotebook(permMgr, args.notebook!, 'write');
+    if (denied) return { denied, documentId: '' };
+    const hpath = args.hpath ?? (args as { hPath?: string }).hPath!;
+    const ids = await getDocumentIdsByHPathWithSqlFallback(client, args.notebook!, hpath);
+    if (!ids.length) {
+        return {
+            denied: createJsonResult({
+                error: { type: 'not_found', message: `No document at hpath "${hpath}" in notebook ${args.notebook}.` },
+            }),
+            documentId: '',
+        };
+    }
+    const { denied: docDenied, context } = await ensurePermissionForDocumentId(client, permMgr, ids[0], 'write');
+    if (docDenied) return { denied: docDenied, documentId: '' };
+    return { documentId: context.documentId, notebook: context.notebook };
+}
+
+const handleAppend: DocumentActionHandler = async ({ client, permMgr, rawArgs }) => {
+    const parsed = DocumentAppendSchema.parse(rawArgs);
+    const target = await resolveDocumentWriteTarget(client, permMgr, parsed);
+    if (target.denied) return target.denied;
+    const data = parsed.dataType === 'dom'
+        ? normalizeDomInlineRefsAndTags(parsed.data, 'document.append')
+        : await normalizeMarkdownInputRefs(client, parsed.data, 'document.append');
+    const result = await blockApi.appendBlock(client, parsed.dataType, data, target.documentId);
+    return applyUiRefresh(client, createJsonResult({
+        success: true,
+        action: 'append',
+        id: target.documentId,
+        ...(target.notebook ? { notebook: target.notebook } : {}),
+        hPath: await getHPathByIdWithRetry(client, target.documentId),
+        result,
+    }), [{ type: 'reloadProtyle', id: target.documentId }]);
+};
+
+const handlePrepend: DocumentActionHandler = async ({ client, permMgr, rawArgs }) => {
+    const parsed = DocumentPrependSchema.parse(rawArgs);
+    const target = await resolveDocumentWriteTarget(client, permMgr, parsed);
+    if (target.denied) return target.denied;
+    const data = parsed.dataType === 'dom'
+        ? normalizeDomInlineRefsAndTags(parsed.data, 'document.prepend')
+        : await normalizeMarkdownInputRefs(client, parsed.data, 'document.prepend');
+    const result = await blockApi.prependBlock(client, parsed.dataType, data, target.documentId);
+    return applyUiRefresh(client, createJsonResult({
+        success: true,
+        action: 'prepend',
+        id: target.documentId,
+        ...(target.notebook ? { notebook: target.notebook } : {}),
+        hPath: await getHPathByIdWithRetry(client, target.documentId),
+        result,
+    }), [{ type: 'reloadProtyle', id: target.documentId }]);
+};
+
 export const DOCUMENT_ACTION_HANDLERS: Record<DocumentAction, DocumentActionHandler> = {
     create: handleCreate,
     lookup: handleLookup,
@@ -1130,6 +1197,8 @@ export const DOCUMENT_ACTION_HANDLERS: Record<DocumentAction, DocumentActionHand
     list_tree: handleListTree,
     search_docs: handleSearchDocs,
     get_doc: handleGetDoc,
+    append: handleAppend,
+    prepend: handlePrepend,
     read: handleRead,
     get_outline: handleGetOutline,
     create_daily_note: handleCreateDailyNote,

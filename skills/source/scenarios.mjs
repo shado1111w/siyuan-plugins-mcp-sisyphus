@@ -181,6 +181,10 @@ The document title comes from the path or \`title\`, not from markdown. Do not s
 {{call insert}}
 {{call update}}
 
+To add content to the start or end of a whole document without first resolving a block parentID, use \`document append\` / \`document prepend\` with either \`id\` or \`notebook + hpath\`. For inserting relative to an existing block keep using \`block insert/append/prepend\`.
+
+{{call docAppend}}
+
 When updating a task-list item, provide the complete list prefix (\`- [x] \` or \`- [ ] \`) in the markdown data. A bare text replacement causes the block to be re-parsed as a paragraph and rejected by the list's parent.
 
 Use block \`update\` only when replacing the whole block is intended. Prefer a scoped replacement for a small textual change:
@@ -217,6 +221,7 @@ Before rename, move, delete, or broad replacement, resolve the exact target, sho
             write: call('fs', 'write', { path: '/Notebook/Project/Notes', markdown: 'Initial content paragraph.\n\n## Section\n\nMore content.' }),
             create: call('document', 'create', { notebook: '<notebook-id>', path: '/Project/Notes', markdown: '# Notes' }),
             append: call('block', 'append', { parentID: '<doc-id>', dataType: 'markdown', data: '## New section\n\nParagraph.' }),
+            docAppend: call('document', 'append', { notebook: '<notebook-id>', hpath: '/Folder/Doc', dataType: 'markdown', data: 'Appended at document end.' }),
             insert: call('block', 'insert', { previousID: '<block-id>', dataType: 'markdown', data: 'Inserted paragraph.' }),
             update: call('block', 'update', { id: '<block-id>', dataType: 'markdown', data: 'Replacement block content.' }),
             replace: call('block', 'replace', { id: '<block-id>', edit: { old: 'draft', new: 'final' } }),

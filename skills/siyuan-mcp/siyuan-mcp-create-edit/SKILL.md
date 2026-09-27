@@ -43,6 +43,12 @@ block(action="insert", previousID="<block-id>", dataType="markdown", data="Inser
 block(action="update", id="<block-id>", dataType="markdown", data="Replacement block content.")
 ```
 
+To add content to the start or end of a whole document without first resolving a block parentID, use `document append` / `document prepend` with either `id` or `notebook + hpath`. For inserting relative to an existing block keep using `block insert/append/prepend`.
+
+```text
+document(action="append", notebook="<notebook-id>", hpath="/Folder/Doc", dataType="markdown", data="Appended at document end.")
+```
+
 When updating a task-list item, provide the complete list prefix (`- [x] ` or `- [ ] `) in the markdown data. A bare text replacement causes the block to be re-parsed as a paragraph and rejected by the list's parent.
 
 Use block `update` only when replacing the whole block is intended. Prefer a scoped replacement for a small textual change:

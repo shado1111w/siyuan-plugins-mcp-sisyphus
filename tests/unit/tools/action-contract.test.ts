@@ -237,6 +237,8 @@ describe('tool action contract coverage', () => {
             { action: 'search_docs', args: { action: 'search_docs', notebook: 'nb-1', query: 'Doc' }, expectedEndpoint: '/api/filetree/searchDocs' },
             { action: 'get_doc', args: { action: 'get_doc', id: 'doc-1', mode: 'html' }, expectedEndpoint: '/api/filetree/getDoc' },
             { action: 'read', args: { action: 'read', id: 'doc-1', scope: 'full' }, expectedEndpoint: '/api/block/getChildBlocks' },
+            { action: 'append', args: { action: 'append', id: 'doc-1', dataType: 'markdown', data: 'x' }, expectedEndpoint: '/api/block/appendBlock' },
+            { action: 'prepend', args: { action: 'prepend', id: 'doc-1', dataType: 'markdown', data: 'x' }, expectedEndpoint: '/api/block/prependBlock' },
             { action: 'get_outline', args: { action: 'get_outline', id: 'doc-1' }, expectedEndpoint: '/api/outline/getDocOutline' },
             { action: 'create_daily_note', args: { action: 'create_daily_note', notebook: 'nb-1' }, expectedEndpoint: '/api/filetree/createDailyNote' },
             { action: 'duplicate', args: { action: 'duplicate', id: 'doc-1' }, expectedEndpoint: '/api/filetree/duplicateDoc' },
