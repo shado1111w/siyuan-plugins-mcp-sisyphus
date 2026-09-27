@@ -29,7 +29,7 @@ SYS="You are a SiYuan note agent using siyuan-sisyphus CLI.
 CLI: node cli/dist/cli.cjs (run from project root)
 Flags: --url http://127.0.0.1:6807 --token zrk1rs7459ml0ecm --json
 Notebook: e2e-test (id: 20260927122753-tmll6on)
-Skills: cli/dist/skills/siyuan-sisyphus/ - read SKILL.md files first.
+Skills: cli/dist/skills/siyuan-sisyphus/<scenario-name>/SKILL.md - e.g. cli/dist/skills/siyuan-sisyphus/siyuan-sisyphus/SKILL.md (top-level router), cli/dist/skills/siyuan-sisyphus/siyuan-sisyphus-create-edit/SKILL.md (write ops). Read the top-level SKILL.md first to pick the right scenario skill.
 Use list or help tool action to discover commands.
 fs tool accepts /Notebook/Doc paths. document tool uses notebook-local hpaths.
 After completing the task, reply with a JSON block on its own line:
@@ -46,7 +46,7 @@ TASK: $prompt
 
 Execute the appropriate CLI commands to complete this task."
   local t0=$(date +%s)
-  perl -e 'alarm(shift); exec @ARGV' "$TIMEOUT" codex exec "$full" --skip-git-repo-check -o "$outfile" >"$rawfile" 2>&1 &
+  perl -e 'alarm(shift); exec @ARGV' "$TIMEOUT" codex exec "$full" --skip-git-repo-check -c 'model_provider="cpa"' -m devin/gpt-5-6-terra --dangerously-bypass-approvals-and-sandbox -o "$outfile" >"$rawfile" 2>&1 &
   local pid=$!
   wait $pid || true
   local t1=$(date +%s)

@@ -1,0 +1,1 @@
+实时帮助已确认：`create` 和 `get` 只需 notebook，`append` 需要 `--data-type markdown` 与内容；三者均不需要额外确认。我将按“创建 → 单次追加 → get 验证”执行。
