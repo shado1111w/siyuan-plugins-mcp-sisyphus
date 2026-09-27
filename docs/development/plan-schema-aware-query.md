@@ -267,6 +267,44 @@ system api GET  /api/system/getConf
 - Registration: new action `api` on `system`. `config.ts` ACTIONS + ACTION_TIERS `dangerous` (write path) → `types.ts` schema (`action`, `method`, `path`, `body?`) → `write-safety-policy.ts` `mutation('system')` for non-GET, `read()` for GET → `system/index.ts` variant → handler forwarding through `client.request` → i18n + api-audit contract (generic, no fixed endpoint) → `action-contract.test.ts` case → help snapshot → `siyuan-sisyphus-system-cli` skill → unit test (method gating, `--confirm` requirement, path passthrough, error surfacing) + live GET/POST on `local`.
 - Tests: GET allowed without confirm, non-GET rejected without `--write`, 404/error body surfaced verbatim, `--write` flows through.
 
+### Phase 5.2a — `system api` parameter discovery (required for a usable escape hatch)
+
+A bare `method/path/body` passthrough is not enough: without per-endpoint parameter documentation the agent still has to guess each kernel signature, which defeats the point of the escape hatch. The kernel has no OpenAPI/self-description, so the parameter catalog is generated from the SiYuan kernel Go source that already ships in the workspace.
+
+**Discovery surface:**
+
+```sh
+system api --list                            # every known kernel endpoint + method + one-line summary
+system api --list --match block              # filtered to /api/block/* endpoints
+system api --describe /api/block/getBlockKramdown   # method, required vs optional params, types, defaults
+system api POST /api/block/getBlockKramdown --describe   # same describe, then the call
+```
+
+- `--list` returns the catalog index (path, method, handler name, one-line summary). `--describe` returns that endpoint’s full parameter table: name, Go type, required/optional, the default the kernel applies, and any enum/validation the handler enforces.
+
+**Catalog generation (`scripts/gen-api-catalog.mjs`, run at build like `api:audit`):**
+
+- Parse `kernel/api/router.go` for every `ginServer.Handle("<METHOD>", "<path>", ...<handler>)` triple -> path, method, handler symbol.
+- For each handler, locate its body in `kernel/api/*.go` and statically extract the parameter names it consumes:
+  - `util.ParseJsonArg[T]("name", arg, ret, required, rejectEmpty)` -> name + required flag.
+  - `util.BindJsonArg("name", &dst, required, rejectEmpty)` -> name + required.
+  - `util.ParseJsonArgs(arg, ret, BindJsonArg...)` groups -> same.
+  - Direct `arg["key"]` / `arg["key"].(type)` map reads -> name (required-ness inferred from the surrounding `if !ok` / default assignment, best-effort).
+- Emit `cli/dist/api-catalog.json` (and a checked-in `api-catalog.json` for MCP) mapping path -> { method, handler, params: [{ name, type, required, default? }] }. ~582 endpoints from `api:audit` are the coverage floor; endpoints with no extractable params get a `params: []` + a `note: "inspect kernel source"` marker rather than being dropped.
+
+**Runtime behavior:**
+
+- `system api <path>` with an unknown/misspelled path does a fuzzy `--list` match and suggests the closest endpoints instead of a bare 404.
+- When a call fails, the error response includes the described params for that endpoint so the agent can self-correct in one turn.
+- The param extraction is best-effort static analysis; handlers that compute params dynamically fall back to a `dynamic: true` note naming the source file+line for manual inspection.
+
+**Tests:**
+
+- Generator: router triples parsed, `ParseJsonArg`/`BindJsonArg`/direct-read extraction, required-flag correctness, ~582-endpoint coverage vs api:audit.
+- Handler: `--list`/`--match`/`--describe` output shape, fuzzy suggestion on bad path, describe-then-call, error embeds the param table.
+- Eval prompt: "\u8c03\u7528\u5185\u6838\u63a5\u53e3\u83b7\u53d6\u67d0\u5757\u7684 kramdown" - agent should discover getBlockKramdown via --describe, pass the right `id` param, and succeed in one shot.
+
+
 ### Phase 5.3 — `av query --filter-json` nested conditions
 
 ```sh
