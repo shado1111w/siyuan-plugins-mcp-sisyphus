@@ -5,6 +5,7 @@ import { callFileTool, listFileTools } from '@/tools/file';
 import { MAX_INLINE_IMAGE_BYTES } from '@/tools/file/handlers';
 import { createMockClient } from '../../helpers/mock-client';
 import { parseResult } from '../../helpers/parse-result';
+import { scenarios } from '../../../skills/source/scenarios.mjs';
 
 vi.mock('@/api/file', () => ({
     exportMdContent: vi.fn(),
@@ -923,6 +924,34 @@ describe('file tool asset actions', () => {
         expect(String(payload.content)).toMatch(/^---/);
         expect(String(payload.content)).toMatch(/title: My Doc/);
         expect(payload.frontmatter).toBe(true);
+    });
+
+    it('exports metadata and preserves Markdown using the file-export skill example', async () => {
+        const example = scenarios.find(s => s.id === 'file-export')!.calls.exportMd;
+        const fileApi = await import('@/api/file');
+        const attributeApi = await import('@/api/block');
+        const markdown = '# Weekly note\n\n- [ ] Review\n';
+        vi.mocked(fileApi.exportMdContent).mockResolvedValue({ content: markdown, hPath: '/Weekly note' });
+        vi.mocked(attributeApi.getBlockAttrs).mockResolvedValue({ title: 'Weekly note', 'custom-project': 'Notes' });
+        const result = await callFileTool(client, { action: example.action, ...example.args, id: 'doc-1' }, config.file, {} as never);
+        expect(result.isError).not.toBe(true);
+        const payload = parseResult(result);
+        expect(payload.content).toBe('---\ntitle: Weekly note\ncustom-project: Notes\n---\n\n' + markdown);
+        expect(payload.hPath).toBe('/Weekly note');
+        expect(payload.frontmatter).toBe(true);
+        expect(attributeApi.getBlockAttrs).toHaveBeenCalledWith(client, 'doc-1');
+    });
+
+    it('still returns Markdown when metadata is unavailable for the skill export example', async () => {
+        const example = scenarios.find(s => s.id === 'file-export')!.calls.exportMd;
+        const fileApi = await import('@/api/file');
+        const attributeApi = await import('@/api/block');
+        const markdown = '# Weekly note\n\n- [ ] Review\n';
+        vi.mocked(fileApi.exportMdContent).mockResolvedValue({ content: markdown, hPath: '/Weekly note' });
+        vi.mocked(attributeApi.getBlockAttrs).mockRejectedValue(new Error('Attributes unavailable'));
+        const result = await callFileTool(client, { action: example.action, ...example.args, id: 'doc-1' }, config.file, {} as never);
+        expect(result.isError).not.toBe(true);
+        expect(parseResult(result)).toMatchObject({ content: markdown, hPath: '/Weekly note', frontmatter: false });
     });
 
     it('export_md without the flag leaves content untouched', async () => {

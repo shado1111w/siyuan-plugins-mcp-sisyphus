@@ -94,6 +94,13 @@ async function setDocumentAttrsViaTransaction(
     }]);
 }
 
+const HEADING_TO_DOC_RETRY_DELAYS_MS = [120, 240];
+
+function isIndexingOrNotFoundError(error: unknown): boolean {
+    if (!(error instanceof Error)) return false;
+    return isIndexingError(error) || /not found|not exist/i.test(error.message);
+}
+
 function isIndexingError(error: unknown): boolean {
     return error instanceof Error
         && /SiYuan API error:\s*-1\s*-\s*indexing/i.test(error.message);
@@ -1123,7 +1130,31 @@ const handleHeadingToDoc: DocumentActionHandler = async ({ client, permMgr, rawA
     if (source.denied) return source.denied;
     const denied = await ensurePermissionForNotebook(permMgr, parsed.targetNotebook, 'write');
     if (denied) return denied;
-    await documentApi.headingToDoc(client, parsed.headingID, parsed.targetNotebook, parsed.targetPath, parsed.previousPath);
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= HEADING_TO_DOC_RETRY_DELAYS_MS.length; attempt += 1) {
+        try {
+            let lastError: unknown;
+    for (let attempt = 0; attempt <= HEADING_TO_DOC_RETRY_DELAYS_MS.length; attempt += 1) {
+        try {
+            await documentApi.headingToDoc(client, parsed.headingID, parsed.targetNotebook, parsed.targetPath, parsed.previousPath);
+            lastError = null;
+            break;
+        } catch (error) {
+            lastError = error;
+            if (!isIndexingOrNotFoundError(error) || attempt === HEADING_TO_DOC_RETRY_DELAYS_MS.length) break;
+            await sleep(HEADING_TO_DOC_RETRY_DELAYS_MS[attempt]);
+        }
+    }
+    if (lastError) throw lastError;
+            lastError = null;
+            break;
+        } catch (error) {
+            lastError = error;
+            if (!isIndexingOrNotFoundError(error) || attempt === HEADING_TO_DOC_RETRY_DELAYS_MS.length) break;
+            await sleep(HEADING_TO_DOC_RETRY_DELAYS_MS[attempt]);
+        }
+    }
+    if (lastError) throw lastError;
     return applyUiRefresh(client, createJsonResult({
         success: true,
         headingID: parsed.headingID,

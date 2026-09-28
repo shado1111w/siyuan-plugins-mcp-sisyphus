@@ -11,8 +11,13 @@ File actions are the explicit exception to the normal remote-only data path: upl
 file(action="upload_asset", assetsDirPath="/assets/", localFilePath="/absolute/path/to/image.png")
 ```
 ```text
-file(action="export_md", id="<doc-id>")
+file(action="export_md", id="<doc-id>", withFrontmatter=true)
 ```
+
+For a metadata-aware Markdown export, use the example above with `withFrontmatter=true` (CLI: `--with-frontmatter`). It prepends available document attributes as YAML to the returned `content`; omit the option for plain Markdown. This action returns content, not a saved local file. Attributes can be unavailable, so inspect the returned content rather than assuming a YAML header exists. Read `siyuan://help/action/file/export_md` for the current parameters.
+
+To locate the native document instead of exporting Markdown, use `printPath=true` (CLI: `--print-path`) on `document read` or `fs read`. The extra `diskPath` points to the kernel's native `.sy` file and can be null when workspace information is unavailable. A remote or Docker path is not necessarily accessible on the CLI host; this option neither saves Markdown nor grants permission to edit the native file directly.
+
 ```text
 file(action="extract_doc", id="<doc-id>", outputDir="/tmp/siyuan-extract")
 ```

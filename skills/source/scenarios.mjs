@@ -317,6 +317,8 @@ Read the changed blocks again. Recent writes can take time to enter the search i
 
 \`av\` actions operate on existing database blocks, and the CLI can now create one too. Use \`av create_table\` with the host \`blockID\` and an ordered \`columns\` list to materialize a NodeAttributeView block and add its non-primary-key columns in one flow. To insert-or-update a row by its primary-key text without first rendering the view, use \`av upsert_row\` — it creates a detached row when the key is absent and applies any \`cells\` after the row resolves; keep \`add_rows\` + \`set_cells\` for bound-row control when you already hold row IDs. To read one record as a column-name map without rendering the whole view, use \`av get_row\`; to write several cells on a known row in one call, use \`av update_row\` with \`rowID\` + \`cells[]\` (columnID or columnName). To read rows matching a condition without mutating the saved view, prefer \`av query\` — it takes human \`filters[]\` (Status=done, Priority>2, Name~report, !Due for empty) and \`sorts[]\` (Created:desc) evaluated in process. Never call \`av set_filters\` just to read; that rewrites the stored view.
 
+For nested and/or conditions that the linear \`filters[]\` grammar cannot express (for example \`Status=done OR Priority>2\`), pass \`--filter-json\` with a structured object: leaves use the same operator grammar, and \`and\` / \`or\` arrays nest. \`--filter\` and \`--filter-json\` merge with an implicit top-level AND.
+
 {{call get}}
 {{call render}}
 {{call search}}
@@ -366,6 +368,11 @@ Treat a successful mutation response as provisional until the same view and affe
 
 {{call upload}}
 {{call exportMd}}
+
+For a metadata-aware Markdown export, use the example above with \`withFrontmatter=true\` (CLI: \`--with-frontmatter\`). It prepends available document attributes as YAML to the returned \`content\`; omit the option for plain Markdown. This action returns content, not a saved local file. Attributes can be unavailable, so inspect the returned content rather than assuming a YAML header exists. Read {{help file export_md}} for the current parameters.
+
+To locate the native document instead of exporting Markdown, use \`printPath=true\` (CLI: \`--print-path\`) on \`document read\` or \`fs read\`. The extra \`diskPath\` points to the kernel's native \`.sy\` file and can be null when workspace information is unavailable. A remote or Docker path is not necessarily accessible on the CLI host; this option neither saves Markdown nor grants permission to edit the native file directly.
+
 {{call extract}}
 {{call exportResources}}
 {{call assets}}
@@ -378,7 +385,7 @@ Large uploads must stop and require explicit confirmation before retrying with t
 `,
         calls: {
             upload: call('file', 'upload_asset', { assetsDirPath: '/assets/', localFilePath: '/absolute/path/to/image.png' }),
-            exportMd: call('file', 'export_md', { id: '<doc-id>' }),
+            exportMd: call('file', 'export_md', { id: '<doc-id>', withFrontmatter: true }),
             extract: call('file', 'extract_doc', { id: '<doc-id>', outputDir: '/tmp/siyuan-extract' }),
             exportResources: call('file', 'export_resources', { paths: ['assets/file.png', 'assets/file.pdf'] }),
             assets: call('file', 'get_doc_assets', { id: '<doc-id>', assetType: 'image' }),
@@ -685,6 +692,18 @@ Obtain explicit approval before notebook/document/block deletion or move, bulk r
 {{call network}}
 {{call notify}}
 {{call extensionList}}
+
+## Raw kernel escape hatch (system api)
+
+When a typed action does not cover the endpoint you need, \`system api\` forwards a raw kernel call through the configured profile. It is a last resort — prefer typed actions.
+
+- \`system api --list\` browses the catalog; \`--list --match <keyword>\` filters by path.
+- \`system api --describe /api/block/getBlockKramdown\` shows method, required vs optional params, types, and defaults from kernel source.
+- \`system api --body-template /api/block/insertBlock\` prints a ready-to-fill JSON body with required params pre-populated.
+- Pre-flight validation: the handler checks your body against the catalog — missing required params or unknown keys fail locally before any kernel round-trip. \`--no-validate\` bypasses this for dynamic endpoints.
+- Non-GET methods require \`--write\` to confirm the mutation path. GET endpoints stay read-only by default.
+- Unknown or misspelled paths trigger a fuzzy \`--list\` match with suggestions instead of a bare 404.
+- The error response embeds the parameter table for that endpoint so you can self-correct in one turn.
 
 ## Extension trust and lifecycle verification
 

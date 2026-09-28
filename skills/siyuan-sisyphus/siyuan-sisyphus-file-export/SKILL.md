@@ -11,8 +11,13 @@ File actions are the explicit exception to the normal remote-only data path: upl
 siyuan-sisyphus file upload-asset --assets-dir-path '/assets/' --local-file-path '/absolute/path/to/image.png' --json
 ```
 ```bash
-siyuan-sisyphus file export-md --id '<doc-id>' --json
+siyuan-sisyphus file export-md --id '<doc-id>' --with-frontmatter --json
 ```
+
+For a metadata-aware Markdown export, use the example above with `withFrontmatter=true` (CLI: `--with-frontmatter`). It prepends available document attributes as YAML to the returned `content`; omit the option for plain Markdown. This action returns content, not a saved local file. Attributes can be unavailable, so inspect the returned content rather than assuming a YAML header exists. Read `siyuan-sisyphus help file export-md` for the current parameters.
+
+To locate the native document instead of exporting Markdown, use `printPath=true` (CLI: `--print-path`) on `document read` or `fs read`. The extra `diskPath` points to the kernel's native `.sy` file and can be null when workspace information is unavailable. A remote or Docker path is not necessarily accessible on the CLI host; this option neither saves Markdown nor grants permission to edit the native file directly.
+
 ```bash
 siyuan-sisyphus file extract-doc --id '<doc-id>' --output-dir '/tmp/siyuan-extract' --json
 ```

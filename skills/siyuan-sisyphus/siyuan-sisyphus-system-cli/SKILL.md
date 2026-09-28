@@ -39,6 +39,18 @@ siyuan-sisyphus system notify --msg 'Task complete' --level 'info' --timeout '50
 siyuan-sisyphus extension list --no-refresh --json
 ```
 
+## Raw kernel escape hatch (system api)
+
+When a typed action does not cover the endpoint you need, `system api` forwards a raw kernel call through the configured profile. It is a last resort — prefer typed actions.
+
+- `system api --list` browses the catalog; `--list --match <keyword>` filters by path.
+- `system api --describe /api/block/getBlockKramdown` shows method, required vs optional params, types, and defaults from kernel source.
+- `system api --body-template /api/block/insertBlock` prints a ready-to-fill JSON body with required params pre-populated.
+- Pre-flight validation: the handler checks your body against the catalog — missing required params or unknown keys fail locally before any kernel round-trip. `--no-validate` bypasses this for dynamic endpoints.
+- Non-GET methods require `--write` to confirm the mutation path. GET endpoints stay read-only by default.
+- Unknown or misspelled paths trigger a fuzzy `--list` match with suggestions instead of a bare 404.
+- The error response embeds the parameter table for that endpoint so you can self-correct in one turn.
+
 ## Extension trust and lifecycle verification
 
 Treat an extension package as executable third-party code. Keep these checks separate; passing one does not prove the next one:

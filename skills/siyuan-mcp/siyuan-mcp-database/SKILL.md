@@ -9,6 +9,8 @@ Never guess attribute-view identifiers. Inspect the AV and its views before chan
 
 `av` actions operate on existing database blocks, and the CLI can now create one too. Use `av create_table` with the host `blockID` and an ordered `columns` list to materialize a NodeAttributeView block and add its non-primary-key columns in one flow. To insert-or-update a row by its primary-key text without first rendering the view, use `av upsert_row` — it creates a detached row when the key is absent and applies any `cells` after the row resolves; keep `add_rows` + `set_cells` for bound-row control when you already hold row IDs. To read one record as a column-name map without rendering the whole view, use `av get_row`; to write several cells on a known row in one call, use `av update_row` with `rowID` + `cells[]` (columnID or columnName). To read rows matching a condition without mutating the saved view, prefer `av query` — it takes human `filters[]` (Status=done, Priority>2, Name~report, !Due for empty) and `sorts[]` (Created:desc) evaluated in process. Never call `av set_filters` just to read; that rewrites the stored view.
 
+For nested and/or conditions that the linear `filters[]` grammar cannot express (for example `Status=done OR Priority>2`), pass `--filter-json` with a structured object: leaves use the same operator grammar, and `and` / `or` arrays nest. `--filter` and `--filter-json` merge with an implicit top-level AND.
+
 ```text
 av(action="get", avID="<av-id>")
 ```
