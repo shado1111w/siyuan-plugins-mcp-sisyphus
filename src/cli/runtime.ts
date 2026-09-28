@@ -58,7 +58,7 @@ export async function loadCliRuntimeState(
     };
 
     const writeCoordinator = toolConfig.writeSafety.strictMode
-        ? await loadWriteCoordinatorSettings(client, resolved.coordinatorUrl)
+        ? await loadWriteCoordinatorSettings(client, resolved.coordinatorUrl, resolved.token)
         : undefined;
 
     return { client, toolConfig, permMgr, officialMcpRuntime, writeCoordinator };
@@ -78,36 +78,43 @@ export async function loadCliRuntimeState(
 async function loadWriteCoordinatorSettings(
     client: SiYuanClient,
     explicitUrl?: string,
+    apiToken?: string,
 ): Promise<CliWriteCoordinatorSettings | undefined> {
     const override = explicitUrl?.trim() || process.env.SIYUAN_COORDINATOR_URL?.trim();
     try {
         const raw = JSON.parse(await client.readFile(HTTP_SETTINGS_API_PATH)) as Record<string, unknown>;
         if (raw.enabled === false) return undefined;
-        const token = raw.authEnabled === true && typeof raw.token === 'string' ? raw.token : undefined;
+        // Standalone HTTP server (and its publicBaseUrl front) authenticates
+        // with the plugin's own bearer token; the kernel endpoint is
+        // authenticated by the kernel using the SiYuan API token instead.
+        const pluginToken = raw.authEnabled === true && typeof raw.token === 'string' ? raw.token : undefined;
+        const overrideIsKernelEndpoint = !!override && override.includes(KERNEL_PRIVATE_BASE);
+        const overrideToken = overrideIsKernelEndpoint ? apiToken : pluginToken;
 
         if (override) {
-            return { url: normalizeCoordinatorUrl(override), token };
+            return { url: normalizeCoordinatorUrl(override), token: overrideToken };
         }
 
         const publicBaseUrl = typeof raw.publicBaseUrl === 'string' ? raw.publicBaseUrl.trim() : '';
         if (publicBaseUrl) {
-            return { url: normalizeCoordinatorUrl(publicBaseUrl), token };
+            return { url: normalizeCoordinatorUrl(publicBaseUrl), token: pluginToken };
         }
 
         // Kernel-hosted endpoint: shares the kernel's own HTTP port, so it
         // works wherever the kernel is reachable (Docker, remote, frps) — no
         // separate MCP port needed. Enabled via the plugin's
-        // kernelEndpointEnabled toggle in HTTP server settings.
+        // kernelEndpointEnabled toggle in HTTP server settings. The kernel
+        // authenticates this route with the workspace API token.
         if (raw.kernelEndpointEnabled === true) {
             const kernelUrl = deriveKernelEndpointUrl(client.getBaseUrl());
-            if (kernelUrl) return { url: kernelUrl, token };
+            if (kernelUrl) return { url: kernelUrl, token: apiToken };
         }
 
         const port = typeof raw.port === 'number' ? raw.port : 36806;
         const configuredHost = typeof raw.host === 'string' ? raw.host : '127.0.0.1';
         const protocol = raw.tlsEnabled === true ? 'https' : 'http';
         const host = resolveCoordinatorHost(configuredHost, client.getBaseUrl());
-        return { url: `${protocol}://${host}:${port}/mcp`, token };
+        return { url: `${protocol}://${host}:${port}/mcp`, token: pluginToken };
     } catch {
         return undefined;
     }

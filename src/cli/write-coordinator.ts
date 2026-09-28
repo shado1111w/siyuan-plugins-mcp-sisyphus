@@ -47,8 +47,9 @@ export async function callCliWriteCoordinator(
         return failure(
             'write_coordinator_unavailable',
             `Could not call the plugin write coordinator at ${settings.url}: ${error instanceof Error ? error.message : String(error)}. ` +
-            'Fix by exposing the plugin MCP port (mcpHttpSettings.host=0.0.0.0, ' +
-            'publicBaseUrl set to its external URL), passing --coordinator-url, ' +
+            'Fix by enabling the kernel endpoint (plugin HTTP settings → Kernel endpoint) ' +
+            'for Docker/remote SiYuan, exposing the plugin MCP port ' +
+            '(mcpHttpSettings.host=0.0.0.0 + publicBaseUrl), passing --coordinator-url, ' +
             'or bypassing strict writes with --unsafe-direct-write.',
         );
     } finally {

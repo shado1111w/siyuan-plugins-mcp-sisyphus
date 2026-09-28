@@ -133,11 +133,19 @@ export class KernelSiYuanClient {
 
     async readFile(path: string): Promise<string> {
         // storage/petal paths resolve via siyuan.storage; workspace paths go
-        // through the kernel getFile API.
+        // through the kernel getFile API. A missing petal file surfaces from
+        // goja as "open <path>: no such file or directory", which callers like
+        // WriteSafetyLedger treat as absent only when the message matches a
+        // not-found pattern — normalize it to an empty read.
         if (isPetalPath(path)) {
-            const obj = await siyuan.storage.get(petalRelative(path));
-            if (!obj) return '';
-            return await obj.text();
+            try {
+                const obj = await siyuan.storage.get(petalRelative(path));
+                if (!obj) return '';
+                return await obj.text();
+            } catch (error) {
+                if (isMissingFileError(error)) return '';
+                throw error;
+            }
         }
         const resp = await this.doFetch('/api/file/getFile', {
             method: 'POST',
@@ -149,10 +157,15 @@ export class KernelSiYuanClient {
 
     async readFileBinary(path: string): Promise<Uint8Array> {
         if (isPetalPath(path)) {
-            const obj = await siyuan.storage.get(petalRelative(path));
-            if (!obj) return new Uint8Array(0);
-            const ab = await obj.arrayBuffer();
-            return new Uint8Array(ab as ArrayBuffer);
+            try {
+                const obj = await siyuan.storage.get(petalRelative(path));
+                if (!obj) return new Uint8Array(0);
+                const ab = await obj.arrayBuffer();
+                return new Uint8Array(ab as ArrayBuffer);
+            } catch (error) {
+                if (isMissingFileError(error)) return new Uint8Array(0);
+                throw error;
+            }
         }
         const resp = await this.doFetch('/api/file/getFile', {
             method: 'POST',
@@ -203,4 +216,12 @@ function isPetalPath(path: string): boolean {
 
 function petalRelative(path: string): string {
     return path.slice(PETAL_PREFIX.length);
+}
+
+// goja's storage.get throws a Go-flavored message for absent files; the
+// desktop getFile API instead returns an HTTP 202 error envelope. Treat the
+// kernel-side throw as the same "missing" condition.
+function isMissingFileError(error: unknown): boolean {
+    const msg = error instanceof Error ? error.message : String(error);
+    return /no such file or directory|not exist|file does not exist|cannot find/i.test(msg);
 }
