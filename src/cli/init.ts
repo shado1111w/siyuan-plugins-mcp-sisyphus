@@ -57,20 +57,14 @@ export async function runInit(configPath?: string): Promise<void> {
         const apiUrl = (await p.ask('SiYuan API URL [http://127.0.0.1:6806]: ')) || 'http://127.0.0.1:6806';
         const token = await p.ask('SiYuan API token (find it in SiYuan > Settings > About): ');
 
-        let coordinatorUrl = '';
-        try {
-            const kernelHost = new URL(apiUrl).hostname;
-            const loopback = new Set(['127.0.0.1', 'localhost', '0.0.0.0', '::', '[::1]', '::1']);
-            if (!loopback.has(kernelHost)) {
-                coordinatorUrl = (await p.ask('Write-coordinator URL for strict safe writes (optional, e.g. https://mcp.example.com/plugin/private/siyuan-plugins-mcp-sisyphus/mcp; leave empty to auto-detect — the kernel endpoint is used when the plugin enables it): ')).trim();
-            }
-        } catch {
-            // unparseable URL — skip
-        }
         const makeCurrentAnswer = (await p.ask(`Make "${profileName}" the active profile? [Y/n] `)).toLowerCase();
         const makeCurrent = !makeCurrentAnswer || makeCurrentAnswer === 'y' || makeCurrentAnswer === 'yes';
 
-        const config = setProfile(existingFileConfig, profileName, { apiUrl, token, coordinatorUrl: coordinatorUrl || undefined }, { makeCurrent });
+        // coordinatorUrl is intentionally not prompted: for remote/Docker
+        // kernels the kernel endpoint is auto-derived from apiUrl when the
+        // plugin's kernelEndpointEnabled toggle is on. `config set` still
+        // accepts an explicit coordinatorUrl override for exotic setups.
+        const config = setProfile(existingFileConfig, profileName, { apiUrl, token }, { makeCurrent });
         saveNormalizedConfig(config, configPath);
         process.stdout.write('\n');
         writeStatus('success', 'Config written.');
@@ -80,7 +74,6 @@ export async function runInit(configPath?: string): Promise<void> {
             { key: 'current', value: config.currentProfile },
             { key: 'apiUrl', value: apiUrl },
             { key: 'token', value: token ? 'configured' : 'empty' },
-            { key: 'coordinatorUrl', value: coordinatorUrl || 'auto' },
         ]);
         process.stdout.write('\n');
         writeHint('Next', 'Run `siyuan-sisyphus notebook list` to verify the connection, or `siyuan-sisyphus config list` to inspect all profiles.');
