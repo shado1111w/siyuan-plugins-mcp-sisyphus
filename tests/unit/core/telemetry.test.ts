@@ -101,7 +101,7 @@ describe('telemetry', () => {
             expect(payload!.aggregates.avgDurationMs).toBe(200);
             expect(payload!.aggregates.actionBreakdown).toHaveLength(2);
             expect(payload!.aggregates.hourlyDistribution).toHaveLength(24);
-            expect(payload!.aggregates.transportDistribution).toEqual({ cli: 1, stdio: 1, http: 1 });
+            expect(payload!.aggregates.transportDistribution).toEqual({ cli: 1, stdio: 1, http: 1, kernel: 0 });
         });
 
         it('reads from rotated file as well', async () => {
@@ -128,7 +128,7 @@ describe('telemetry', () => {
             });
 
             const payload = await buildTelemetryPayload(client, 0);
-            expect(payload!.aggregates.transportDistribution).toEqual({ cli: 0, stdio: 1, http: 0 });
+            expect(payload!.aggregates.transportDistribution).toEqual({ cli: 0, stdio: 1, http: 0, kernel: 0 });
         });
     });
 

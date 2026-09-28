@@ -1,10 +1,37 @@
 import type { SiYuanClient } from '../api/client';
 import type { ToolConfig } from './config';
 import type { InvocationTransport } from './runtime';
+import { listAllTools } from './tool-registry';
+import { buildServerInstructions } from './server-instructions';
 import {
     APPROX_TOKEN_MODE,
-    calculateMcpInitialTokenCost,
+    approximateTokensFromChars,
 } from './token-usage';
+
+export interface McpInitialTokenCost {
+    mcpInitialChars: number;
+    mcpInitialApproxTokens: number;
+}
+
+/**
+ * Approximate the one-off token cost of mounting the MCP server (instructions +
+ * tool schema list). Lives here rather than in token-usage.ts so that
+ * token-usage stays a pure, dependency-free re-export usable inside the goja
+ * kernel sandbox (which cannot load tool-registry's top-level z.toJSONSchema).
+ */
+export function calculateMcpInitialTokenCost(config: ToolConfig): McpInitialTokenCost {
+    const instructions = buildServerInstructions({
+        userRulesText: config.userRulesText,
+        agentSiyuanMemoryText: config.agentSiyuanMemoryText,
+        agentSiyuanMemoryUpdatedAt: config.agentSiyuanMemoryUpdatedAt,
+    }).trim();
+    const toolsPayload = JSON.stringify({ tools: listAllTools(config) });
+    const totalChars = instructions.length + toolsPayload.length;
+    return {
+        mcpInitialChars: totalChars,
+        mcpInitialApproxTokens: approximateTokensFromChars(totalChars),
+    };
+}
 
 export const ANALYTICS_PATH = '/data/storage/petal/siyuan-plugins-mcp-sisyphus/analytics.jsonl';
 export const ANALYTICS_ROTATED_PATH = '/data/storage/petal/siyuan-plugins-mcp-sisyphus/analytics.jsonl.1';
@@ -68,7 +95,7 @@ export function truncateAnalyticsText(text: string | undefined | null): { text: 
 }
 
 export function normalizeAnalyticsTransport(value: unknown): InvocationTransport {
-    if (value === 'cli' || value === 'http') {
+    if (value === 'cli' || value === 'http' || value === 'kernel') {
         return value;
     }
     return 'stdio';
@@ -79,6 +106,7 @@ export function createTransportDistribution(): Record<InvocationTransport, numbe
         cli: 0,
         stdio: 0,
         http: 0,
+        kernel: 0,
     };
 }
 

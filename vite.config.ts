@@ -281,6 +281,17 @@ function createKernelConfig() {
     // no DOM, no module system — the siyuan.* globals are injected by the host.
     // Node builtin imports are aliased to kernel-compatible shims.
     const kernelShimPath = resolve(__dirname, "src/kernel/node-shims.ts");
+    // Bake the static tool schemas at build time. The manifest module uses
+    // TOOL_REGISTRY + z.toJSONSchema, which is Node-only — so it runs in this
+    // plugin (Node host), writes plain JSON, and kernel.js embeds that JSON.
+    const kernelSchemaCodegen = {
+        name: "kernel-schema-codegen",
+        async buildStart() {
+            const { generateKernelSchemas } = await import("./scripts/gen-kernel-schemas.mjs");
+            const count = await generateKernelSchemas();
+            this.info("kernel-schema-codegen: embedded " + count + " tool schemas");
+        },
+    };
     const kernelNodeShimPlugin = {
         name: "kernel-node-shims",
         enforce: "pre" as const,
@@ -308,7 +319,7 @@ function createKernelConfig() {
                 "@": resolve(__dirname, "src"),
             },
         },
-        plugins: [kernelNodeShimPlugin],
+        plugins: [kernelSchemaCodegen, kernelNodeShimPlugin],
         define: {
             "process.env.DEV_MODE": JSON.stringify(isDev),
             "process.env.NODE_ENV": JSON.stringify(env.NODE_ENV),

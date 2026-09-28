@@ -21,6 +21,7 @@ const FEEDBACK_SOURCE_OPTIONS = {
     cli: { value: 'CLI' },
     stdio: { value: 'STDIO' },
     http: { value: 'HTTP' },
+    kernel: { value: 'Kernel' },
 } as const;
 
 type FeedbackSource = keyof typeof FEEDBACK_SOURCE_OPTIONS;
@@ -132,12 +133,15 @@ export function resolveFeedbackSource(source?: string): FeedbackSource {
     if (normalized === 'http') {
         return 'http';
     }
+    if (normalized === 'kernel') {
+        return 'kernel';
+    }
     if (normalized === 'stdio') {
         return 'stdio';
     }
 
     const transport = getInvocationTransport();
-    if (transport === 'cli' || transport === 'http') {
+    if (transport === 'cli' || transport === 'http' || transport === 'kernel') {
         return transport;
     }
     return 'stdio';

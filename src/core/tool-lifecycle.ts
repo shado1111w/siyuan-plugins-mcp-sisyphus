@@ -113,7 +113,9 @@ async function persistAnalyticsEvent(
     event: Parameters<typeof appendAnalyticsEvent>[1],
 ): Promise<void> {
     const task = appendAnalyticsEvent(client, event).catch(() => { /* never block on analytics */ });
-    if (getInvocationTransport() === 'cli') {
+    // cli and the goja kernel run each call to completion then the host may
+    // reclaim the realm — fire-and-forget writes there can be dropped. Await.
+    if (getInvocationTransport() === 'cli' || getInvocationTransport() === 'kernel') {
         await task;
     }
 }

@@ -20,11 +20,20 @@
 import './polyfill';
 declare const siyuan: any;
 
+// Runs inside the kernel goja sandbox; mark the transport so the shared
+// lifecycle (analytics/puppy/token) tags these calls and awaits storage writes.
+process.env.SIYUAN_MCP_TRANSPORT = 'kernel';
+
 import { KernelSiYuanClient } from './client';
 import { PermissionManager } from '../core/permissions';
 import { WriteSafetyCoordinator } from '../core/write-safety-coordinator';
 import { buildDefaultToolConfig } from '../core/config';
+import { runToolCall } from '../core/tool-lifecycle';
+import { translateError } from '../tools/internal/errorTranslation';
 import type { ToolResult } from '../tools/internal/shared';
+// Plain JSON baked at build time by scripts/gen-kernel-schemas.mjs — the goja
+// sandbox never runs z.toJSONSchema; it only embeds this static data.
+import kernelSchemas from './generated/kernel-schemas.json';
 
 import { NOTEBOOK_ACTION_HANDLERS } from '../tools/notebook/handlers';
 import { FS_ACTION_HANDLERS } from '../tools/fs/handlers';
@@ -35,10 +44,10 @@ import { SEARCH_ACTION_HANDLERS } from '../tools/search/handlers';
 import { SYSTEM_ACTION_HANDLERS } from '../tools/system/handlers';
 import { FLASHCARD_ACTION_HANDLERS } from '../tools/flashcard/handlers';
 import { createFileActionHandlers, DEFAULT_LARGE_UPLOAD_THRESHOLD_MB } from '../tools/file/handlers';
-import { TAG_ACTION_HANDLERS } from '../tools/tag/index';
-import { TIMELINE_ACTION_HANDLERS } from '../tools/timeline/index';
-import { MASCOT_ACTION_HANDLERS } from '../tools/mascot/index';
-import { FEEDBACK_ACTION_HANDLERS } from '../tools/feedback/index';
+import { TAG_ACTION_HANDLERS } from '../tools/tag/handlers';
+import { TIMELINE_ACTION_HANDLERS } from '../tools/timeline/handlers';
+import { MASCOT_ACTION_HANDLERS } from '../tools/mascot/handlers';
+import { FEEDBACK_ACTION_HANDLERS } from '../tools/feedback/handlers';
 
 const CONFIG_PATH = 'mcpHttpSettings';
 const PLUGIN_NAME = 'siyuan-plugins-mcp-sisyphus';
@@ -137,30 +146,190 @@ const TOOL_TO_CATEGORY: Record<string, string> = {
     system: 'system', flashcard: 'flashcard', extension: 'extension', mascot: 'mascot', feedback: 'feedback',
 };
 
+/*
+ * Serialize storage writes inside the kernel realm. The desktop server appends
+ * analytics.jsonl from a single Node process; the kernel serves every request
+ * on the same goja handler, so concurrent tools/call could interleave their
+ * read-modify-write and clobber the file. A module-level promise chain keeps
+ * writes ordered without needing any host lock primitive.
+ */
+let kernelStorageQueue: Promise<unknown> = Promise.resolve();
+function enqueueKernelWork<T>(fn: () => Promise<T>): Promise<T> {
+    const next = kernelStorageQueue.then(fn, fn);
+    kernelStorageQueue = next.catch(() => { /* keep the chain alive */ });
+    return next;
+}
+
+const OFFICIAL_MCP_PROTOCOL = '2025-03-26';
+let officialSessionId: string | null = null;
+let officialSessionInit: Promise<string> | null = null;
+
+function headerValue(headers: unknown, name: string): string | null {
+    if (!headers || typeof headers !== 'object') return null;
+    const want = name.toLowerCase();
+    for (const [key, val] of Object.entries(headers as Record<string, unknown>)) {
+        if (key.toLowerCase() !== want) continue;
+        if (Array.isArray(val)) return typeof val[0] === 'string' ? val[0] : null;
+        return typeof val === 'string' ? val : null;
+    }
+    return null;
+}
+
+async function rawMcpPost(body: Record<string, unknown>, sessionId?: string): Promise<{ resp: any; raw: string }> {
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream',
+    };
+    if (sessionId) headers['Mcp-Session-Id'] = sessionId;
+    const resp = await siyuan.client.fetch('/mcp', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+    });
+    let raw = '';
+    try { raw = typeof resp?.text === 'function' ? await resp.text() : ''; } catch { raw = ''; }
+    if (raw === '' && typeof resp?.json === 'function') {
+        try { raw = JSON.stringify(await resp.json()); } catch { raw = ''; }
+    }
+    return { resp, raw };
+}
+
+async function openOfficialSession(): Promise<string> {
+    const { resp, raw } = await rawMcpPost({
+        jsonrpc: '2.0', id: 'init', method: 'initialize',
+        params: { protocolVersion: OFFICIAL_MCP_PROTOCOL, capabilities: {}, clientInfo: { name: 'siyuan-sisyphus-kernel', version: '1.0.0' } },
+    });
+    const sid = headerValue(resp?.headers, 'mcp-session-id');
+    if (!sid) throw new Error('kernel /mcp initialize did not return Mcp-Session-Id. body=' + String(raw).slice(0, 200));
+    try {
+        await rawMcpPost({ jsonrpc: '2.0', method: 'notifications/initialized' }, sid);
+    } catch { /* best-effort */ }
+    return sid;
+}
+
+async function ensureOfficialSession(): Promise<string> {
+    if (officialSessionId) return officialSessionId;
+    if (!officialSessionInit) {
+        officialSessionInit = openOfficialSession()
+            .then((sid) => { officialSessionId = sid; return sid; })
+            .finally(() => { officialSessionInit = null; });
+    }
+    return officialSessionInit;
+}
+
+/*
+ * Stateful MCP-over-HTTP pass-through to the kernel's own /mcp endpoint.
+ * SiYuan's /mcp runs the official StreamableHTTP handler in STATEFUL mode —
+ * a bare tools/call POST is rejected. Run initialize -> Mcp-Session-Id ->
+ * notifications/initialized -> method. Session id is cached module-wide and
+ * rebuilt transparently when the kernel drops it.
+ */
+async function forwardOfficialMcp(method: string, params: Record<string, unknown>): Promise<unknown> {
+    const attempt = async (): Promise<unknown> => {
+        const sid = await ensureOfficialSession();
+        const { raw } = await rawMcpPost({ jsonrpc: '2.0', id: 1, method, params }, sid);
+        const payload = extractJsonRpcPayload(raw);
+        if (payload === null || payload === undefined) {
+            throw new Error('empty/unparseable /mcp response: ' + String(raw).slice(0, 200));
+        }
+        return payload && typeof payload === 'object' && 'data' in (payload as Record<string, unknown>)
+            ? (payload as { data: unknown }).data
+            : payload;
+    };
+    try {
+        return await attempt();
+    } catch (first) {
+        officialSessionId = null;
+        try {
+            return await attempt();
+        } catch (second) {
+            return { isError: true, content: [{ type: 'text', text: JSON.stringify({ success: false, error: { code: 'forward_error', message: second instanceof Error ? second.message : String(second) } }) }] };
+        }
+    }
+}
+
+function extractJsonRpcPayload(raw: string): unknown {
+    const text = (raw ?? '').trim();
+    if (text === '') return null;
+    try {
+        return JSON.parse(text);
+    } catch {
+        // SSE stream: take the last data: line.
+        let last: string | null = null;
+        for (const line of text.split('\n')) {
+            const t = line.trim();
+            if (t.startsWith('data:')) last = t.slice(5).trim();
+        }
+        if (last) {
+            try { return JSON.parse(last); } catch { return null; }
+        }
+        return null;
+    }
+}
+
+function isActionEnabled(cfg: any, category: string, action: string): boolean {
+    const actions = cfg?.[category]?.actions;
+    if (!actions || typeof actions !== 'object') return true;
+    const flag = actions[action];
+    return flag !== false;
+}
+
 async function callTool(name: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const { client: c, permMgr: pm, coordinator: coord, config: cfg, handlerMap: hm } = await ensureRuntime();
     const category = TOOL_TO_CATEGORY[name];
-    const handlers = category ? hm[category] : undefined;
     const action = typeof args?.action === 'string' ? args.action : '';
-    const handler = handlers?.[action];
     const errResult = (code: string, message: string): Record<string, unknown> => ({
         isError: true,
         content: [{ type: 'text', text: JSON.stringify({ success: false, error: { code, message } }) }],
     });
+
+    // extension tools are registered dynamically on the kernel /mcp endpoint;
+    // there is no static handler map for them, forward instead.
+    if (category === 'extension') {
+        const forwarded = await forwardOfficialMcp('tools/call', { name: action || name, arguments: args?.arguments ?? {} });
+        return (forwarded ?? { isError: true, content: [{ type: 'text', text: '{}' }] }) as Record<string, unknown>;
+    }
+
+    const handlers = category ? hm[category] : undefined;
+    const handler = handlers?.[action];
     if (!category || !handlers) return errResult('unknown_tool', `Unknown tool '${name}'`);
     if (!action || !handler) return errResult('unknown_action', `Unknown action '${action}' on tool '${name}'`);
+    if (!isActionEnabled(cfg, category, action)) {
+        return errResult('action_disabled', `Action '${action}' on tool '${name}' is disabled in Sisyphus settings.`);
+    }
 
     const strictMode = !!cfg?.writeSafety?.strictMode;
-    const result = await coord.run({
-        client: c as any,
-        permMgr: pm,
-        category: category as any,
-        action,
-        args: args ?? {},
-        strictMode,
-        execute: (safeArgs) => handler({ client: c, rawArgs: safeArgs, permMgr: pm }),
-    });
-    return toolResultToMcp(result);
+    // Route through the shared tool lifecycle so analytics / token metering /
+    // puppy events / slim responses behave identically to the desktop server.
+    const result = await enqueueKernelWork(() =>
+        runToolCall(
+            {
+                client: c as any,
+                category: category as any,
+                name,
+                action,
+                args,
+                slimResponses: cfg?.debug?.slimResponses,
+            },
+            () => coord.run({
+                client: c as any,
+                permMgr: pm,
+                category: category as any,
+                action,
+                args: args ?? {},
+                strictMode,
+                execute: (safeArgs) => handler({ client: c, rawArgs: safeArgs, permMgr: pm }),
+            }),
+        ).catch((error) => {
+            const translated = translateError(error instanceof Error ? error : new Error(String(error)));
+            const message = translated ? `${translated.code}: ${translated.hint}` : (error instanceof Error ? error.message : String(error));
+            return {
+                isError: true,
+                content: [{ type: 'text', text: JSON.stringify({ success: false, error: { code: translated?.code ?? 'handler_error', message } }) }],
+            } as ToolResult;
+        }),
+    );
+    return toolResultToMcp(result as ToolResult);
 }
 
 /* ---------- MCP method router ---------- */
@@ -188,10 +357,27 @@ async function handleMcp(request: any): Promise<any> {
         case 'ping':
             return jsonRpcResult(id, {});
         case 'tools/list': {
-            const { handlerMap: hm, config: cfg } = await ensureRuntime();
-            const tools = Object.keys(TOOL_TO_CATEGORY)
-                .filter((n) => hm[TOOL_TO_CATEGORY[n]] && (cfg?.[TOOL_TO_CATEGORY[n]]?.enabled !== false))
-                .map((n) => ({ name: n, description: `Sisyphus ${n} operations (kernel endpoint)` }));
+            const { config: cfg } = await ensureRuntime();
+            // Static categories come from the build-time schema manifest
+            // (plain JSON — no zod reflection in the sandbox). Filter by the
+            // per-category enabled flag just like the desktop listTools does.
+            const tools = (kernelSchemas?.tools ?? [])
+                .filter((t: any) => cfg?.[TOOL_TO_CATEGORY[t.name]]?.enabled !== false)
+                .map((t: any) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema }));
+            // extension tools are runtime-discovered; surface them live from
+            // the kernel /mcp endpoint so clients see the full set. A discovery
+            // failure must not break the static list.
+            try {
+                const ext = await forwardOfficialMcp('tools/list', {}) as any;
+                const extTools = ext?.result?.tools ?? ext?.tools;
+                if (cfg?.extension?.enabled !== false && Array.isArray(extTools)) {
+                    for (const t of extTools) {
+                        if (t && typeof t.name === 'string') {
+                            tools.push({ name: t.name, description: t.description, inputSchema: t.inputSchema });
+                        }
+                    }
+                }
+            } catch { /* extension bridge unavailable — static list stands */ }
             return jsonRpcResult(id, { tools });
         }
         case 'tools/call': {
