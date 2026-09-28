@@ -15,39 +15,43 @@ export async function callCliWriteCoordinator(
         );
     }
 
-    const client = new Client(
-        { name: 'siyuan-sisyphus-cli-write-coordinator', version: '1.0.0' },
-        { capabilities: {} },
-    );
-    const transport = new StreamableHTTPClientTransport(new URL(settings.url), {
-        ...(settings.token ? {
-            authProvider: { token: async () => settings.token! },
-        } : {}),
-        reconnectionOptions: { maxReconnectionDelay: 0, initialReconnectionDelay: 0, reconnectionDelayGrowFactor: 1, maxRetries: 0 },
-    });
-    try {
-        await client.connect(transport);
-        const result = await client.callTool({ name, arguments: args });
-        const content = result.content
-            .filter((item): item is Extract<typeof item, { type: 'text' }> => item.type === 'text')
-            .map((item) => ({ type: 'text' as const, text: item.text }));
-        return {
-            content: content.length > 0
-                ? content
-                : [{ type: 'text', text: JSON.stringify(result.structuredContent ?? {}) }],
-            ...(result.isError ? { isError: true } : {}),
-            ...(result.structuredContent && typeof result.structuredContent === 'object'
-                ? { structuredContent: result.structuredContent as Record<string, unknown> }
-                : {}),
-        };
-    } catch (error) {
-        return failure(
-            'write_coordinator_unavailable',
-            `Could not call the plugin write coordinator: ${error instanceof Error ? error.message : String(error)}`,
+    let lastError: unknown;
+    for (const endpoint of settings.endpoints) {
+        const client = new Client(
+            { name: 'siyuan-sisyphus-cli-write-coordinator', version: '1.0.0' },
+            { capabilities: {} },
         );
-    } finally {
-        await client.close().catch(() => {});
+        const transport = new StreamableHTTPClientTransport(new URL(endpoint.url), {
+            ...(endpoint.token ? {
+                authProvider: { token: async () => endpoint.token! },
+            } : {}),
+            reconnectionOptions: { maxReconnectionDelay: 0, initialReconnectionDelay: 0, reconnectionDelayGrowFactor: 1, maxRetries: 0 },
+        });
+        try {
+            await client.connect(transport);
+            const result = await client.callTool({ name, arguments: args });
+            const content = result.content
+                .filter((item): item is Extract<typeof item, { type: 'text' }> => item.type === 'text')
+                .map((item) => ({ type: 'text' as const, text: item.text }));
+            return {
+                content: content.length > 0
+                    ? content
+                    : [{ type: 'text', text: JSON.stringify(result.structuredContent ?? {}) }],
+                ...(result.isError ? { isError: true } : {}),
+                ...(result.structuredContent && typeof result.structuredContent === 'object'
+                    ? { structuredContent: result.structuredContent as Record<string, unknown> }
+                    : {}),
+            };
+        } catch (error) {
+            lastError = error;
+        } finally {
+            await client.close().catch(() => {});
+        }
     }
+    return failure(
+        'write_coordinator_unavailable',
+        `Could not call the plugin write coordinator: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+    );
 }
 
 function failure(code: string, message: string): ToolResult {

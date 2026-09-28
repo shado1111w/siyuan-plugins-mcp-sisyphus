@@ -1,5 +1,4 @@
-import fs from 'node:fs';
-import path from 'node:path';
+import { nodeFs, nodePath } from '../../core/node-loader';
 import type { SiYuanClient } from '../../api/client';
 import * as fileApi from '../../api/file';
 import * as templateApi from '../../api/template';
@@ -141,11 +140,11 @@ function normalizeResourcePaths(paths: string[]): string[] {
 }
 
 function resolveLocalOutputPath(outputPath: string): string {
-    return path.isAbsolute(outputPath) ? outputPath : path.resolve(process.cwd(), outputPath);
+    return nodePath().isAbsolute(outputPath) ? outputPath : nodePath().resolve(process.cwd(), outputPath);
 }
 
 function resolveLocalInputPath(inputPath: string): string {
-    return path.isAbsolute(inputPath) ? inputPath : path.resolve(process.cwd(), inputPath);
+    return nodePath().isAbsolute(inputPath) ? inputPath : nodePath().resolve(process.cwd(), inputPath);
 }
 
 function isWorkspaceTemplatePathError(error: unknown): error is Error {
@@ -191,7 +190,7 @@ function isTemplateNotFoundError(error: unknown): boolean {
 }
 
 function getTemplateName(relativePath: string): string {
-    return path.basename(relativePath).replace(/\.md$/i, '');
+    return nodePath().basename(relativePath).replace(/\.md$/i, '');
 }
 
 function buildTemplateListItem(item: { path: string; content: string }) {
@@ -251,10 +250,10 @@ const handleUploadAsset = (thresholdMB: number, largeUploadThresholdBytes: numbe
     async ({ client, rawArgs }) => {
         const parsed = FileUploadAssetSchema.parse(rawArgs);
         const localFilePath = resolveLocalInputPath(parsed.localFilePath);
-        if (!fs.existsSync(localFilePath)) {
+        if (!nodeFs().existsSync(localFilePath)) {
             throw new Error(`Local file does not exist: ${localFilePath}`);
         }
-        const stat = fs.statSync(localFilePath);
+        const stat = nodeFs().statSync(localFilePath);
         if (!stat.isFile()) {
             throw new Error(`Local file path must point to a regular file: ${localFilePath}`);
         }
@@ -270,8 +269,8 @@ const handleUploadAsset = (thresholdMB: number, largeUploadThresholdBytes: numbe
                 message: `File exceeds the large-upload safety threshold (${thresholdMB} MB). Stop the current operation and ask the user for explicit confirmation before retrying with confirmLargeFile=true.`,
             });
         }
-        const fileName = path.basename(localFilePath);
-        const fileBytes = fs.readFileSync(localFilePath);
+        const fileName = nodePath().basename(localFilePath);
+        const fileBytes = nodeFs().readFileSync(localFilePath);
         const result = await fileApi.uploadAsset(client, parsed.assetsDirPath, fileBytes, fileName);
         return createJsonResult({
             ...result,
@@ -710,8 +709,8 @@ const handleExportResources: ToolActionHandler = async ({ client, rawArgs }) => 
     if (parsed.outputPath) {
         const localOutputPath = resolveLocalOutputPath(parsed.outputPath);
         const binary = await client.readFileBinary(result.path);
-        fs.mkdirSync(path.dirname(localOutputPath), { recursive: true });
-        fs.writeFileSync(localOutputPath, binary);
+        nodeFs().mkdirSync(nodePath().dirname(localOutputPath), { recursive: true });
+        nodeFs().writeFileSync(localOutputPath, binary);
         return createJsonResult({
             ...result,
             outputPath: localOutputPath,
@@ -872,19 +871,19 @@ const handleExtractDoc: ToolActionHandler = async ({ client, rawArgs }) => {
 
     const homeDir = process.env.USERPROFILE || process.env.HOME || '';
     const outputRoot = parsed.outputDir
-        ? path.resolve(parsed.outputDir)
-        : path.join(homeDir, 'siyuan-extracted');
+        ? nodePath().resolve(parsed.outputDir)
+        : nodePath().join(homeDir, 'siyuan-extracted');
     const defaultOutputDirUsed = !parsed.outputDir;
-    const targetDir = path.join(outputRoot, folderName);
-    const assetsDir = path.join(targetDir, 'assets');
+    const targetDir = nodePath().join(outputRoot, folderName);
+    const assetsDir = nodePath().join(targetDir, 'assets');
 
-    if (fs.existsSync(outputRoot)) {
-        fs.rmSync(outputRoot, { recursive: true, force: true });
+    if (nodeFs().existsSync(outputRoot)) {
+        nodeFs().rmSync(outputRoot, { recursive: true, force: true });
     }
-    fs.mkdirSync(assetsDir, { recursive: true });
+    nodeFs().mkdirSync(assetsDir, { recursive: true });
 
-    const docMdPath = path.join(targetDir, `${docName}.md`);
-    fs.writeFileSync(docMdPath, markdown, 'utf-8');
+    const docMdPath = nodePath().join(targetDir, `${docName}.md`);
+    nodeFs().writeFileSync(docMdPath, markdown, 'utf-8');
 
     const assetRefs = [...markdown.matchAll(/\]\(assets\/([^\s)"']+)(?:\s+"[^"]*")?\)/g)];
     const structure = [`${docName}.md`];
@@ -893,12 +892,12 @@ const handleExtractDoc: ToolActionHandler = async ({ client, rawArgs }) => {
 
     for (const match of assetRefs) {
         const assetRelPath = match[1];
-        const assetFullPath = path.join(assetsDir, assetRelPath);
+        const assetFullPath = nodePath().join(assetsDir, assetRelPath);
 
         try {
-            fs.mkdirSync(path.dirname(assetFullPath), { recursive: true });
+            nodeFs().mkdirSync(nodePath().dirname(assetFullPath), { recursive: true });
             const data = await client.readFileBinary(`data/assets/${assetRelPath}`);
-            fs.writeFileSync(assetFullPath, data);
+            nodeFs().writeFileSync(assetFullPath, data);
             structure.push(`assets/${assetRelPath}`);
             extractedCount++;
         } catch {

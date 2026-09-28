@@ -955,5 +955,10 @@
     "extension_include_native_desc": "<strong>⚠️ Security boundary:</strong> When enabled, native tools execute with the current SiYuan administrator session or API Token and bypass Sisyphus notebook permissions, disabled actions, and dangerous-action confirmation, so they may read or modify all workspace data accessible to that identity.",
     "extension_source_plugin": "Plugin",
     "extension_source_native": "SiYuan native",
-    "extension_exposed_count": "exposed"
+    "extension_exposed_count": "exposed",
+    "kernelEndpointTitle": "Kernel endpoint",
+    "kernelEndpointDesc": "Serve the write coordinator from inside the kernel via /plugin/private/<plugin>/mcp. Useful on Docker and remote deployments where a separate MCP port cannot be opened.",
+    "kernelEndpointEnabled": "Enable",
+    "kernelEndpointHint": "Shares the kernel's own port — no extra listener or firewall rule needed. Remote CLIs auto-detect it when enabled. Takes effect immediately (no restart).",
+    "kernelEndpointDockerHint": "On Docker/browser the standalone HTTP server is unavailable — enable the Kernel endpoint below to host the write coordinator on the kernel port instead."
 }

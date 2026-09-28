@@ -8,6 +8,7 @@ import {
     FeedbackSubmitSchema,
 } from '../../core/types';
 import { defineTool } from '../internal/define-tool';
+import type { ToolActionHandler } from '../internal/define-tool';
 import { createJsonResult, createZodActionVariant, type ActionVariant, type ToolResult } from '../internal/shared';
 
 export const FEEDBACK_TOOL_NAME = 'feedback';
@@ -16,16 +17,7 @@ export const FEEDBACK_VARIANTS: ActionVariant<FeedbackAction>[] = [
     createZodActionVariant('submit', FeedbackSubmitSchema, 'Submit plain-text GitHub Issue-style feedback to the developer.'),
 ];
 
-const feedbackTool = defineTool<FeedbackAction>({
-    name: FEEDBACK_TOOL_NAME,
-    description: '💬 Submit plain-text GitHub Issue-style feedback, suggestions, or experience reports to the plugin developer.',
-    variants: FEEDBACK_VARIANTS,
-    actionSchema: FeedbackActionSchema,
-    aggregateOptions: {
-        guidance: FEEDBACK_GUIDANCE,
-        actionHints: FEEDBACK_ACTION_HINTS,
-    },
-    handlers: {
+export const FEEDBACK_ACTION_HANDLERS: Record<FeedbackAction, ToolActionHandler> = {
         submit: async ({ rawArgs }) => {
             const parsed = FeedbackSubmitSchema.parse(rawArgs);
             const result = await submitFeedback({
@@ -40,7 +32,18 @@ const feedbackTool = defineTool<FeedbackAction>({
                 ...result,
             });
         },
+};
+
+const feedbackTool = defineTool<FeedbackAction>({
+    name: FEEDBACK_TOOL_NAME,
+    description: '💬 Submit plain-text GitHub Issue-style feedback, suggestions, or experience reports to the plugin developer.',
+    variants: FEEDBACK_VARIANTS,
+    actionSchema: FeedbackActionSchema,
+    aggregateOptions: {
+        guidance: FEEDBACK_GUIDANCE,
+        actionHints: FEEDBACK_ACTION_HINTS,
     },
+    handlers: FEEDBACK_ACTION_HANDLERS,
 });
 
 export function listFeedbackTools(config: CategoryToolConfig<FeedbackAction>) {

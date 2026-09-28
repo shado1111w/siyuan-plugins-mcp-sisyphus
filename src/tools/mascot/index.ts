@@ -10,6 +10,7 @@ import {
     MascotShopSchema,
 } from '../../core/types';
 import { defineTool } from '../internal/define-tool';
+import type { ToolActionHandler } from '../internal/define-tool';
 import { createJsonResult, createZodActionVariant, type ActionVariant, type ToolResult } from '../internal/shared';
 
 export const MASCOT_TOOL_NAME = 'mascot';
@@ -35,16 +36,7 @@ export const MASCOT_VARIANTS: ActionVariant<MascotAction>[] = [
     createZodActionVariant('buy', MascotBuySchema, 'Buy one item from the mascot shop.'),
 ];
 
-const mascotTool = defineTool<MascotAction>({
-    name: 'mascot',
-    description: '🐾 Grouped mascot balance and care operations. Every successful MCP tool call earns 1 coin for the mascot.',
-    variants: MASCOT_VARIANTS,
-    actionSchema: MascotActionSchema,
-    aggregateOptions: {
-        guidance: MASCOT_GUIDANCE,
-        actionHints: MASCOT_ACTION_HINTS,
-    },
-    handlers: {
+export const MASCOT_ACTION_HANDLERS: Record<MascotAction, ToolActionHandler> = {
         get_balance: async ({ client, rawArgs }) => {
             MascotGetBalanceSchema.parse(rawArgs);
             const stats = await readPuppyStats(client);
@@ -84,7 +76,18 @@ const mascotTool = defineTool<MascotAction>({
                 totalEarned: stats.totalCalls,
             });
         },
+};
+
+const mascotTool = defineTool<MascotAction>({
+    name: 'mascot',
+    description: '🐾 Grouped mascot balance and care operations. Every successful MCP tool call earns 1 coin for the mascot.',
+    variants: MASCOT_VARIANTS,
+    actionSchema: MascotActionSchema,
+    aggregateOptions: {
+        guidance: MASCOT_GUIDANCE,
+        actionHints: MASCOT_ACTION_HINTS,
     },
+    handlers: MASCOT_ACTION_HANDLERS,
 });
 
 export function listMascotTools(config: CategoryToolConfig<MascotAction>) {

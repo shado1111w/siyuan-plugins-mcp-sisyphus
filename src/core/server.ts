@@ -10,6 +10,7 @@ import { buildDefaultToolConfig, isDangerousAction, loadToolConfigFromApiFileWit
 import { WriteSafetyCoordinator } from './write-safety-coordinator';
 import { getActionSafetyPolicy } from './write-safety-policy';
 import { callCliWriteCoordinator } from '../cli/write-coordinator';
+import { deriveKernelEndpointUrl } from '../cli/runtime';
 import type { CliWriteCoordinatorSettings } from '../cli/runtime';
 import { noopSchemaValidator } from './noops/noop-schema-validator';
 import { OfficialMcpBridge, type OfficialMcpRuntime } from './official-mcp-bridge';
@@ -121,7 +122,12 @@ async function loadRemoteWriteCoordinatorSettings(client: SiYuanClient): Promise
         const port = typeof raw.port === 'number' ? raw.port : 36806;
         const scheme = raw.tlsEnabled === true ? 'https' : 'http';
         const token = raw.authEnabled === true && typeof raw.token === 'string' ? raw.token : undefined;
-        return { url: `${scheme}://${host}:${port}/mcp`, token };
+        const endpoints = [{ url: `${scheme}://${host}:${port}/mcp`, token }];
+        if (raw.kernelEndpointEnabled === true) {
+            const kernelUrl = deriveKernelEndpointUrl(client.getBaseUrl());
+            if (kernelUrl) endpoints.push({ url: kernelUrl, token: process.env.SIYUAN_TOKEN });
+        }
+        return { endpoints };
     } catch {
         return undefined;
     }
