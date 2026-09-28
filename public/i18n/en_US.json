@@ -988,5 +988,6 @@
     "kernelEndpointTitle": "Kernel endpoint",
     "kernelEndpointDesc": "Serve the write coordinator from inside the kernel via /plugin/private/<plugin>/mcp. Required for strict safe writes on Docker and remote deployments where a separate MCP port cannot be opened.",
     "kernelEndpointEnabled": "Enable",
-    "kernelEndpointHint": "Shares the kernel's own port — no extra listener or firewall rule needed. When enabled, remote CLIs auto-detect it for strict safe writes. Takes effect immediately (no restart)."
+    "kernelEndpointHint": "Shares the kernel's own port — no extra listener or firewall rule needed. When enabled, remote CLIs auto-detect it for strict safe writes. Takes effect immediately (no restart).",
+    "kernelEndpointDockerHint": "On Docker/browser, the Kernel endpoint below is the recommended way to reach the write coordinator — no separate port needed."
 }

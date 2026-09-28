@@ -988,5 +988,6 @@
     "kernelEndpointTitle": "内核端点",
     "kernelEndpointDesc": "通过内核的 /plugin/private/<plugin>/mcp 路由提供写入协调器。Docker 与远程部署无法开放独立 MCP 端口时，用它支撑严格安全写入。",
     "kernelEndpointEnabled": "启用",
-    "kernelEndpointHint": "复用内核自身的端口，无需额外监听或防火墙规则。启用后远程 CLI 会自动探测用于严格安全写入，立即生效（无需重启）。"
+    "kernelEndpointHint": "复用内核自身的端口，无需额外监听或防火墙规则。启用后远程 CLI 会自动探测用于严格安全写入，立即生效（无需重启）。",
+    "kernelEndpointDockerHint": "Docker / 浏览器环境下，下方的「内核端点」是接入写入协调器的推荐方式，无需额外端口。"
 }
