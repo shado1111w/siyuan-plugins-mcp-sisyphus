@@ -1,7 +1,7 @@
 import { normalizeAvIdArgs } from './argument-aliases';
 import { withAvIdWarning } from '../tools/internal/av-id-warning';
 import { verifyAvCellsReadback } from './av-cell-readback';
-import fs from 'node:fs';
+import { nodeFs } from './node-loader';
 
 import type { SiYuanClient } from '../api/client';
 import { WriteOutcomeUnknownError } from '../api/client';
@@ -563,7 +563,7 @@ async function probeCurrentState(
     if (policy.precondition === 'source') {
         const localFilePath = typeof args.localFilePath === 'string' ? args.localFilePath : '';
         if (!localFilePath) throw safetyError('precondition_required', 'localFilePath is required to fingerprint the upload source.');
-        const bytes = await fs.promises.readFile(localFilePath);
+        const bytes = await nodeFs().promises.readFile(localFilePath);
         return {
             hash: hashWriteBytes(bytes),
             targetIds: [localFilePath],

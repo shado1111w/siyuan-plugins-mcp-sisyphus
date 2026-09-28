@@ -85,6 +85,11 @@ function createRendererConfig() {
         resolve: {
             alias: {
                 "@": resolve(__dirname, "src"),
+                // Node builtins only run in the MCP server / CLI / plugin
+                // CJS runtime; stub them for the renderer bundle.
+                "node:fs": resolve(__dirname, "src/core/node-browser-stub.ts"),
+                "node:path": resolve(__dirname, "src/core/node-browser-stub.ts"),
+                "node:crypto": resolve(__dirname, "src/core/node-browser-stub.ts"),
             },
         },
         plugins: [

@@ -304,7 +304,7 @@
         },
         {
             category: "dailynote",
-            icon: "�=",
+            icon: "📔",
             groupKey: "Daily Notes",
             iconSvg: ICON_SVGS.compass,
             actions: [
@@ -317,6 +317,7 @@
                 { key: "delete", title: "Delete Daily Note", description: "Delete the daily note for a given date. Requires confirmation." },
             ],
         },
+        {
             category: "feedback",
             icon: "💬",
             groupKey: "Feedback Tool",

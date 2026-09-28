@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { nodeFs } from '../../core/node-loader';
 import type { SiYuanClient } from '../../api/client';
 import * as notificationApi from '../../api/notification';
 import * as systemApi from '../../api/system';
@@ -257,7 +257,7 @@ function loadCatalog(): Record<string, CatalogEntry> {
     ];
     for (const u of candidates) {
         try {
-            const raw = JSON.parse(readFileSync(u, 'utf-8')) as { endpoints?: Record<string, CatalogEntry> };
+            const raw = JSON.parse(nodeFs().readFileSync(u, 'utf-8')) as { endpoints?: Record<string, CatalogEntry> };
             catalogCache = raw.endpoints ?? {};
             return catalogCache;
         } catch { }
