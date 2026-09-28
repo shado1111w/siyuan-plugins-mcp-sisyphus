@@ -1,0 +1,3 @@
+```json
+{"status":"failed","commands_used":"","output_summary":"Unable to execute the required local SiYuan CLI: this session has no shell execution tool, and graphical Terminal access is blocked by the computer-use safety policy. No note content was created or changed.","next_step":"Run the requested CLI workflow from the project root in a terminal-enabled session, or grant a shell-capable tool."}
+```

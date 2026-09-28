@@ -1,0 +1,5 @@
+I couldn’t execute the required SiYuan CLI: the available environment exposes no shell tool, and terminal access through the computer-control interface is blocked by its safety policy. I therefore couldn’t query the database or reliably report matched row names.
+
+```json
+{"status":"failed","commands_used":"Attempted to access a terminal via the available computer-control interface; no CLI command could be run.","output_summary":"No query was executed. Terminal apps (Ghostty and Terminal) were blocked by the environment's safety policy.","next_step":"Run the documented CLI commands in a terminal with shell access, beginning by reading cli/dist/skills/siyuan-sisyphus/siyuan-sisyphus/SKILL.md and then av help/query help to obtain the exact --filter-json shape."}
+```

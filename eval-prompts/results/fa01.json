@@ -1,0 +1,16 @@
+Verified successfully: `file export-md --with-frontmatter` returned Markdown beginning with:
+
+```yaml
+---
+custom-export-check: frontmatter-verified
+id: 20260928112159-vyc0p2t
+title: export-frontmatter-probe
+...
+---
+```
+
+The export response reports `"frontmatter": true`.
+
+```json
+{"status":"done","commands_used":"document create; block set-attrs; file export-md --with-frontmatter","output_summary":"Created /e2e-test/export-frontmatter-probe (id 20260928112159-vyc0p2t), set custom-export-check=frontmatter-verified, and verified the Markdown export begins with a YAML frontmatter block containing that attribute.","next_step":null}
+```

@@ -1,0 +1,13 @@
+Confirmed. `document read --print-path` on `eval-archive` returned:
+
+```json
+{
+  "diskPath": "/siyuan/workspace/data/20260927122753-tmll6on/20260928015839-3e3t0xt.sy"
+}
+```
+
+It is under the workspace `data` directory and ends in `.sy`.
+
+```json
+{"status":"done","commands_used":"node cli/dist/cli.cjs help document read --url http://127.0.0.1:6807 --token [redacted] --json; node cli/dist/cli.cjs document list_tree --notebook 20260927122753-tmll6on --path / --url http://127.0.0.1:6807 --token [redacted] --json; node cli/dist/cli.cjs document read --id 20260928015839-3e3t0xt --print-path --url http://127.0.0.1:6807 --token [redacted] --json","output_summary":"Read e2e-test document eval-archive (20260928015839-3e3t0xt). Its diskPath is /siyuan/workspace/data/20260927122753-tmll6on/20260928015839-3e3t0xt.sy, which is in the workspace data directory and has the .sy suffix.","next_step":null}
+```

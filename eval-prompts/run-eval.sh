@@ -176,11 +176,11 @@ tm02|block-task|Use block text on a paragraph block in e2e-test and confirm it r
 sys-api01|system|Use system api --describe on /api/block/getBlockKramdown to see its params, then call it via system api POST with the id of any block in the e2e-test notebook. Confirm the response contains kramdown text.
 fj01|av-query|In the av-create-table-test database, use av query --filter-json with an or-group that matches Status=done OR Priority>2. Report matched row names.
 fa01|file|Use file export_md --with-frontmatter on a document that has a custom attribute set, then confirm the output starts with a --- frontmatter block containing the attr.
-fr01|edit|Create a doc /eval-findreplace/doc1 with three paragraphs each containing the word draft. Then use document find_replace --id <that-doc> --old draft --new final --limit 1. Read back and confirm only the FIRST matching block changed, other draft occurrences remain.
+fr01|edit|Create a doc /eval-findreplace/doc1 with three paragraphs each containing the word draft. Then use document find_replace --id <that-doc> --old draft --new final --limit 1. Read back and confirm only the FIRST matched block changed (limit caps blocks, not occurrences within a block).
 fr02|edit|On the same doc, run document find_replace --old draft --new done with no limit. Confirm all remaining draft occurrences became done while a separate doc in the notebook containing draft is untouched.
 ar01|edit|Create a doc /eval-archive/temp. Use document archive --id <doc> to soft-archive it. Verify via document get_attr that custom-archived=true. Then document archive --id <doc> --unarchive true and confirm the attr clears.
 ar02|edit|Create a doc /eval-archive/move-me. Use document archive --id <doc> --to /Archive to move it under an Archive parent doc. Verify the doc hpath now resolves under /Archive and custom-archived=true.
-dt01|dailynote|Run file list_templates to find a template, then dailynote create --date 2026-09-28 --template <name> in e2e-test. Confirm the note body contains the rendered template content (not raw {{ }} placeholders).
+dt01|dailynote|Run file list_templates to find a template, then dailynote create --date 2026-09-29 --template <name> in e2e-test. Confirm the note body contains the rendered template content (not raw {{ }} placeholders).
 pp01|read|Use document read --print-path on any doc in e2e-test. Confirm the result includes a diskPath ending in .sy under the workspace data dir.
 SCENARIOS
 

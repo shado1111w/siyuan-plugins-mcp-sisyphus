@@ -1,0 +1,16 @@
+集成终端的输入控件受限于当前辅助功能代理：它只保留了命令末尾片段，无法可靠执行 CLI。为避免对笔记做出错误目标的写入，我需要一个可用命令通道（例如允许我使用现有 Ghostty/Terminal 的终端访问，或你在项目根目录执行命令）。我目前被本机的终端 UI 自动化限制阻塞：VS Code 集成终端会截断命令输入（只剩 `SKILL`），而系统拒绝我访问已运行的 Ghostty/Terminal。为避免在未精确定位文档 ID 的情况下替换错误内容，我没有执行写操作。
+
+请任选一种方式继续：
+
+1. 允许我使用现有终端应用的命令访问；或
+2. 在项目根目录运行下面命令并把 JSON 输出贴回：
+
+```bash
+node cli/dist/cli.cjs search fulltext --query draft --notebook 20260927122753-tmll6on --url http://127.0.0.1:6807 --token zrk1rs7459ml0ecm --json
+```
+
+拿到目标文档 ID 与另一篇隔离文档 ID 后，我会执行精确的 `document find_replace --id … --k draft --r done`，并分别读回核验。
+
+```json
+{"status":"in_progress","commands_used":"node cli/dist/cli.cjs help document find_replace --url http://127.0.0.1:6807 --token <redacted> --json; attempted read of cli/dist/skills/siyuan-sisyphus/siyuan-sisyphus/SKILL.md and siyuan-sisyphus-create-edit/SKILL.md","output_summary":"Confirmed find_replace is document-ID scoped and requires --id --k --r; no mutation ran because terminal UI automation truncated commands and direct terminal access was blocked.","next_step":"Provide fulltext search output or enable a reliable terminal command channel."}
+```

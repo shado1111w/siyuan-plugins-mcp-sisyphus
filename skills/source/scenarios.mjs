@@ -225,7 +225,7 @@ For document metadata (icon, cover, custom attributes) prefer the single-attribu
 
 ## Scoped find-replace and archive
 
-To change wording inside one document only, use \`document find_replace --id <doc> --old <text> --new <text>\`. It expands the document to its block IDs so the replacement never leaks into other documents (unlike the global \`search find_replace\`, which needs an explicit ids/paths scope). Pass \`--limit N\` to stop after the first N matched blocks, and \`replaceTypes\` to widen beyond plain text. This is a content mutation - show the scope and confirm before running.
+To change wording inside one document only, use \`document find_replace --id <doc> --old <text> --new <text>\`. It expands the document to its block IDs so the replacement never leaks into other documents (unlike the global \`search find_replace\`, which needs an explicit ids/paths scope). Pass \`--limit N\` to cap at N matched blocks (all occurrences inside each block are replaced), and \`replaceTypes\` to widen beyond plain text. This is a content mutation - show the scope and confirm before running.
 
 To archive a document without deleting it, use \`document archive --id <doc>\`. It sets \`custom-archived=true\` (visible to \`document get_attr\` and SQL/tag filters) and optionally moves the doc under \`--to /Archive\` in the same notebook. Reverse with \`document archive --id <doc> --unarchive true\` - it clears the marker but does not move the document back. Prefer this over \`document remove\` when the content should stay recoverable.
 
