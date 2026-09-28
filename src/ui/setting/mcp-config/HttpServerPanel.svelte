@@ -540,6 +540,15 @@ If the API URL is not reachable from the current host, container, WSL, or remote
         httpDirty = true;
     }
 
+    // The kernel endpoint is served by kernel.js inside the kernel petal and
+    // does not depend on the standalone HTTP server — persist immediately so
+    // the change takes effect without an Apply/Restart.
+    async function onKernelEndpointChange(event: Event) {
+        const target = event.currentTarget as HTMLInputElement;
+        const next = { ...httpSettings, kernelEndpointEnabled: target.checked };
+        await persistHttpSettings(next, false);
+    }
+
     function onSkillsExtensionChange(event: Event) {
         const target = event.currentTarget as HTMLInputElement;
         httpSettings = { ...httpSettings, skillsExtensionEnabled: target.checked };
@@ -796,6 +805,26 @@ If the API URL is not reachable from the current host, container, WSL, or remote
                                     <div class="http-warning">{getTlsMissingFilesMessage()}</div>
                                 {/if}
                             {/if}
+
+                            <section class="experimental-features" aria-labelledby="kernel-endpoint-title">
+                                <div class="experimental-features__header">
+                                    <div>
+                                        <div id="kernel-endpoint-title" class="experimental-features__title">
+                                            {getLabel("kernelEndpointTitle", "Kernel endpoint")}
+                                            <span>{getLabel("experimentalFeatureBadge", "Experimental")}</span>
+                                        </div>
+                                        <p>{getLabel("kernelEndpointDesc", "Serve the write coordinator from inside the kernel via /plugin/private/<plugin>/mcp. Required for strict safe writes on Docker and remote deployments where a separate MCP port cannot be opened.")}</p>
+                                    </div>
+                                    <label class="experimental-features__master">
+                                        <input type="checkbox" checked={httpSettings.kernelEndpointEnabled} on:change={onKernelEndpointChange} />
+                                        {getLabel("kernelEndpointEnabled", "Enable")}
+                                    </label>
+                                </div>
+
+                                <p class="experimental-features__note">
+                                    {getLabel("kernelEndpointHint", "Shares the kernel's own port — no extra listener or firewall rule needed. When enabled, remote CLIs auto-detect it for strict safe writes. Takes effect immediately (no restart).")}
+                                </p>
+                            </section>
 
                             <section class="experimental-features" aria-labelledby="skills-over-mcp-title">
                                 <div class="experimental-features__header">

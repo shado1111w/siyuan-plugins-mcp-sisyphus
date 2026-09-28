@@ -984,5 +984,9 @@
     "extension_exposed_count": "exposed",
     "httpPublicBaseUrl": "External URL",
     "httpPublicBaseUrlPlaceholder": "https://mcp.example.com:5666/sisyphus (optional)",
-    "httpPublicBaseUrlHint": "Remote CLIs use this URL for strict safe writes. Leave empty for local use."
+    "httpPublicBaseUrlHint": "Remote CLIs use this URL for strict safe writes. Leave empty for local use.",
+    "kernelEndpointTitle": "Kernel endpoint",
+    "kernelEndpointDesc": "Serve the write coordinator from inside the kernel via /plugin/private/<plugin>/mcp. Required for strict safe writes on Docker and remote deployments where a separate MCP port cannot be opened.",
+    "kernelEndpointEnabled": "Enable",
+    "kernelEndpointHint": "Shares the kernel's own port — no extra listener or firewall rule needed. When enabled, remote CLIs auto-detect it for strict safe writes. Takes effect immediately (no restart)."
 }

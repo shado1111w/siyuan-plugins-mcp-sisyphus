@@ -270,6 +270,9 @@ export interface HttpServerSettings {
     /** Optional externally-reachable base URL (e.g. https://mcp.example.com:5666/sisyphus).
      *  When set, remote CLIs use it instead of guessing host:port from the kernel URL. */
     publicBaseUrl?: string;
+    /** Expose the write coordinator through the kernel-hosted /plugin/private route.
+     *  Works on Docker/web where no separate MCP HTTP port can be opened. */
+    kernelEndpointEnabled: boolean;
 }
 
 export function hasValidHttpTlsFiles(settings: HttpServerSettings): boolean {
@@ -304,6 +307,7 @@ export function buildDefaultHttpServerSettings(): HttpServerSettings {
         tlsCaFile: "",
         skillsExtensionEnabled: true,
         publicBaseUrl: "",
+        kernelEndpointEnabled: false,
     };
 }
 
@@ -343,6 +347,9 @@ export function normalizeHttpServerSettings(raw: unknown): HttpServerSettings {
             ? record.skillsExtensionEnabled
             : defaults.skillsExtensionEnabled,
         publicBaseUrl: normalizePublicBaseUrl(record.publicBaseUrl),
+        kernelEndpointEnabled: typeof record.kernelEndpointEnabled === "boolean"
+            ? record.kernelEndpointEnabled
+            : defaults.kernelEndpointEnabled,
     };
 }
 

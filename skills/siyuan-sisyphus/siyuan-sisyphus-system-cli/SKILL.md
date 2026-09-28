@@ -71,3 +71,14 @@ CLI execution is an explicit command, but that consent does not prove strict saf
 ## CLI setup
 
 Use `siyuan-sisyphus init` and `siyuan-sisyphus config list|get|set|use` to manage profiles. Configuration precedence is command flags, environment variables, active profile, then defaults. Use `--json` for scripts. The CLI treats execution as confirmation, so the agent must still ask the user before risky commands.
+
+## Write coordinator endpoints
+
+Strict safe writes route through the plugin's write coordinator. The CLI resolves its URL in this order, so usually no flag is needed:
+
+1. `--coordinator-url` / `SIYUAN_COORDINATOR_URL` (explicit override, saved by `init`/`config set` as `coordinatorUrl`).
+2. The plugin's `publicBaseUrl` setting, when the admin publishes an external address.
+3. The kernel endpoint `<apiUrl>/plugin/private/siyuan-plugins-mcp-sisyphus/mcp`, used automatically when the plugin's **Kernel endpoint** toggle is on. This shares the kernel's own port, so it works on Docker and remote/FRPS deployments where a separate MCP port cannot be opened.
+4. The standalone plugin HTTP server's `host:port` (desktop default `127.0.0.1:36806`).
+
+If a strict write returns `write_coordinator_unavailable` against a remote or Docker SiYuan, the standalone MCP port is unreachable — enable **Kernel endpoint** in the plugin's HTTP server settings (it takes effect immediately, no restart) rather than opening a new port, or pass `--coordinator-url <apiUrl>/plugin/private/siyuan-plugins-mcp-sisyphus/mcp`. `--unsafe-direct-write` bypasses the coordinator for one call at the cost of losing hash/idempotency/readback protection.

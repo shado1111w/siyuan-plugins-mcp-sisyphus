@@ -67,7 +67,9 @@ Global options:
   --token <token>    SiYuan API token
   --coordinator-url  Override the strict-write coordinator URL
                      (env: SIYUAN_COORDINATOR_URL; falls back to the plugin's
-                     mcpHttpSettings.publicBaseUrl, then host:port guess)
+                     publicBaseUrl, then the kernel endpoint
+                     /plugin/private/<plugin>/mcp when enabled, then
+                     host:port guess)
   --unsafe-direct-write
                      Bypass the strict-write coordinator for this call and
                      hit the SiYuan kernel API directly. Loses hash-check,

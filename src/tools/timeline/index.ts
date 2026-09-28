@@ -20,6 +20,7 @@ import {
 import { isGlobalTimelineTag } from '../../ui/version-control/timeline';
 import { ensurePermissionForDocumentId } from '../internal/context';
 import { defineTool } from '../internal/define-tool';
+import type { ToolActionHandler } from '../internal/define-tool';
 import { createJsonResult, createZodActionVariant, type ActionVariant } from '../internal/shared';
 import { applyUiRefresh } from '../internal/ui-refresh';
 
@@ -34,16 +35,7 @@ export const TIMELINE_VARIANTS: ActionVariant<TimelineAction>[] = [
     createZodActionVariant('rollback_block', TimelineRollbackBlockSchema, 'Restore one changed block from a timeline node.'),
 ];
 
-const timelineTool = defineTool<TimelineAction>({
-    name: TIMELINE_TOOL_NAME,
-    description: '🕓 Grouped document timeline, snapshot diff, and rollback operations.',
-    variants: TIMELINE_VARIANTS,
-    actionSchema: TimelineActionSchema,
-    aggregateOptions: {
-        guidance: TIMELINE_GUIDANCE,
-        actionHints: TIMELINE_ACTION_HINTS,
-    },
-    handlers: {
+export const TIMELINE_ACTION_HANDLERS: Record<TimelineAction, ToolActionHandler> = {
         list_nodes: async ({ client, permMgr, rawArgs }) => {
             const parsed = TimelineListNodesSchema.parse(rawArgs);
             if (parsed.scope !== 'global') {
@@ -105,7 +97,18 @@ const timelineTool = defineTool<TimelineAction>({
                 [{ type: 'reloadProtyle', id: context.documentId }],
             );
         },
+};
+
+const timelineTool = defineTool<TimelineAction>({
+    name: TIMELINE_TOOL_NAME,
+    description: '🕓 Grouped document timeline, snapshot diff, and rollback operations.',
+    variants: TIMELINE_VARIANTS,
+    actionSchema: TimelineActionSchema,
+    aggregateOptions: {
+        guidance: TIMELINE_GUIDANCE,
+        actionHints: TIMELINE_ACTION_HINTS,
     },
+    handlers: TIMELINE_ACTION_HANDLERS,
 });
 
 export const listTimelineTools = timelineTool.listTools;

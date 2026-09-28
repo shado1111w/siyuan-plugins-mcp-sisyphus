@@ -18,6 +18,7 @@ import {
     DailynoteReadSchema,
 } from '../../core/types';
 import { defineTool } from '../internal/define-tool';
+import type { ToolActionHandler } from '../internal/define-tool';
 import { normalizeMarkdownInputRefs } from '../internal/markdown-input';
 import { normalizeDomInlineRefsAndTags } from '../internal/kramdown-safe';
 import { ensurePermissionForNotebook } from '../internal/context';
@@ -249,16 +250,7 @@ async function listDailyNotesViaSql(
     return out;
 }
 
-const dailynoteTool = defineTool<DailynoteAction>({
-    name: 'dailynote',
-    description: '📔 Daily note create/read/write/delete across dates.',
-    variants: DAILYNOTE_VARIANTS,
-    actionSchema: DailynoteActionSchema,
-    aggregateOptions: {
-        guidance: DAILYNOTE_GUIDANCE,
-        actionHints: DAILYNOTE_ACTION_HINTS,
-    },
-    handlers: {
+export const DAILYNOTE_ACTION_HANDLERS: Record<DailynoteAction, ToolActionHandler> = {
         create: async ({ client, permMgr, rawArgs }) => {
             const parsed = DailynoteCreateSchema.parse(rawArgs);
             const denied = await ensurePermissionForNotebook(permMgr, parsed.notebook, 'write');
@@ -445,7 +437,18 @@ const dailynoteTool = defineTool<DailynoteAction>({
                 hPath: resolved.hPath,
             }), [{ type: 'reloadFiletree' }]);
         },
+};
+
+const dailynoteTool = defineTool<DailynoteAction>({
+    name: 'dailynote',
+    description: '📔 Daily note create/read/write/delete across dates.',
+    variants: DAILYNOTE_VARIANTS,
+    actionSchema: DailynoteActionSchema,
+    aggregateOptions: {
+        guidance: DAILYNOTE_GUIDANCE,
+        actionHints: DAILYNOTE_ACTION_HINTS,
     },
+    handlers: DAILYNOTE_ACTION_HANDLERS,
 });
 
 export const listDailynoteTools = dailynoteTool.listTools;

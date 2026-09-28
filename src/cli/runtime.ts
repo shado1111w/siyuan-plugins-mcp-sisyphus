@@ -65,11 +65,14 @@ export async function loadCliRuntimeState(
 }
 
 /**
- * Resolve the write-coordinator URL with three priority levels:
+ * Resolve the write-coordinator URL with four priority levels:
  *   1. --coordinator-url flag or SIYUAN_COORDINATOR_URL env (explicit override)
  *   2. mcpHttpSettings.publicBaseUrl (plugin-declared external address, for
  *      remote deployments behind reverse proxies like frps)
- *   3. Legacy host:port guess — loopback hosts are rewritten to the kernel
+ *   3. Kernel-hosted endpoint <apiUrl>/plugin/private/<name>/mcp when the
+ *      plugin's kernelEndpointEnabled flag is on (works on Docker/web where
+ *      no separate MCP HTTP port can be opened — single port, path-routed).
+ *   4. Legacy host:port guess — loopback hosts are rewritten to the kernel
  *      base URL hostname when the CLI targets a remote SiYuan.
  */
 async function loadWriteCoordinatorSettings(
@@ -91,6 +94,15 @@ async function loadWriteCoordinatorSettings(
             return { url: normalizeCoordinatorUrl(publicBaseUrl), token };
         }
 
+        // Kernel-hosted endpoint: shares the kernel's own HTTP port, so it
+        // works wherever the kernel is reachable (Docker, remote, frps) — no
+        // separate MCP port needed. Enabled via the plugin's
+        // kernelEndpointEnabled toggle in HTTP server settings.
+        if (raw.kernelEndpointEnabled === true) {
+            const kernelUrl = deriveKernelEndpointUrl(client.getBaseUrl());
+            if (kernelUrl) return { url: kernelUrl, token };
+        }
+
         const port = typeof raw.port === 'number' ? raw.port : 36806;
         const configuredHost = typeof raw.host === 'string' ? raw.host : '127.0.0.1';
         const protocol = raw.tlsEnabled === true ? 'https' : 'http';
@@ -105,6 +117,26 @@ async function loadWriteCoordinatorSettings(
 export function normalizeCoordinatorUrl(url: string): string {
     const trimmed = url.replace(/\/+$/, '');
     return trimmed.endsWith('/mcp') ? trimmed : `${trimmed}/mcp`;
+}
+
+const KERNEL_PRIVATE_BASE = '/plugin/private/siyuan-plugins-mcp-sisyphus';
+
+/**
+ * Derive the kernel-hosted coordinator endpoint from the kernel base URL.
+ * Returns `<apiUrl>/plugin/private/<name>/mcp`, or undefined when the API URL
+ * cannot be parsed. The trailing /mcp keeps parity with the standalone MCP
+ * server path so `callCliWriteCoordinator` needs no special-casing.
+ */
+export function deriveKernelEndpointUrl(apiUrl: string): string | undefined {
+    try {
+        const base = new URL(apiUrl);
+        base.pathname = `${KERNEL_PRIVATE_BASE}/mcp`;
+        base.search = '';
+        base.hash = '';
+        return base.toString().replace(/\/+$/, '');
+    } catch {
+        return undefined;
+    }
 }
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '0.0.0.0', '::', '[::1]', '::1']);

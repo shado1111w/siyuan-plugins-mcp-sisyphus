@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeCoordinatorUrl, resolveCoordinatorHost } from '@/cli/runtime';
+import { deriveKernelEndpointUrl, normalizeCoordinatorUrl, resolveCoordinatorHost } from '@/cli/runtime';
 
 describe('normalizeCoordinatorUrl', () => {
     it('appends /mcp when missing', () => {
@@ -33,5 +33,24 @@ describe('resolveCoordinatorHost', () => {
 
     it('falls back to loopback when the kernel URL is unparseable', () => {
         expect(resolveCoordinatorHost('127.0.0.1', 'not a url')).toBe('127.0.0.1');
+    });
+});
+
+describe('deriveKernelEndpointUrl', () => {
+    it('maps the kernel base URL to the private plugin /mcp path', () => {
+        expect(deriveKernelEndpointUrl('http://127.0.0.1:6806'))
+            .toBe('http://127.0.0.1:6806/plugin/private/siyuan-plugins-mcp-sisyphus/mcp');
+        expect(deriveKernelEndpointUrl('http://siyuan.xupeidong.cn:5666'))
+            .toBe('http://siyuan.xupeidong.cn:5666/plugin/private/siyuan-plugins-mcp-sisyphus/mcp');
+    });
+
+    it('drops any existing path, query, and hash from the base URL', () => {
+        expect(deriveKernelEndpointUrl('https://siyuan.example.com:5666/stage/build/desktop/?r=abc#x'))
+            .toBe('https://siyuan.example.com:5666/plugin/private/siyuan-plugins-mcp-sisyphus/mcp');
+    });
+
+    it('returns undefined when the API URL cannot be parsed', () => {
+        expect(deriveKernelEndpointUrl('not a url')).toBeUndefined();
+        expect(deriveKernelEndpointUrl('')).toBeUndefined();
     });
 });

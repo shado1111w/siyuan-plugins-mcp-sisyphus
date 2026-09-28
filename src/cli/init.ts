@@ -62,7 +62,7 @@ export async function runInit(configPath?: string): Promise<void> {
             const kernelHost = new URL(apiUrl).hostname;
             const loopback = new Set(['127.0.0.1', 'localhost', '0.0.0.0', '::', '[::1]', '::1']);
             if (!loopback.has(kernelHost)) {
-                coordinatorUrl = (await p.ask('Write-coordinator URL for strict safe writes (optional, e.g. https://mcp.example.com/sisyphus; leave empty to auto-detect): ')).trim();
+                coordinatorUrl = (await p.ask('Write-coordinator URL for strict safe writes (optional, e.g. https://mcp.example.com/plugin/private/siyuan-plugins-mcp-sisyphus/mcp; leave empty to auto-detect — the kernel endpoint is used when the plugin enables it): ')).trim();
             }
         } catch {
             // unparseable URL — skip

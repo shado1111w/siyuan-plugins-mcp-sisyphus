@@ -9,6 +9,7 @@ import {
     TagRenameSchema,
 } from '../../core/types';
 import { defineTool } from '../internal/define-tool';
+import type { ToolActionHandler } from '../internal/define-tool';
 import { createJsonResult, createZodActionVariant, type ActionVariant } from '../internal/shared';
 import { applyUiRefresh } from '../internal/ui-refresh';
 
@@ -20,16 +21,7 @@ export const TAG_VARIANTS: ActionVariant<TagAction>[] = [
     createZodActionVariant('remove', TagRemoveSchema, 'Remove a tag.'),
 ];
 
-const tagTool = defineTool<TagAction>({
-    name: 'tag',
-    description: '🏷️ Grouped tag operations.',
-    variants: TAG_VARIANTS,
-    actionSchema: TagActionSchema,
-    aggregateOptions: {
-        guidance: TAG_GUIDANCE,
-        actionHints: TAG_ACTION_HINTS,
-    },
-    handlers: {
+export const TAG_ACTION_HANDLERS: Record<TagAction, ToolActionHandler> = {
         list: async ({ client, rawArgs }) => {
             const parsed = TagListSchema.parse(rawArgs);
             const keyword = parsed.query ?? parsed.keyword;
@@ -66,7 +58,18 @@ const tagTool = defineTool<TagAction>({
                 [{ type: 'reloadTag' }],
             );
         },
+};
+
+const tagTool = defineTool<TagAction>({
+    name: 'tag',
+    description: '🏷️ Grouped tag operations.',
+    variants: TAG_VARIANTS,
+    actionSchema: TagActionSchema,
+    aggregateOptions: {
+        guidance: TAG_GUIDANCE,
+        actionHints: TAG_ACTION_HINTS,
     },
+    handlers: TAG_ACTION_HANDLERS,
 });
 
 export const listTagTools = tagTool.listTools;
