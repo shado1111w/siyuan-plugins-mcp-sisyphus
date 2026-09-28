@@ -5,6 +5,8 @@ import { dirname, join } from 'node:path';
 export interface ProfileEntry {
     apiUrl?: string;
     token?: string;
+    /** Optional explicit write-coordinator URL for strict safe writes. */
+    coordinatorUrl?: string;
 }
 
 export interface FileConfig {
@@ -23,6 +25,7 @@ export interface ResolvedConfig {
     apiUrl: string;
     token: string;
     profileName: string;
+    coordinatorUrl?: string;
 }
 
 const DEFAULT_PROFILE = 'default';
@@ -88,7 +91,7 @@ export function normalizeFileConfig(fileConfig: FileConfig): NormalizedFileConfi
 
 export function resolveConfig(
     fileConfig: FileConfig,
-    options: { cliUrl?: string; cliToken?: string; profile?: string } = {},
+    options: { cliUrl?: string; cliToken?: string; cliCoordinatorUrl?: string; profile?: string } = {},
 ): ResolvedConfig {
     const normalized = normalizeFileConfig(fileConfig);
     const requestedProfile = options.profile || normalized.currentProfile || DEFAULT_PROFILE;
@@ -103,8 +106,11 @@ export function resolveConfig(
     const activeProfile = profileConfig ?? normalized.profiles[normalized.currentProfile] ?? normalized.profiles[DEFAULT_PROFILE] ?? {};
     const apiUrl = options.cliUrl || process.env.SIYUAN_API_URL || activeProfile.apiUrl || DEFAULT_API_URL;
     const token = options.cliToken || process.env.SIYUAN_TOKEN || activeProfile.token || '';
+    const coordinatorUrl = options.cliCoordinatorUrl
+        || process.env.SIYUAN_COORDINATOR_URL
+        || activeProfile.coordinatorUrl;
 
-    return { apiUrl, token, profileName: requestedProfile };
+    return { apiUrl, token, profileName: requestedProfile, coordinatorUrl };
 }
 
 export function applyConfigToEnv(config: ResolvedConfig): void {
@@ -139,6 +145,7 @@ export function setProfile(
             [profileName]: {
                 apiUrl: profile.apiUrl ?? existing.apiUrl ?? DEFAULT_API_URL,
                 token: profile.token ?? existing.token ?? '',
+                coordinatorUrl: profile.coordinatorUrl ?? existing.coordinatorUrl,
             },
         },
     };
@@ -176,8 +183,10 @@ function readProfiles(value: unknown): Record<string, ProfileEntry> | undefined 
         const entry = rawEntry as Record<string, unknown>;
         const apiUrl = typeof entry.apiUrl === 'string' ? entry.apiUrl : undefined;
         const token = typeof entry.token === 'string' ? entry.token : undefined;
-        if (!apiUrl && token === undefined) continue;
-        out[name] = { apiUrl, token };
+        const coordinatorUrl = typeof entry.coordinatorUrl === 'string' && entry.coordinatorUrl.trim()
+            ? entry.coordinatorUrl.trim() : undefined;
+        if (!apiUrl && token === undefined && coordinatorUrl === undefined) continue;
+        out[name] = { apiUrl, token, coordinatorUrl };
     }
     return Object.keys(out).length > 0 ? out : undefined;
 }
@@ -190,8 +199,10 @@ function sanitizeProfiles(profiles?: Record<string, ProfileEntry>): Record<strin
         if (!name) continue;
         const apiUrl = typeof entry?.apiUrl === 'string' && entry.apiUrl ? entry.apiUrl : undefined;
         const token = typeof entry?.token === 'string' ? entry.token : undefined;
-        if (!apiUrl && token === undefined) continue;
-        out[name] = { apiUrl, token };
+        const coordinatorUrl = typeof entry?.coordinatorUrl === 'string' && entry.coordinatorUrl.trim()
+            ? entry.coordinatorUrl.trim() : undefined;
+        if (!apiUrl && token === undefined && coordinatorUrl === undefined) continue;
+        out[name] = { apiUrl, token, coordinatorUrl };
     }
     return out;
 }

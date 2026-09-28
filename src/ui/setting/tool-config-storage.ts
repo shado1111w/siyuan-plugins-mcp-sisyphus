@@ -267,6 +267,9 @@ export interface HttpServerSettings {
     tlsKeyFile: string;
     tlsCaFile: string;
     skillsExtensionEnabled: boolean;
+    /** Optional externally-reachable base URL (e.g. https://mcp.example.com:5666/sisyphus).
+     *  When set, remote CLIs use it instead of guessing host:port from the kernel URL. */
+    publicBaseUrl?: string;
 }
 
 export function hasValidHttpTlsFiles(settings: HttpServerSettings): boolean {
@@ -300,6 +303,7 @@ export function buildDefaultHttpServerSettings(): HttpServerSettings {
         tlsKeyFile: "",
         tlsCaFile: "",
         skillsExtensionEnabled: true,
+        publicBaseUrl: "",
     };
 }
 
@@ -338,7 +342,23 @@ export function normalizeHttpServerSettings(raw: unknown): HttpServerSettings {
         skillsExtensionEnabled: typeof record.skillsExtensionEnabled === "boolean"
             ? record.skillsExtensionEnabled
             : defaults.skillsExtensionEnabled,
+        publicBaseUrl: normalizePublicBaseUrl(record.publicBaseUrl),
     };
+}
+
+/** Trim and validate an optional externally-reachable MCP base URL.
+ *  Returns "" when unset or invalid; must be an absolute http(s) URL. */
+export function normalizePublicBaseUrl(raw: unknown): string {
+    if (typeof raw !== "string") return "";
+    const trimmed = raw.trim();
+    if (!trimmed) return "";
+    try {
+        const u = new URL(trimmed);
+        if (u.protocol !== "http:" && u.protocol !== "https:") return "";
+        return trimmed.replace(/\/+$/, "");
+    } catch {
+        return "";
+    }
 }
 
 export function regenerateHttpServerToken(settings: HttpServerSettings): HttpServerSettings {

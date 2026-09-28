@@ -120,7 +120,7 @@
     "timeline_scope_global_badge": "全局",
     "timeline_scope_document_description": "仅显示在当前文档的时间线中",
     "timeline_scope_global_description": "显示在所有文档的时间线中",
-    "timeline_action_rollback_document": "整篇回退到历史版本",
+    "timeline_action_rollback_document": "整篇回退",
     "timeline_action_restore_block": "还原块",
     "timeline_action_compare_unified": "统一对比",
     "timeline_action_compare_split": "并排对比",
@@ -470,7 +470,6 @@
     "desc_document_action_duplicate": "通过 ID 复制文档。",
     "document_action_copy": "复制到",
     "desc_document_action_copy": "复制文档并将副本移动到目标父级，可选新标题。",
-    
     "document_action_heading_to_doc": "标题转文档",
     "desc_document_action_heading_to_doc": "将标题转换为文档。",
     "document_action_doc_to_heading": "文档转标题",
@@ -649,13 +648,10 @@
     "timeline_permissions_app_desc": "控制人在时间线 App 内执行的操作；对应 Tool 对模型隐藏。",
     "timeline_action_list_nodes": "列出节点",
     "desc_timeline_action_list_nodes": "列出全局节点或指定文档可见的时间线节点。",
-    "timeline_action_create_node": "创建节点",
     "desc_timeline_action_create_node": "创建命名的全局节点或文档节点。",
     "timeline_action_compare_node": "比较节点",
     "desc_timeline_action_compare_node": "将指定文档与历史时间线节点进行块级比较。",
-    "timeline_action_delete_node": "删除节点",
     "desc_timeline_action_delete_node": "删除节点 tag，但保留底层快照。",
-    "timeline_action_rollback_document": "整篇回退",
     "desc_timeline_action_rollback_document": "从时间线节点恢复单篇文档文件，不执行整库回退。",
     "timeline_action_rollback_block": "块级回退",
     "desc_timeline_action_rollback_block": "使用 compare_node 返回的 changeKey 恢复一个可安全回退的块。",
@@ -985,5 +981,8 @@
     "extension_include_native_desc": "<strong>⚠️ 安全边界提示：</strong>开启后，原生工具将直接按当前思源管理员会话或 API Token 的权限执行，不经过 Sisyphus 的笔记本权限、action 禁用和危险操作确认，可能读取或修改当前身份可访问的全部工作空间数据。",
     "extension_source_plugin": "插件",
     "extension_source_native": "思源原生",
-    "extension_exposed_count": "个已暴露"
+    "extension_exposed_count": "个已暴露",
+    "httpPublicBaseUrl": "外部访问地址",
+    "httpPublicBaseUrlPlaceholder": "https://mcp.example.com:5666/sisyphus（可选）",
+    "httpPublicBaseUrlHint": "远程 CLI 严格写入使用此地址访问协调器；本机直连可留空。"
 }

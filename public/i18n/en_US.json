@@ -120,7 +120,7 @@
     "timeline_scope_global_badge": "Global",
     "timeline_scope_document_description": "Show only in the current document timeline",
     "timeline_scope_global_description": "Show in every document timeline",
-    "timeline_action_rollback_document": "Roll back whole document to history",
+    "timeline_action_rollback_document": "Rollback Document",
     "timeline_action_restore_block": "Restore Block",
     "timeline_action_compare_unified": "Unified Diff",
     "timeline_action_compare_split": "Split Diff",
@@ -187,11 +187,10 @@
     "hello": {
         "makesure": "Before using this template, please read the <a href=\"https://github.com/siyuan-note/plugin-sample\">offical sample</a>, make sure that you've known about the pipeline for plugin developing."
     },
-    "hintTitle":"About",
-    "hintDesc":"<a href='https://github.com/siyuan-note/plugin-sample-vite-svelte'>plugin-sample-vite-svelte</a><br>@frostime<br>@88250<br>@zxkmm",
+    "hintTitle": "About",
+    "hintDesc": "<a href='https://github.com/siyuan-note/plugin-sample-vite-svelte'>plugin-sample-vite-svelte</a><br>@frostime<br>@88250<br>@zxkmm",
     "tool_title_move_docs": "Move Documents",
     "tool_title_move_block_by_id": "Move Block by ID",
-
     "Filesystem": "Simplified Tools",
     "Notebooks": "Notebooks",
     "list_notebooks": "List Notebooks",
@@ -202,7 +201,6 @@
     "rename_notebook": "Rename Notebook",
     "get_notebook_conf": "Get Notebook Config",
     "set_notebook_conf": "Set Notebook Config",
-
     "Documents": "Documents",
     "create_document": "Create Document",
     "rename_document": "Rename Document",
@@ -215,7 +213,6 @@
     "get_notebook_child_docs": "Get Child Documents",
     "get_document_child_blocks": "Get Child Blocks",
     "get_document_child_docs": "Get Child Documents",
-
     "Blocks": "Blocks",
     "Databases": "Databases",
     "insert_block": "Insert Block",
@@ -231,7 +228,6 @@
     "transfer_block_ref": "Transfer Block Reference",
     "set_block_attrs": "Set Block Attributes",
     "get_block_attrs": "Get Block Attributes",
-
     "Files": "Files",
     "Search": "Search",
     "Tags": "Tags",
@@ -248,7 +244,6 @@
     "get_current_time": "Get Current Time",
     "puppy_visible_title": "Show Mascot",
     "puppy_visible_desc": "Show or hide the mascot on screen.",
-
     "desc_list_notebooks": "List all notebooks in the workspace",
     "desc_create_notebook": "Create a new notebook",
     "desc_open_notebook": "Open a notebook",
@@ -257,7 +252,6 @@
     "desc_rename_notebook": "Rename a notebook",
     "desc_get_notebook_conf": "Get notebook configuration",
     "desc_set_notebook_conf": "Set notebook configuration",
-
     "desc_create_document": "Create a new document with markdown content at a human-readable target path",
     "desc_rename_document": "Rename a document by path",
     "desc_rename_document_by_id": "Rename a document by ID",
@@ -269,7 +263,6 @@
     "desc_get_notebook_child_docs": "Get direct child documents at the notebook root",
     "desc_get_document_child_blocks": "Get direct child blocks by document ID",
     "desc_get_document_child_docs": "Get direct child documents by document ID",
-
     "desc_insert_block": "Insert a new block at specified position",
     "desc_prepend_block": "Insert a block at the beginning of parent",
     "desc_append_block": "Insert a block at the end of parent",
@@ -283,7 +276,6 @@
     "desc_transfer_block_ref": "Transfer block references",
     "desc_set_block_attrs": "Set block attributes",
     "desc_get_block_attrs": "Get block attributes",
-
     "desc_get_database": "Get the full attribute view payload by AV ID",
     "desc_search_databases": "Search attribute views by keyword",
     "desc_add_rows": "Add existing blocks as rows in a database",
@@ -293,7 +285,6 @@
     "desc_set_cells": "Update one or more cells with typed value payloads",
     "desc_duplicate_database_block": "Duplicate an existing database block",
     "desc_get_primary_key_values": "Get database primary key rows with optional filtering",
-
     "desc_upload_asset": "Read a local file path and upload it to the assets directory; files larger than the configured threshold must stop and ask the user before retrying with confirmLargeFile=true",
     "desc_render_template": "Render a template with document context",
     "desc_render_sprig": "Render a Sprig template",
@@ -303,7 +294,6 @@
     "desc_push_err_msg": "Push an error message",
     "desc_get_version": "Get SiYuan version",
     "desc_get_current_time": "Get current system time",
-
     "notebook_tool_title": "Notebook Tool",
     "notebook_tool_desc": "Expose the aggregated notebook tool to MCP clients.",
     "document_tool_title": "Document Tool",
@@ -404,7 +394,6 @@
     "mcpDefaultVisible": "This action stays visible in the default configuration.",
     "mcpDefaultEnabled": "Enabled by default.",
     "mcpDefaultDisabled": "Disabled by default.",
-
     "notebook_action_list": "List Notebooks",
     "desc_notebook_action_list": "List all notebooks in the workspace.",
     "notebook_action_create": "Create Notebook",
@@ -431,7 +420,6 @@
     "desc_notebook_action_get_child_docs": "Get direct child documents at the notebook root.",
     "notebook_action_set_icon": "Set Notebook Icon",
     "desc_notebook_action_set_icon": "Set the icon for a notebook.",
-
     "document_action_create": "Create Document",
     "desc_document_action_create": "Create a new document with markdown content at a human-readable target path.",
     "document_action_rename": "Rename Document",
@@ -482,7 +470,6 @@
     "desc_document_action_duplicate": "Duplicate a document by ID.",
     "document_action_copy": "Copy",
     "desc_document_action_copy": "Duplicate a document then move the copy under a target parent, with an optional new title.",
-    
     "document_action_heading_to_doc": "Heading To Document",
     "desc_document_action_heading_to_doc": "Convert a heading into a document.",
     "document_action_doc_to_heading": "Document To Heading",
@@ -509,7 +496,6 @@
     "skillsOverMcpDesc": "Publish all bundled workflow skills through the draft SEP-2640 extension. This affects the built-in HTTP server only.",
     "skillsOverMcpEnabled": "Enable",
     "skillsOverMcpRestartHint": "Save and restart the HTTP server, then reconnect the MCP client. Clients without SEP-2640 support can continue using the stable SiYuan skill resources.",
-
     "block_action_insert": "Insert Block",
     "desc_block_action_insert": "Insert a new block at a specified position.",
     "block_action_prepend": "Prepend Block",
@@ -564,7 +550,6 @@
     "desc_block_action_update_task_marker": "Set the checked state of a task (todo) block without rewriting content. Pass id or ids[] for a batch.",
     "block_action_text": "Block Text",
     "desc_block_action_text": "Read a block as plain readable text with HTML and markup stripped.",
-
     "file_action_upload_asset": "Upload Asset",
     "desc_file_action_upload_asset": "Read a local file path and upload that file to the assets directory. Files larger than the configured threshold must stop and ask the user before retrying with confirmLargeFile=true.",
     "file_setting_uploadLargeFileThresholdMB": "Large Upload Threshold (MB)",
@@ -663,13 +648,10 @@
     "timeline_permissions_app_desc": "Control actions performed manually inside the Timeline App; the corresponding Tool is hidden from the model.",
     "timeline_action_list_nodes": "List Nodes",
     "desc_timeline_action_list_nodes": "List global nodes or timeline nodes visible to a document.",
-    "timeline_action_create_node": "Create Node",
     "desc_timeline_action_create_node": "Create a named global or document timeline node.",
     "timeline_action_compare_node": "Compare Node",
     "desc_timeline_action_compare_node": "Compare one document with a historical timeline node at block level.",
-    "timeline_action_delete_node": "Delete Node",
     "desc_timeline_action_delete_node": "Delete the node tag while retaining the underlying snapshot.",
-    "timeline_action_rollback_document": "Rollback Document",
     "desc_timeline_action_rollback_document": "Restore one document file from a timeline node without checking out the repository.",
     "timeline_action_rollback_block": "Rollback Block",
     "desc_timeline_action_rollback_block": "Restore one safely recoverable block using a changeKey from compare_node.",
@@ -719,7 +701,6 @@
     "desc_system_action_whoami": "Get the current identity: workspace dir, SiYuan version, language, and signed-in account if any.",
     "system_action_api": "Raw API",
     "desc_system_action_api": "Raw kernel escape hatch: call any /api/* endpoint with method+path+body. Non-GET requires write=true.",
-
     "flashcard_tool_title": "Flashcard Tool",
     "flashcard_tool_desc": "Expose grouped flashcard review and deck operations to MCP clients.",
     "flashcard_action_list_cards": "List Cards",
@@ -738,7 +719,6 @@
     "desc_flashcard_action_add_card": "Run the lower-level riff registration step for existing blocks.",
     "flashcard_action_remove_card": "Remove Card",
     "desc_flashcard_action_remove_card": "Remove existing blocks from a flashcard deck.",
-
     "mascot_tool_title": "Mascot Tool",
     "mascot_tool_desc": "Expose the grouped mascot tool to MCP clients.",
     "mascot_action_get_balance": "Get Balance",
@@ -751,7 +731,6 @@
     "feedback_tool_desc": "Expose plain-text feedback submission to MCP clients.",
     "feedback_action_submit": "Submit Feedback",
     "desc_feedback_action_submit": "Submit plain-text issues, suggestions, or usage experience to the developer. Agent product/model can be provided by AI; source and plugin version are filled automatically. Avoid secrets and private note content.",
-
     "Mascot Tool": "Mascot Tool",
     "Feedback Tool": "Feedback Tool",
     "Flashcards": "Flashcards",
@@ -835,11 +814,9 @@
     "permission_tree_scope": "Applies to the entire notebook and its child documents",
     "permission_tree_click_hint": "Click to cycle: NONE → R → RW → RWD",
     "permission_tree_save_failed": "Failed to save permission; the previous state was restored",
-
     "mcpConfigSaved": "✅ MCP Tools configuration saved to file",
     "mcpConfigSavedBackup": "⚠️ MCP Tools configuration saved (backup only)",
     "mcpConfigReset": "🔄 MCP Tools configuration reset to defaults",
-
     "httpServerTitle": "Connection Config",
     "httpStart": "Start",
     "httpStop": "Stop",
@@ -1004,5 +981,8 @@
     "extension_include_native_desc": "<strong>⚠️ Security boundary:</strong> When enabled, native tools execute with the current SiYuan administrator session or API Token and bypass Sisyphus notebook permissions, disabled actions, and dangerous-action confirmation, so they may read or modify all workspace data accessible to that identity.",
     "extension_source_plugin": "Plugin",
     "extension_source_native": "SiYuan native",
-    "extension_exposed_count": "exposed"
+    "extension_exposed_count": "exposed",
+    "httpPublicBaseUrl": "External URL",
+    "httpPublicBaseUrlPlaceholder": "https://mcp.example.com:5666/sisyphus (optional)",
+    "httpPublicBaseUrlHint": "Remote CLIs use this URL for strict safe writes. Leave empty for local use."
 }

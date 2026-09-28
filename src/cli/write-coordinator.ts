@@ -11,7 +11,10 @@ export async function callCliWriteCoordinator(
     if (!settings) {
         return failure(
             'write_coordinator_unavailable',
-            'Strict safe writes require the plugin-hosted MCP HTTP server. Enable it in plugin settings and retry.',
+            'Strict safe writes require the plugin-hosted MCP HTTP server. ' +
+            'Enable it in plugin settings, pass --coordinator-url <url>, ' +
+            'or bypass strict writes for this call with --unsafe-direct-write ' +
+            '(loses hash/idempotency/readback protection).',
         );
     }
 
@@ -43,7 +46,10 @@ export async function callCliWriteCoordinator(
     } catch (error) {
         return failure(
             'write_coordinator_unavailable',
-            `Could not call the plugin write coordinator: ${error instanceof Error ? error.message : String(error)}`,
+            `Could not call the plugin write coordinator at ${settings.url}: ${error instanceof Error ? error.message : String(error)}. ` +
+            'Fix by exposing the plugin MCP port (mcpHttpSettings.host=0.0.0.0, ' +
+            'publicBaseUrl set to its external URL), passing --coordinator-url, ' +
+            'or bypassing strict writes with --unsafe-direct-write.',
         );
     } finally {
         await client.close().catch(() => {});

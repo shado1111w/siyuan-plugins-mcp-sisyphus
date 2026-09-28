@@ -36,6 +36,7 @@ export async function loadCliRuntimeState(
     const resolved = resolveConfig(fileConfig, {
         cliUrl: cli.url,
         cliToken: cli.token,
+        cliCoordinatorUrl: cli.coordinatorUrl,
         profile: cli.profile,
     });
     applyConfigToEnv(resolved);
@@ -57,25 +58,74 @@ export async function loadCliRuntimeState(
     };
 
     const writeCoordinator = toolConfig.writeSafety.strictMode
-        ? await loadWriteCoordinatorSettings(client)
+        ? await loadWriteCoordinatorSettings(client, resolved.coordinatorUrl)
         : undefined;
 
     return { client, toolConfig, permMgr, officialMcpRuntime, writeCoordinator };
 }
 
-async function loadWriteCoordinatorSettings(client: SiYuanClient): Promise<CliWriteCoordinatorSettings | undefined> {
+/**
+ * Resolve the write-coordinator URL with three priority levels:
+ *   1. --coordinator-url flag or SIYUAN_COORDINATOR_URL env (explicit override)
+ *   2. mcpHttpSettings.publicBaseUrl (plugin-declared external address, for
+ *      remote deployments behind reverse proxies like frps)
+ *   3. Legacy host:port guess — loopback hosts are rewritten to the kernel
+ *      base URL hostname when the CLI targets a remote SiYuan.
+ */
+async function loadWriteCoordinatorSettings(
+    client: SiYuanClient,
+    explicitUrl?: string,
+): Promise<CliWriteCoordinatorSettings | undefined> {
+    const override = explicitUrl?.trim() || process.env.SIYUAN_COORDINATOR_URL?.trim();
     try {
         const raw = JSON.parse(await client.readFile(HTTP_SETTINGS_API_PATH)) as Record<string, unknown>;
         if (raw.enabled === false) return undefined;
+        const token = raw.authEnabled === true && typeof raw.token === 'string' ? raw.token : undefined;
+
+        if (override) {
+            return { url: normalizeCoordinatorUrl(override), token };
+        }
+
+        const publicBaseUrl = typeof raw.publicBaseUrl === 'string' ? raw.publicBaseUrl.trim() : '';
+        if (publicBaseUrl) {
+            return { url: normalizeCoordinatorUrl(publicBaseUrl), token };
+        }
+
         const port = typeof raw.port === 'number' ? raw.port : 36806;
         const configuredHost = typeof raw.host === 'string' ? raw.host : '127.0.0.1';
-        const host = configuredHost === '0.0.0.0' || configuredHost === '::' ? '127.0.0.1' : configuredHost;
         const protocol = raw.tlsEnabled === true ? 'https' : 'http';
-        const token = raw.authEnabled === true && typeof raw.token === 'string' ? raw.token : undefined;
+        const host = resolveCoordinatorHost(configuredHost, client.getBaseUrl());
         return { url: `${protocol}://${host}:${port}/mcp`, token };
     } catch {
         return undefined;
     }
+}
+
+/** Append /mcp if the URL does not already end with it. */
+export function normalizeCoordinatorUrl(url: string): string {
+    const trimmed = url.replace(/\/+$/, '');
+    return trimmed.endsWith('/mcp') ? trimmed : `${trimmed}/mcp`;
+}
+
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '0.0.0.0', '::', '[::1]', '::1']);
+
+/**
+ * When the configured bind host is loopback but the CLI points at a remote
+ * kernel, rewrite the coordinator host to the kernel hostname so remote
+ * deployments work without extra flags. Loopback kernel URLs keep the
+ * legacy 127.0.0.1 mapping.
+ */
+export function resolveCoordinatorHost(configuredHost: string, kernelBaseUrl: string): string {
+    if (!LOOPBACK_HOSTS.has(configuredHost)) return configuredHost;
+    try {
+        const kernelHost = new URL(kernelBaseUrl).hostname;
+        if (kernelHost && !LOOPBACK_HOSTS.has(kernelHost)) {
+            return kernelHost;
+        }
+    } catch {
+        // fall through to legacy loopback
+    }
+    return '127.0.0.1';
 }
 
 async function loadToolConfigFromAPI(client: SiYuanClient): Promise<ToolConfig> {

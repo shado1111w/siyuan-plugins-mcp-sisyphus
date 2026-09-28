@@ -749,6 +749,18 @@ If the API URL is not reachable from the current host, container, WSL, or remote
                             </label>
 
                             <label class="http-field">
+                                <span class="http-label">{getLabel("httpPublicBaseUrl", "External URL")}</span>
+                                <input
+                                    type="text"
+                                    class="b3-text-field http-path-input"
+                                    bind:value={httpSettings.publicBaseUrl}
+                                    on:input={markHttpDirty}
+                                    placeholder={getLabel("httpPublicBaseUrlPlaceholder", "https://mcp.example.com:5666/sisyphus (optional)")}
+                                />
+                                <span class="http-field-hint">{getLabel("httpPublicBaseUrlHint", "Remote CLIs use this URL for strict safe writes. Leave empty for local use.")}</span>
+                            </label>
+
+                            <label class="http-field">
                                 <input type="checkbox" checked={httpSettings.authEnabled} on:change={onHttpAuthChange} />
                                 {getLabel("httpEnableAuth", "Require Bearer token")}
                             </label>
