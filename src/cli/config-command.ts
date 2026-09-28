@@ -77,7 +77,7 @@ function runConfigSet(cli: ParsedArgs): number {
         (currentFileConfig.profiles && Object.keys(currentFileConfig.profiles).length > 0),
     );
     const currentName = normalizeFileConfig(currentFileConfig).currentProfile;
-    const normalized = setProfile(currentFileConfig, name, { apiUrl: cli.url, token: cli.token, coordinatorUrl: cli.coordinatorUrl }, {
+    const normalized = setProfile(currentFileConfig, name, { apiUrl: cli.url, token: cli.token }, {
         makeCurrent: !hasStoredConfig || currentName === name,
     });
     const target = saveNormalizedConfig(normalized, cli.configPath);
@@ -88,7 +88,6 @@ function runConfigSet(cli: ParsedArgs): number {
         { key: 'profile', value: name },
         { key: 'apiUrl', value: cli.url },
         { key: 'token', value: cli.token ? 'configured' : (normalized.profiles[name]?.token ? 'configured' : 'empty') },
-        { key: 'coordinatorUrl', value: cli.coordinatorUrl || normalized.profiles[name]?.coordinatorUrl || 'auto' },
     ]);
     process.stdout.write('\n');
     writeHint('Next', `Run \`siyuan-sisyphus config use ${name}\` to make it the default profile.`);

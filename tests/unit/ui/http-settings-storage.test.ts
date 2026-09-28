@@ -29,17 +29,7 @@ describe('HTTP server settings storage', () => {
         expect(enabled).not.toHaveProperty('skillsExtensionCatalog');
     });
 
-    it('keeps a valid publicBaseUrl and strips trailing slashes', () => {
-        const s = normalizeHttpServerSettings({
-            publicBaseUrl: 'https://mcp.example.com:5666/sisyphus/',
-        });
-        expect(s.publicBaseUrl).toBe('https://mcp.example.com:5666/sisyphus');
-    });
+    ;
 
-    it('drops invalid or non-http publicBaseUrl values', () => {
-        expect(normalizeHttpServerSettings({ publicBaseUrl: 'ftp://x' }).publicBaseUrl).toBe('');
-        expect(normalizeHttpServerSettings({ publicBaseUrl: 'not a url' }).publicBaseUrl).toBe('');
-        expect(normalizeHttpServerSettings({ publicBaseUrl: '   ' }).publicBaseUrl).toBe('');
-        expect(normalizeHttpServerSettings({ publicBaseUrl: 42 }).publicBaseUrl).toBe('');
-    });
+    ;
 });

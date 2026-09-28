@@ -982,12 +982,9 @@
     "extension_source_plugin": "Plugin",
     "extension_source_native": "SiYuan native",
     "extension_exposed_count": "exposed",
-    "httpPublicBaseUrl": "External URL",
-    "httpPublicBaseUrlPlaceholder": "https://mcp.example.com:5666/sisyphus (optional)",
-    "httpPublicBaseUrlHint": "Remote CLIs use this URL for strict safe writes. Leave empty for local use.",
     "kernelEndpointTitle": "Kernel endpoint",
-    "kernelEndpointDesc": "Serve the write coordinator from inside the kernel via /plugin/private/<plugin>/mcp. Required for strict safe writes on Docker and remote deployments where a separate MCP port cannot be opened.",
+    "kernelEndpointDesc": "Serve the write coordinator from inside the kernel via /plugin/private/<plugin>/mcp. Useful on Docker and remote deployments where a separate MCP port cannot be opened.",
     "kernelEndpointEnabled": "Enable",
-    "kernelEndpointHint": "Shares the kernel's own port — no extra listener or firewall rule needed. When enabled, remote CLIs auto-detect it for strict safe writes. Takes effect immediately (no restart).",
-    "kernelEndpointDockerHint": "On Docker/browser, the Kernel endpoint below is the recommended way to reach the write coordinator — no separate port needed."
+    "kernelEndpointHint": "Shares the kernel's own port — no extra listener or firewall rule needed. Remote CLIs auto-detect it when enabled. Takes effect immediately (no restart).",
+    "kernelEndpointDockerHint": "On Docker/browser, the standalone HTTP server is unavailable — enable the Kernel endpoint below to host the write coordinator on the kernel port instead."
 }

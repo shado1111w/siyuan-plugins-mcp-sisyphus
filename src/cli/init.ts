@@ -60,10 +60,6 @@ export async function runInit(configPath?: string): Promise<void> {
         const makeCurrentAnswer = (await p.ask(`Make "${profileName}" the active profile? [Y/n] `)).toLowerCase();
         const makeCurrent = !makeCurrentAnswer || makeCurrentAnswer === 'y' || makeCurrentAnswer === 'yes';
 
-        // coordinatorUrl is intentionally not prompted: for remote/Docker
-        // kernels the kernel endpoint is auto-derived from apiUrl when the
-        // plugin's kernelEndpointEnabled toggle is on. `config set` still
-        // accepts an explicit coordinatorUrl override for exotic setups.
         const config = setProfile(existingFileConfig, profileName, { apiUrl, token }, { makeCurrent });
         saveNormalizedConfig(config, configPath);
         process.stdout.write('\n');

@@ -93,13 +93,9 @@ export async function runDispatch(cli: ParsedArgs): Promise<number> {
                 permMgr,
                 officialMcpRuntime,
             );
-            const bypassedStrict = toolConfig.writeSafety.strictMode
-                && cli.unsafeDirectWrite
-                && policy.mode !== 'read';
-            const strictWrites = toolConfig.writeSafety.strictMode && !cli.unsafeDirectWrite;
-            const invoke = strictWrites && policy.mode === 'mutation'
+            const invoke = toolConfig.writeSafety.strictMode && policy.mode === 'mutation'
                 ? () => callCliWriteCoordinator(writeCoordinator, tool, payload)
-                : strictWrites && policy.mode === 'external'
+                : toolConfig.writeSafety.strictMode && policy.mode === 'external'
                     ? () => new WriteSafetyCoordinator(client).run({
                         client,
                         permMgr,
@@ -109,13 +105,7 @@ export async function runDispatch(cli: ParsedArgs): Promise<number> {
                         strictMode: true,
                         execute: executeDirect,
                     })
-                    : async () => {
-                        const result = await executeDirect();
-                        if (bypassedStrict) {
-                            return annotateBypassedResult(result);
-                        }
-                        return result;
-                    };
+                    : () => executeDirect();
             return runToolCall(
                 {
                     client,
@@ -295,23 +285,3 @@ function formatUnknownActionError(category: ToolCategory, action: string, dynami
     );
 }
 
-/** Mark a direct kernel write as having skipped the strict-write coordinator. */
-function annotateBypassedResult(result: ToolResult): ToolResult {
-    const marker = { writeSafetyBypassed: true, writeSafetyMode: 'direct-kernel' };
-    const structuredContent = result.structuredContent && typeof result.structuredContent === 'object'
-        ? { ...result.structuredContent, ...marker }
-        : marker;
-    const content = result.content.map((item) => {
-        if (item.type !== 'text') return item;
-        try {
-            const parsed = JSON.parse(item.text);
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                return { ...item, text: JSON.stringify({ ...parsed, ...marker }, null, 2) };
-            }
-        } catch {
-            // not JSON — leave as-is
-        }
-        return item;
-    });
-    return { ...result, content, structuredContent };
-}

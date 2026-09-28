@@ -982,12 +982,9 @@
     "extension_source_plugin": "插件",
     "extension_source_native": "思源原生",
     "extension_exposed_count": "个已暴露",
-    "httpPublicBaseUrl": "外部访问地址",
-    "httpPublicBaseUrlPlaceholder": "https://mcp.example.com:5666/sisyphus（可选）",
-    "httpPublicBaseUrlHint": "远程 CLI 严格写入使用此地址访问协调器；本机直连可留空。",
     "kernelEndpointTitle": "内核端点",
-    "kernelEndpointDesc": "通过内核的 /plugin/private/<plugin>/mcp 路由提供写入协调器。Docker 与远程部署无法开放独立 MCP 端口时，用它支撑严格安全写入。",
+    "kernelEndpointDesc": "通过内核的 /plugin/private/<plugin>/mcp 路由提供写入协调器。适用于 Docker 与远程部署等无法开放独立 MCP 端口的场景。",
     "kernelEndpointEnabled": "启用",
-    "kernelEndpointHint": "复用内核自身的端口，无需额外监听或防火墙规则。启用后远程 CLI 会自动探测用于严格安全写入，立即生效（无需重启）。",
-    "kernelEndpointDockerHint": "Docker / 浏览器环境下，下方的「内核端点」是接入写入协调器的推荐方式，无需额外端口。"
+    "kernelEndpointHint": "复用内核自身的端口，无需额外监听或防火墙规则。启用后远程 CLI 会自动探测到此端点，立即生效（无需重启）。",
+    "kernelEndpointDockerHint": "Docker / 浏览器环境下无法启动独立 HTTP 服务，可改用下方「内核端点」承载写入协调器，复用内核端口。"
 }

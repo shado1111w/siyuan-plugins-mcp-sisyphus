@@ -269,7 +269,6 @@ export interface HttpServerSettings {
     skillsExtensionEnabled: boolean;
     /** Optional externally-reachable base URL (e.g. https://mcp.example.com:5666/sisyphus).
      *  When set, remote CLIs use it instead of guessing host:port from the kernel URL. */
-    publicBaseUrl?: string;
     /** Expose the write coordinator through the kernel-hosted /plugin/private route.
      *  Works on Docker/web where no separate MCP HTTP port can be opened. */
     kernelEndpointEnabled: boolean;
@@ -306,7 +305,6 @@ export function buildDefaultHttpServerSettings(): HttpServerSettings {
         tlsKeyFile: "",
         tlsCaFile: "",
         skillsExtensionEnabled: true,
-        publicBaseUrl: "",
         kernelEndpointEnabled: false,
     };
 }
@@ -346,26 +344,10 @@ export function normalizeHttpServerSettings(raw: unknown): HttpServerSettings {
         skillsExtensionEnabled: typeof record.skillsExtensionEnabled === "boolean"
             ? record.skillsExtensionEnabled
             : defaults.skillsExtensionEnabled,
-        publicBaseUrl: normalizePublicBaseUrl(record.publicBaseUrl),
         kernelEndpointEnabled: typeof record.kernelEndpointEnabled === "boolean"
             ? record.kernelEndpointEnabled
             : defaults.kernelEndpointEnabled,
     };
-}
-
-/** Trim and validate an optional externally-reachable MCP base URL.
- *  Returns "" when unset or invalid; must be an absolute http(s) URL. */
-export function normalizePublicBaseUrl(raw: unknown): string {
-    if (typeof raw !== "string") return "";
-    const trimmed = raw.trim();
-    if (!trimmed) return "";
-    try {
-        const u = new URL(trimmed);
-        if (u.protocol !== "http:" && u.protocol !== "https:") return "";
-        return trimmed.replace(/\/+$/, "");
-    } catch {
-        return "";
-    }
 }
 
 export function regenerateHttpServerToken(settings: HttpServerSettings): HttpServerSettings {

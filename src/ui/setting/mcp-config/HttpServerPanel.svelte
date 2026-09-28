@@ -725,7 +725,7 @@ If the API URL is not reachable from the current host, container, WSL, or remote
                                 {#if httpSupportReason}
                                     <code>{httpSupportReason}</code>
                                 {/if}
-                                <div class="http-field-hint">{getLabel("kernelEndpointDockerHint", "On Docker/browser, the Kernel endpoint below is the recommended way to reach the write coordinator — no separate port needed.")}</div>
+                                <div class="http-field-hint">{getLabel("kernelEndpointDockerHint", "On Docker/browser, the standalone HTTP server is unavailable — enable the Kernel endpoint below to host the write coordinator on the kernel port instead.")}</div>
                             </div>
                         {/if}
 
@@ -752,7 +752,7 @@ If the API URL is not reachable from the current host, container, WSL, or remote
                                             {getLabel("kernelEndpointTitle", "Kernel endpoint")}
                                             <span>{getLabel("experimentalFeatureBadge", "Experimental")}</span>
                                         </div>
-                                        <p>{getLabel("kernelEndpointDesc", "Serve the write coordinator from inside the kernel via /plugin/private/<plugin>/mcp. Required for strict safe writes on Docker and remote deployments where a separate MCP port cannot be opened.")}</p>
+                                        <p>{getLabel("kernelEndpointDesc", "Serve the write coordinator from inside the kernel via /plugin/private/<plugin>/mcp. Useful on Docker and remote deployments where a separate MCP port cannot be opened.")}</p>
                                     </div>
                                     <label class="experimental-features__master">
                                         <input type="checkbox" checked={httpSettings.kernelEndpointEnabled} on:change={onKernelEndpointChange} />
@@ -761,7 +761,7 @@ If the API URL is not reachable from the current host, container, WSL, or remote
                                 </div>
 
                                 <p class="experimental-features__note">
-                                    {getLabel("kernelEndpointHint", "Shares the kernel's own port — no extra listener or firewall rule needed. When enabled, remote CLIs auto-detect it for strict safe writes. Takes effect immediately (no restart).")}
+                                    {getLabel("kernelEndpointHint", "Shares the kernel's own port — no extra listener or firewall rule needed. Remote CLIs auto-detect it when enabled. Takes effect immediately (no restart).")}
                                 </p>
                             </section>
 
@@ -777,18 +777,6 @@ If the API URL is not reachable from the current host, container, WSL, or remote
                             <label class="http-field">
                                 <span class="http-label">{getLabel("httpPort", "Port")}</span>
                                 <input type="number" class="b3-text-field" bind:value={httpSettings.port} on:input={markHttpDirty} min="1" max="65535" />
-                            </label>
-
-                            <label class="http-field">
-                                <span class="http-label">{getLabel("httpPublicBaseUrl", "External URL")}</span>
-                                <input
-                                    type="text"
-                                    class="b3-text-field http-path-input"
-                                    bind:value={httpSettings.publicBaseUrl}
-                                    on:input={markHttpDirty}
-                                    placeholder={getLabel("httpPublicBaseUrlPlaceholder", "https://mcp.example.com:5666/sisyphus (optional)")}
-                                />
-                                <span class="http-field-hint">{getLabel("httpPublicBaseUrlHint", "Remote CLIs use this URL for strict safe writes. Leave empty for local use.")}</span>
                             </label>
 
                             <label class="http-field">

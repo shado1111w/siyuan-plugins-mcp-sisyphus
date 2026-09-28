@@ -23,11 +23,6 @@ export interface ParsedArgs {
     profile?: string;
     url?: string;
     token?: string;
-    /** Explicit write-coordinator URL; falls back to plugin publicBaseUrl. */
-    coordinatorUrl?: string;
-    /** Explicitly bypass the strict-write coordinator and call the kernel API
-     *  directly for this invocation. Loses hash-check / idempotency / readback. */
-    unsafeDirectWrite?: boolean;
     target?: string;
     local?: boolean;
     dryRun?: boolean;
@@ -65,15 +60,6 @@ Global options:
   --profile <name>   Use a saved profile from config.json
   --url <url>        SiYuan API base URL (default http://127.0.0.1:6806)
   --token <token>    SiYuan API token
-  --coordinator-url  Override the strict-write coordinator URL
-                     (env: SIYUAN_COORDINATOR_URL; falls back to the plugin's
-                     publicBaseUrl, then the kernel endpoint
-                     /plugin/private/<plugin>/mcp when enabled, then
-                     host:port guess)
-  --unsafe-direct-write
-                     Bypass the strict-write coordinator for this call and
-                     hit the SiYuan kernel API directly. Loses hash-check,
-                     idempotency, and write-readback protection.
   --json             Emit compact JSON for scripts and pipes
   --debug            Include stack traces and extra diagnostics
 
@@ -118,8 +104,8 @@ Flag naming:
   For complex object/array values, use --<key>-json '<json>'.
 `;
 
-const GLOBAL_BOOLEAN = ['json', 'debug', 'help', 'version', 'unsafe-direct-write'];
-const GLOBAL_STRING = ['config', 'profile', 'url', 'token', 'bundle', 'coordinator-url'];
+const GLOBAL_BOOLEAN = ['json', 'debug', 'help', 'version'];
+const GLOBAL_STRING = ['config', 'profile', 'url', 'token', 'bundle'];
 
 export function parseArgs(argv: string[]): ParsedArgs {
     const parsed = minimist(argv, {
@@ -143,8 +129,6 @@ export function parseArgs(argv: string[]): ParsedArgs {
             profile: parsed.profile || undefined,
             url: parsed.url || undefined,
             token: parsed.token || undefined,
-            coordinatorUrl: parsed['coordinator-url'] || undefined,
-            unsafeDirectWrite: Boolean(parsed['unsafe-direct-write']),
             json: Boolean(parsed.json),
             debug: Boolean(parsed.debug),
         };
@@ -159,8 +143,6 @@ export function parseArgs(argv: string[]): ParsedArgs {
             profile: parsed.profile || undefined,
             url: parsed.url || undefined,
             token: parsed.token || undefined,
-            coordinatorUrl: parsed['coordinator-url'] || undefined,
-            unsafeDirectWrite: Boolean(parsed['unsafe-direct-write']),
             json: Boolean(parsed.json),
             debug: Boolean(parsed.debug),
         };
@@ -176,8 +158,6 @@ export function parseArgs(argv: string[]): ParsedArgs {
             profile: parsed.profile || undefined,
             url: parsed.url || undefined,
             token: parsed.token || undefined,
-            coordinatorUrl: parsed['coordinator-url'] || undefined,
-            unsafeDirectWrite: Boolean(parsed['unsafe-direct-write']),
             json: Boolean(parsed.json),
             debug: Boolean(parsed.debug),
         };
@@ -201,8 +181,6 @@ export function parseArgs(argv: string[]): ParsedArgs {
             profile: parsed.profile || undefined,
             url: parsed.url || undefined,
             token: parsed.token || undefined,
-            coordinatorUrl: parsed['coordinator-url'] || undefined,
-            unsafeDirectWrite: Boolean(parsed['unsafe-direct-write']),
             json: Boolean(parsed.json),
             debug: Boolean(parsed.debug),
         };
@@ -231,8 +209,6 @@ export function parseArgs(argv: string[]): ParsedArgs {
             profile: parsed.profile || undefined,
             url: parsed.url || undefined,
             token: parsed.token || undefined,
-            coordinatorUrl: parsed['coordinator-url'] || undefined,
-            unsafeDirectWrite: Boolean(parsed['unsafe-direct-write']),
             target: typeof parsed.target === 'string' ? parsed.target : undefined,
             local: Boolean(parsed.local),
             dryRun: Boolean(parsed['dry-run']),
@@ -265,8 +241,6 @@ export function parseArgs(argv: string[]): ParsedArgs {
         profile: parsed.profile || undefined,
         url: parsed.url || undefined,
         token: parsed.token || undefined,
-        coordinatorUrl: parsed['coordinator-url'] || undefined,
-            unsafeDirectWrite: Boolean(parsed['unsafe-direct-write']),
         json: Boolean(parsed.json),
         debug: Boolean(parsed.debug),
     };
