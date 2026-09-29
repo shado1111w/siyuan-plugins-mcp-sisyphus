@@ -810,101 +810,33 @@ describe('file tool asset actions', () => {
         });
     });
 
-    it('exports resources to a local outputPath and reports the written byte count', async () => {
+    it('streams exports, preserves existing output and cleans only failed owned directories', async () => {
         const fs = (await import('node:fs')).default;
-        const readFileBinary = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
-        const localClient = createMockClient({ readFileBinary });
-        const mkdirSpy = vi.spyOn(fs, 'mkdirSync').mockImplementation((() => undefined) as typeof fs.mkdirSync);
-        const writeSpy = vi.spyOn(fs, 'writeFileSync').mockImplementation((() => undefined) as typeof fs.writeFileSync);
-
-        const result = await callFileTool(localClient, {
-            action: 'export_resources',
-            paths: ['assets/demo.txt'],
-            outputPath: 'tmp/export.zip',
-        }, config.file, {} as never);
-
-        expect(readFileBinary).toHaveBeenCalledWith('/temp/export.zip');
-        expect(mkdirSpy).toHaveBeenCalled();
-        expect(writeSpy).toHaveBeenCalled();
-        expect(parseResult(result)).toEqual({
-            path: '/temp/export.zip',
-            outputPath: expect.stringMatching(/[\\/]tmp[\\/]export\.zip$/),
-            bytes: 3,
-        });
-    });
-
-    it('extracts a document and its assets into an uncompressed folder', async () => {
-        const fs = (await import('node:fs')).default;
-        const readFileBinary = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
-        const localClient = createMockClient({ readFileBinary });
-        const existsSyncSpy = vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-        const rmSyncSpy = vi.spyOn(fs, 'rmSync').mockImplementation((() => undefined) as typeof fs.rmSync);
-        const mkdirSpy = vi.spyOn(fs, 'mkdirSync').mockImplementation((() => undefined) as typeof fs.mkdirSync);
-        const writeSpy = vi.spyOn(fs, 'writeFileSync').mockImplementation((() => undefined) as typeof fs.writeFileSync);
-
-        const result = await callFileTool(localClient, {
-            action: 'extract_doc',
-            id: '20260128210016-dw9cpey',
-        }, config.file, {} as never);
-
-        const parsed = parseResult(result);
-        expect(parsed.outputRoot).toContain('siyuan-extracted');
-        expect(parsed.defaultOutputDirUsed).toBe(true);
-        expect(parsed.hint).toContain('~/siyuan-extracted');
-        expect(parsed.extractedDir).toContain('My Document-dw9cpey');
-        expect(parsed.docMdFile).toBe('My Document.md');
-        expect(parsed.extractedAssetCount).toBe(1);
-        expect(parsed.skippedAssetCount).toBe(0);
-        expect(parsed.structure).toContain('My Document.md');
-        expect(parsed.structure).toContain('assets/cover.png');
-        expect(readFileBinary).toHaveBeenCalledWith('data/assets/cover.png');
-        expect(existsSyncSpy).toHaveBeenCalled();
-        expect(rmSyncSpy).toHaveBeenCalled();
-        expect(mkdirSpy).toHaveBeenCalled();
-        expect(writeSpy).toHaveBeenCalledTimes(2);
-    });
-
-    it('skips missing assets and reports them', async () => {
-        const readFileBinary = vi.fn().mockRejectedValue(new Error('not found'));
-        const localClient = createMockClient({ readFileBinary });
-        const fs = (await import('node:fs')).default;
-        vi.spyOn(fs, 'mkdirSync').mockImplementation((() => undefined) as typeof fs.mkdirSync);
-        vi.spyOn(fs, 'writeFileSync').mockImplementation((() => undefined) as typeof fs.writeFileSync);
-
-        const result = await callFileTool(localClient, {
-            action: 'extract_doc',
-            id: '20260128210016-dw9cpey',
-        }, config.file, {} as never);
-
-        const parsed = parseResult(result);
-        expect(parsed.extractedAssetCount).toBe(0);
-        expect(parsed.skippedAssetCount).toBe(1);
-    });
-
-    it('extracts images with titles correctly', async () => {
-        const fileApi = await import('@/api/file');
-        vi.mocked(fileApi.exportMdContent).mockResolvedValue({
-            content: '![alt](assets/cover.png "image title")\n\nSome text\n',
-            hPath: '/My Document',
-        });
-
-        const readFileBinary = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
-        const localClient = createMockClient({ readFileBinary });
-        const fs = (await import('node:fs')).default;
-        vi.spyOn(fs, 'existsSync').mockReturnValue(false);
-        vi.spyOn(fs, 'rmSync').mockImplementation((() => undefined) as typeof fs.rmSync);
-        vi.spyOn(fs, 'mkdirSync').mockImplementation((() => undefined) as typeof fs.mkdirSync);
-        vi.spyOn(fs, 'writeFileSync').mockImplementation((() => undefined) as typeof fs.writeFileSync);
-
-        const result = await callFileTool(localClient, {
-            action: 'extract_doc',
-            id: '20260128210016-dw9cpey',
-        }, config.file, {} as never);
-
-        const parsed = parseResult(result);
-        expect(parsed.extractedAssetCount).toBe(1);
-        expect(parsed.skippedAssetCount).toBe(0);
-        expect(readFileBinary).toHaveBeenCalledWith('data/assets/cover.png');
+        const os = (await import('node:os')).default;
+        const path = (await import('node:path')).default;
+        const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'file-export-gap-'));
+        const streamFile = vi.fn(async (_remote: string, consume: (chunk: Uint8Array) => Promise<void>) => { await consume(new Uint8Array([1, 2, 3])); return 3; });
+        const localClient = createMockClient({ streamFile });
+        try {
+            fs.writeFileSync(path.join(outputDir, 'keep.txt'), 'keep');
+            const outputPath = path.join(outputDir, 'export.zip');
+            const zip = await callFileTool(localClient, { action: 'export_resources', paths: ['assets/demo.txt'], outputPath }, config.file, {} as never);
+            expect(parseResult(zip).bytes).toBe(3);
+            expect(fs.readFileSync(outputPath)).toEqual(Buffer.from([1, 2, 3]));
+            expect((await callFileTool(localClient, { action: 'export_resources', paths: ['assets/demo.txt'], outputPath }, config.file, {} as never)).isError).toBe(true);
+            const args = { action: 'extract_doc', id: '20260128210016-dw9cpey', outputDir };
+            const doc = parseResult(await callFileTool(localClient, args, config.file, {} as never));
+            expect(doc.extractedAssetCount).toBe(1);
+            expect(fs.readFileSync(path.join(doc.extractedDir, 'assets/cover.png'))).toEqual(Buffer.from([1, 2, 3]));
+            expect((await callFileTool(localClient, args, config.file, {} as never)).isError).toBe(true);
+            const fileApi = await import('@/api/file');
+            vi.mocked(fileApi.exportMdContent).mockResolvedValue({ content: '![alt](assets/cover.png "title")', hPath: '/Failure' });
+            streamFile.mockRejectedValue(new Error('lost download'));
+            expect((await callFileTool(localClient, args, config.file, {} as never)).isError).toBe(true);
+            expect(fs.existsSync(path.join(outputDir, 'Failure-dw9cpey'))).toBe(false);
+            expect(fs.readFileSync(path.join(outputDir, 'keep.txt'), 'utf8')).toBe('keep');
+            expect(fs.existsSync(doc.extractedDir)).toBe(true);
+        } finally { fs.rmSync(outputDir, { recursive: true, force: true }); }
     });
 
     describe('kernel transport', () => {
@@ -933,10 +865,9 @@ describe('file tool asset actions', () => {
             const parsed = parseResult(result);
             expect(parsed.success).toBe(false);
             expect(parsed.transport).toBe('kernel');
-            expect(parsed.reason).toBe('kernel_no_multipart_upload');
-            expect(parsed.officialApi.endpoint).toBe('/api/asset/upload');
-            expect(parsed.officialApi.contentType).toBe('multipart/form-data');
-            expect(parsed.officialApi.curlExample).toContain('file[]=@/tmp/pic.png');
+            expect(parsed.reason).toBe('kernel_local_file_unavailable');
+            expect(parsed.transferEndpoint).toBe('/plugin/private/siyuan-plugins-mcp-sisyphus/transfer/upload');
+            expect(parsed.nextStep).toContain('uploadSource');
             expect(existsSpy).not.toHaveBeenCalled();
         });
 

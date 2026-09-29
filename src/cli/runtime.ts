@@ -1,3 +1,6 @@
+import { loadWriteCoordinatorSettings, type CliWriteCoordinatorSettings } from '../core/write-coordinator-settings';
+export { deriveKernelEndpointUrl, loadWriteCoordinatorSettings, selectWriteCoordinatorSettings } from '../core/write-coordinator-settings';
+export type { CliWriteCoordinatorSettings, CliWriteCoordinatorEndpoint } from '../core/write-coordinator-settings';
 import { SiYuanClient } from '../api/client';
 import {
     MCP_TOOLS_CONFIG_API_PATH,
@@ -20,18 +23,6 @@ export interface CliRuntimeState {
     officialMcpRuntime: OfficialMcpRuntime;
     writeCoordinator?: CliWriteCoordinatorSettings;
 }
-
-export interface CliWriteCoordinatorEndpoint {
-    url: string;
-    token?: string;
-}
-
-export interface CliWriteCoordinatorSettings {
-    /** Ordered candidate endpoints — try in sequence, fall back on connect failure. */
-    endpoints: CliWriteCoordinatorEndpoint[];
-}
-
-const HTTP_SETTINGS_API_PATH = '/data/storage/petal/siyuan-plugins-mcp-sisyphus/mcpHttpSettings';
 
 export async function loadCliRuntimeState(
     cli: ParsedArgs,
@@ -61,68 +52,9 @@ export async function loadCliRuntimeState(
         discoveryMode: 'blocking',
     };
 
-    const writeCoordinator = toolConfig.writeSafety.strictMode
-        ? await loadWriteCoordinatorSettings(client, resolved.token)
-        : undefined;
+    const writeCoordinator = await loadWriteCoordinatorSettings(client, resolved.token);
 
     return { client, toolConfig, permMgr, officialMcpRuntime, writeCoordinator };
-}
-
-/**
- * Resolve the write-coordinator URL. Prefers the kernel-hosted endpoint
- * <apiUrl>/plugin/private/<name>/mcp when the plugin's kernelEndpointEnabled
- * flag is on (works on Docker/web where no separate MCP HTTP port can be
- * opened — single port, path-routed); otherwise falls back to the
- * standalone MCP HTTP server's host:port settings.
- */
-async function loadWriteCoordinatorSettings(
-    client: SiYuanClient,
-    apiToken?: string,
-): Promise<CliWriteCoordinatorSettings | undefined> {
-    try {
-        const raw = JSON.parse(await client.readFile(HTTP_SETTINGS_API_PATH)) as Record<string, unknown>;
-        if (raw.enabled === false) return undefined;
-        const endpoints: CliWriteCoordinatorEndpoint[] = [];
-
-        // Standalone MCP HTTP server — the primary coordinator transport.
-        const pluginToken = raw.authEnabled === true && typeof raw.token === 'string' ? raw.token : undefined;
-        const port = typeof raw.port === 'number' ? raw.port : 36806;
-        const configuredHost = typeof raw.host === 'string' ? raw.host : '127.0.0.1';
-        const host = configuredHost === '0.0.0.0' || configuredHost === '::' ? '127.0.0.1' : configuredHost;
-        const protocol = raw.tlsEnabled === true ? 'https' : 'http';
-        endpoints.push({ url: `${protocol}://${host}:${port}/mcp`, token: pluginToken });
-
-        // Kernel-hosted endpoint — fallback for Docker/web where the kernel
-        // shares its own port and no separate MCP listener can be opened.
-        if (raw.kernelEndpointEnabled === true) {
-            const kernelUrl = deriveKernelEndpointUrl(client.getBaseUrl());
-            if (kernelUrl) endpoints.push({ url: kernelUrl, token: apiToken });
-        }
-
-        return endpoints.length > 0 ? { endpoints } : undefined;
-    } catch {
-        return undefined;
-    }
-}
-
-const KERNEL_PRIVATE_BASE = '/plugin/private/siyuan-plugins-mcp-sisyphus';
-
-/**
- * Derive the kernel-hosted coordinator endpoint from the kernel base URL.
- * Returns `<apiUrl>/plugin/private/<name>/mcp`, or undefined when the API URL
- * cannot be parsed. The trailing /mcp keeps parity with the standalone MCP
- * server path so `callCliWriteCoordinator` needs no special-casing.
- */
-export function deriveKernelEndpointUrl(apiUrl: string): string | undefined {
-    try {
-        const base = new URL(apiUrl);
-        base.pathname = `${KERNEL_PRIVATE_BASE}/mcp`;
-        base.search = '';
-        base.hash = '';
-        return base.toString().replace(/\/+$/, '');
-    } catch {
-        return undefined;
-    }
 }
 
 async function loadToolConfigFromAPI(client: SiYuanClient): Promise<ToolConfig> {

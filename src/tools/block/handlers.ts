@@ -827,13 +827,19 @@ const handleAddToDailyNote: BlockActionHandler = async ({ client, permMgr, rawAr
 
 const handleDocsInfo: BlockActionHandler = async ({ client, permMgr, rawArgs }) => {
     const parsed = BlockDocsInfoSchema.parse(rawArgs);
-    const ids = parsed.ids ?? [parsed.id!];
+    const allIDs = parsed.ids ?? [parsed.id!];
+    const paged = parsed.offset !== undefined || parsed.limit !== undefined;
+    const offset = parsed.offset ?? 0, limit = parsed.limit ?? 20;
+    const ids = paged ? allIDs.slice(offset, offset + limit) : allIDs;
     for (const id of ids) {
         const { denied } = await ensurePermissionForDocumentId(client, permMgr, id, 'read');
         if (denied) return denied;
     }
-    const result = await blockApi.getDocsInfo(client, ids, parsed.refCount ?? false, parsed.av ?? false);
-    return createJsonResult(result);
+    const result = ids.length ? await blockApi.getDocsInfo(client, ids, parsed.refCount ?? false, parsed.av ?? false) : [];
+    if (!paged) return createJsonResult(result);
+    const nextOffset = Math.min(allIDs.length, offset + ids.length);
+    return createJsonResult({ data: result, page: { offset, limit, total: allIDs.length, hasNext: nextOffset < allIDs.length,
+        ...(nextOffset < allIDs.length ? { nextOffset } : {}) }, complete: nextOffset >= allIDs.length });
 };
 
 export const BLOCK_ACTION_HANDLERS: Record<BlockAction, BlockActionHandler> = {

@@ -70,6 +70,18 @@ describe('SiYuanClient', () => {
             await expect(timedClient.requestRead('/api/test', {}, 100)).rejects.toThrow('timeout');
             expect(cancel).toHaveBeenCalledOnce();
         });
+
+        it('does not mistake timer cancellation for EOF when the wall clock has not reached the deadline', async () => {
+            // Timers and Date.now need not advance in lockstep (clock adjustment
+            // or a timer scheduled just before calculating the deadline).
+            vi.spyOn(Date, 'now').mockReturnValue(1000);
+            const cancel = vi.fn();
+            mockFetch.mockResolvedValue(new Response(new ReadableStream({ cancel })));
+            const timedClient = new SiYuanClient({ timeout: 20 });
+            await expect(timedClient.requestRead('/api/test', {}, 100)).rejects.toThrow('timeout');
+            expect(cancel).toHaveBeenCalledOnce();
+            expect(mockFetch).toHaveBeenCalledOnce();
+        });
     });
 
     describe('request', () => {

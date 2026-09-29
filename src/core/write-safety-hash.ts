@@ -22,6 +22,16 @@ export function hashWriteBytes(value: Uint8Array): string {
     return `${WRITE_STATE_HASH_VERSION}:${digest}`;
 }
 
+/** Yield between bounded chunks so kernel hashing does not monopolize goja. */
+export async function hashWriteBytesAsync(value: Uint8Array): Promise<string> {
+    const hash = nodeCrypto().createHash('sha256');
+    for (let offset = 0; offset < value.length; offset += 64 * 1024) {
+        hash.update(value.subarray(offset, offset + 64 * 1024));
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+    }
+    return `${WRITE_STATE_HASH_VERSION}:${hash.digest('hex')}`;
+}
+
 export function isVersionedWriteHash(value: unknown): value is string {
     return typeof value === 'string' && /^sha256:v1:[a-f0-9]{64}$/.test(value);
 }

@@ -875,3 +875,25 @@ describe('block tool', () => {
         expect(moveCalls.map((call) => call.id)).toEqual(['block-c', 'block-b', 'block-a']);
     });
 });
+
+it('pages docs_info before resolving permissions and preserves the legacy response without paging', async () => {
+    const calls: string[] = [];
+    const client = createMockClient({ request: vi.fn(async (endpoint: string, body: any) => {
+        if (endpoint === '/api/query/sql') {
+            calls.push(body.stmt);
+            return [{ id: 'doc-b', root_id: 'doc-b', box: 'nb', path: '/doc-b.sy', hpath: '/B', type: 'd' }];
+        }
+        if (endpoint === '/api/block/getDocsInfo') return body.ids.map((id: string) => ({ id }));
+        throw new Error(endpoint);
+    }) });
+    const pm = { reload: async () => {}, canRead: () => true } as any;
+    const config = buildDefaultToolConfig();
+    const args = { action: 'docs_info', ids: ['doc-a', 'doc-b', 'doc-c'], offset: 1, limit: 1 };
+    const result = parseResult(await callBlockTool(client, args, config.block, pm));
+    expect(result).toEqual({ data: [{ id: 'doc-b' }], page: { offset: 1, limit: 1, total: 3, hasNext: true, nextOffset: 2 }, complete: false });
+    expect(calls).toHaveLength(1); expect(calls[0]).toContain('doc-b');
+    const empty = parseResult(await callBlockTool(client, { ...args, offset: 3 }, config.block, pm));
+    expect(empty.page.hasNext).toBe(false); expect(calls).toHaveLength(1);
+    const legacy = parseResult(await callBlockTool(client, { action: 'docs_info', id: 'doc-b' }, config.block, pm));
+    expect(legacy).toEqual([{ id: 'doc-b' }]);
+});

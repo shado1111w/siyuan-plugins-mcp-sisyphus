@@ -9,7 +9,8 @@
  * schema reflection itself.
  */
 
-import { buildDefaultToolConfig, TOOL_CATEGORIES, isDangerousAction } from '../core/config';
+import { buildDefaultToolConfig, TOOL_CATEGORIES, ACTIONS_BY_CATEGORY, isDangerousAction } from '../core/config';
+export { getRegisteredActionSchemas } from '../tools/internal/define-tool';
 import { TOOL_REGISTRY, GENERIC_TOOL_OUTPUT_SCHEMA } from '../core/tool-registry';
 
 export interface KernelToolDescriptor {
@@ -40,6 +41,7 @@ const TOOL_TITLES: Record<string, string> = {
 
 /**
  * Collect the aggregated tool descriptors for every statically-known category.
+ * Include default-disabled actions so runtime settings can expose them.
  * 'extension' is intentionally skipped: its tools are discovered at runtime
  * through the official MCP bridge, so there is no static schema to bake in.
  */
@@ -50,7 +52,7 @@ export function buildKernelToolManifest(): KernelToolDescriptor[] {
         if (category === 'extension') continue;
         const module = TOOL_REGISTRY[category];
         if (!module || typeof module.listTools !== 'function') continue;
-        const descriptors = module.listTools(config[category]);
+        const descriptors = module.listTools({ ...config[category], enabled: true, actions: Object.fromEntries(ACTIONS_BY_CATEGORY[category].map(action => [action, true])) } as any);
         const hasDangerous = Object.keys(config[category]?.actions ?? {})
             .some((a) => isDangerousAction(category as any, a));
         for (const descriptor of descriptors) {

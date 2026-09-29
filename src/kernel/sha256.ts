@@ -18,24 +18,47 @@ function rotr(x: number, n: number): number {
     return (x >>> n) | (x << (32 - n));
 }
 
-export function sha256(data: Uint8Array): Uint8Array {
-    const bitLen = data.length * 8;
-    // padded length: message + 0x80 + zeros + 8-byte length
-    const withPad = data.length + 1 + 8;
-    const padLen = (withPad % 64 === 0) ? withPad : withPad + (64 - (withPad % 64));
-    const buf = new Uint8Array(padLen);
-    buf.set(data);
-    buf[data.length] = 0x80;
-    // write 64-bit big-endian bit length (high 32 bits are 0 for practical sizes)
-    const dv = new DataView(buf.buffer);
-    dv.setUint32(padLen - 4, bitLen >>> 0, false);
-    dv.setUint32(padLen - 8, Math.floor(bitLen / 0x100000000), false);
-
-    let h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a;
-    let h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
-
-    const w = new Int32Array(64);
-    for (let off = 0; off < padLen; off += 64) {
+/** Incremental SHA-256 retains only one partial block and the compression state. */
+export class Sha256 {
+    private state = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+    private block = new Uint8Array(64);
+    private used = 0;
+    private length = 0;
+    private finished = false;
+    private words = new Int32Array(64);
+    update(data: Uint8Array): this {
+        if (this.finished) throw new Error('Hash already finalized');
+        this.length += data.length;
+        let offset = 0;
+        if (this.used) {
+            const take = Math.min(64 - this.used, data.length);
+            this.block.set(data.subarray(0, take), this.used);
+            this.used += take; offset += take;
+            if (this.used === 64) { this.compress(this.block); this.used = 0; }
+        }
+        const end = data.length - ((data.length - offset) % 64);
+        if (end > offset) { this.compress(data.subarray(offset, end)); offset = end; }
+        if (offset < data.length) { this.block.set(data.subarray(offset), 0); this.used = data.length - offset; }
+        return this;
+    }
+    digest(): Uint8Array {
+        if (this.finished) throw new Error('Hash already finalized');
+        this.finished = true;
+        const padded = new Uint8Array(this.used < 56 ? 64 : 128);
+        padded.set(this.block.subarray(0, this.used)); padded[this.used] = 0x80;
+        const dv = new DataView(padded.buffer);
+        const bits = this.length * 8;
+        dv.setUint32(padded.length - 8, Math.floor(bits / 0x100000000), false);
+        dv.setUint32(padded.length - 4, bits >>> 0, false);
+        this.compress(padded);
+        const out = new Uint8Array(32), view = new DataView(out.buffer);
+        this.state.forEach((value, i) => view.setUint32(i * 4, value >>> 0, false));
+        return out;
+    }
+    private compress(bytes: Uint8Array) {
+        const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength), w = this.words;
+        let [h0, h1, h2, h3, h4, h5, h6, h7] = this.state;
+        for (let off = 0; off < bytes.length; off += 64) {
         for (let i = 0; i < 16; i++) {
             w[i] = dv.getInt32(off + i * 4, false);
         }
@@ -57,14 +80,12 @@ export function sha256(data: Uint8Array): Uint8Array {
         }
         h0 = (h0 + a) | 0; h1 = (h1 + b) | 0; h2 = (h2 + c) | 0; h3 = (h3 + d) | 0;
         h4 = (h4 + e) | 0; h5 = (h5 + f) | 0; h6 = (h6 + g) | 0; h7 = (h7 + h) | 0;
+        }
+        this.state = [h0, h1, h2, h3, h4, h5, h6, h7];
     }
-
-    const out = new Uint8Array(32);
-    const odv = new DataView(out.buffer);
-    const hs = [h0, h1, h2, h3, h4, h5, h6, h7];
-    for (let i = 0; i < 8; i++) odv.setUint32(i * 4, hs[i] >>> 0, false);
-    return out;
 }
+
+export function sha256(data: Uint8Array): Uint8Array { return new Sha256().update(data).digest(); }
 
 export function sha256Hex(data: Uint8Array): string {
     const bytes = sha256(data);

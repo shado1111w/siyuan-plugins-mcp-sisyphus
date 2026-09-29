@@ -51,7 +51,7 @@ export const BLOCK_VARIANTS: ActionVariant<BlockAction>[] = [
     createZodActionVariant('recent_updated', BlockRecentUpdatedSchema, 'Get recently updated blocks.'),
     createZodActionVariant('word_count', BlockWordCountSchema, 'Get word-count statistics for blocks.'),
     createZodActionVariant('add_to_daily_note', BlockAddToDailyNoteSchema, 'Add a block to today\'s daily note, creating the note if needed.'),
-    createZodActionVariant('docs_info', BlockDocsInfoSchema, 'Get document info for one or more documents.'),
+    createZodActionVariant('docs_info', BlockDocsInfoSchema, 'Get document info for one or more documents. Optional offset/limit pages input IDs and returns data plus page.nextOffset.'),
 ];
 
 const blockTool = defineTool<BlockAction>({

@@ -1,3 +1,4 @@
+import type { ExternalFetch, ExternalResponse } from './external-fetch';
 export const FEEDBACK_SHARE_ID = 'Uq2KRv7t';
 export const FEEDBACK_API_BASE = 'https://f-api.wps.cn/ksform/api/v3/campaign';
 export const FEEDBACK_FORM_URL = `https://f.wps.cn/ksform/w/write/${FEEDBACK_SHARE_ID}`;
@@ -80,7 +81,7 @@ interface WpsSubmitResponse {
     };
 }
 
-export type FeedbackFetch = (url: string, init?: RequestInit) => Promise<Response>;
+export type FeedbackFetch = ExternalFetch;
 
 function normalizeOptionalText(value: string | undefined): string {
     return value?.trim() || EMPTY_FEEDBACK_VALUE;
@@ -210,7 +211,7 @@ function createFeedbackHeaders(extra?: Record<string, string>): Record<string, s
     };
 }
 
-async function readJsonResponse<T>(response: Response, context: string): Promise<T> {
+async function readJsonResponse<T>(response: ExternalResponse, context: string): Promise<T> {
     const text = await response.text();
     let payload: T;
     try {
@@ -222,7 +223,7 @@ async function readJsonResponse<T>(response: Response, context: string): Promise
     return payload;
 }
 
-async function formatHttpError(response: Response, context: string): Promise<Error> {
+async function formatHttpError(response: ExternalResponse, context: string): Promise<Error> {
     const text = await response.text();
     const snippet = text.length > 300 ? `${text.slice(0, 300)}...` : text;
     return new Error(`${context} failed: HTTP ${response.status}${snippet ? ` ${snippet}` : ''}`);

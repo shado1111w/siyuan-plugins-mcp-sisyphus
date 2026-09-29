@@ -1,3 +1,4 @@
+import { queueStorage } from './storage-queue';
 import type { SiYuanClient } from '../api/client';
 import type { ToolConfig } from './config';
 import type { InvocationTransport } from './runtime';
@@ -117,7 +118,7 @@ function toMeasuredTokenValue(event: AnalyticsEvent): number | null {
 }
 
 function getByteLength(text: string): number {
-    if (typeof Buffer !== 'undefined') {
+    if (typeof Buffer !== 'undefined' && typeof Buffer.byteLength === 'function') {
         return Buffer.byteLength(text, 'utf8');
     }
     return new TextEncoder().encode(text).length;
@@ -152,6 +153,10 @@ export async function appendAnalyticsEvent(
     client: SiYuanClient,
     event: Omit<AnalyticsEvent, 'seq' | 'ts'>,
 ): Promise<void> {
+    return queueStorage(client, 'analytics', () => appendAnalyticsEventUnlocked(client, event));
+}
+
+async function appendAnalyticsEventUnlocked(client: SiYuanClient, event: Omit<AnalyticsEvent, 'seq' | 'ts'>): Promise<void> {
     const fullEvent: AnalyticsEvent = {
         ...event,
         seq: Date.now(),
@@ -159,26 +164,22 @@ export async function appendAnalyticsEvent(
     };
     const line = JSON.stringify(fullEvent);
 
+    // Never replace existing history with a single event after a read/append error.
     try {
-        const existing = await client.readFile(ANALYTICS_PATH);
-        if (existing) {
-            const newContent = `${existing}\n${line}`;
-            if (getByteLength(newContent) > MAX_ANALYTICS_BYTES) {
-                await client.writeFile(ANALYTICS_ROTATED_PATH, existing);
-                await client.writeFile(ANALYTICS_PATH, line);
-            } else {
-                await client.writeFile(ANALYTICS_PATH, newContent);
-            }
-            return;
+        let existing = '';
+        try { existing = await client.readFile(ANALYTICS_PATH); }
+        catch (error) {
+            if (!/HTTP error: 404|not found|does not exist|ENOENT|no such file/i.test(String(error))) throw error;
+        }
+        const newContent = existing ? `${existing}\n${line}` : line;
+        if (getByteLength(newContent) > MAX_ANALYTICS_BYTES) {
+            await client.writeFile(ANALYTICS_ROTATED_PATH, existing);
+            await client.writeFile(ANALYTICS_PATH, line);
+        } else {
+            await client.writeFile(ANALYTICS_PATH, newContent);
         }
     } catch {
-        // File may not exist yet
-    }
-
-    try {
-        await client.writeFile(ANALYTICS_PATH, line);
-    } catch {
-        // Silent fail - analytics must never block tool calls
+        // Silent fail - analytics must never block tool calls or erase history.
     }
 }
 
@@ -326,6 +327,10 @@ export function computeAnalyticsSummary(
 }
 
 export async function clearAnalyticsData(client: SiYuanClient): Promise<void> {
+    return queueStorage(client, 'analytics', () => clearAnalyticsDataUnlocked(client));
+}
+
+async function clearAnalyticsDataUnlocked(client: SiYuanClient): Promise<void> {
     try {
         await client.writeFile(ANALYTICS_PATH, '');
     } catch {

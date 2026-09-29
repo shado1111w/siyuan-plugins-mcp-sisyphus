@@ -185,7 +185,7 @@ export async function runToolCall(
         result = filterUiRefreshMetadata(result, ctx.includeUiRefreshMetadata);
     }
 
-    const postStats = category === 'mascot' ? await readPuppyStats(client) : preStats;
+    const postStats = category === 'mascot' || getInvocationTransport() === 'kernel' ? await readPuppyStats(client) : preStats;
     await writePuppyEvent(client, {
         tool: puppyTool,
         action,

@@ -149,3 +149,26 @@ describe('telemetry', () => {
         });
     });
 });
+
+it('coalesces overlapping telemetry checks for one client', async () => {
+    const client = { readFile: vi.fn(async () => ''), writeFile: vi.fn(async () => {}) } as any;
+    await Promise.all(Array.from({ length: 12 }, () => maybeSendTelemetry(client)));
+    expect(client.readFile).toHaveBeenCalledTimes(1);
+});
+
+it('uses the kernel adapter and reports redacted failures with cooldown', async () => {
+    const { getTelemetryStatus } = await import('@/core/telemetry');
+    const config = { enabled: true, reportIntervalHours: 1, lastReportAt: 0, endpoint: 'https://test.invalid/telemetry' };
+    const client = {
+        readFile: async (path: string) => path === TELEMETRY_CONFIG_PATH ? JSON.stringify(config) : path === ANALYTICS_PATH
+            ? JSON.stringify({ ts: Date.now(), tool: 'system', action: 'get_version', durationMs: 5, status: 'success', transport: 'kernel' }) : '',
+        writeFile: vi.fn(async () => {}),
+        fetchExternal: vi.fn(async () => { throw new Error('secret endpoint'); }),
+    } as any;
+    await maybeSendTelemetry(client);
+    await maybeSendTelemetry(client);
+    expect(client.fetchExternal).toHaveBeenCalledTimes(1);
+    expect(getTelemetryStatus(client)).toMatchObject({ status: 'failed' });
+    expect(JSON.stringify(getTelemetryStatus(client))).not.toContain('secret');
+    expect(client.writeFile).not.toHaveBeenCalled();
+});

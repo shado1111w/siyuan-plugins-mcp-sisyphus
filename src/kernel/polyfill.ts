@@ -8,6 +8,9 @@
 
 import { sha256 } from './sha256';
 
+// SiYuan exposes goja_nodejs Buffer. Capture it before installing our fallback.
+const nativeBuffer = typeof (globalThis as any).Buffer === 'function' ? (globalThis as any).Buffer : undefined;
+
 const g = globalThis as {
     process?: { env: Record<string, string>; cwd: () => string; argv: string[] };
     TextEncoder?: any;
@@ -33,6 +36,7 @@ if (typeof g.process === 'undefined' || g.process === null) {
  */
 
 function utf8EncodeString(s: string): Uint8Array {
+    if (nativeBuffer) return nativeBuffer.from(s, 'utf8');
     const out: number[] = [];
     for (let i = 0; i < s.length; i++) {
         let cp = s.charCodeAt(i);
@@ -52,6 +56,7 @@ function utf8EncodeString(s: string): Uint8Array {
 }
 
 function utf8DecodeBytes(bytes: Uint8Array): string {
+    if (nativeBuffer) return nativeBuffer.from(bytes).toString('utf8');
     let out = '';
     let i = 0;
     while (i < bytes.length) {
@@ -98,9 +103,8 @@ if (typeof g.TextDecoder === 'undefined') {
 }
 
 /* ---------- timers ----------
- * notebook/handlers uses setTimeout for a settle delay; goja has no timer
- * queue. Run the callback synchronously — the delay is a debounce nicety,
- * not a correctness requirement for the write coordinator.
+ * SiYuan supplies real timers through goja_nodejs/eventloop. The fallback
+ * below exists only for minimal embedders; it must never replace host timers.
  */
 if (typeof g.setTimeout === 'undefined') {
     g.setTimeout = ((fn: () => void) => { fn(); return 0; }) as any;

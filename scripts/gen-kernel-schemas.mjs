@@ -12,7 +12,7 @@
  */
 
 import { createServer } from 'vite';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -30,7 +30,10 @@ export async function generateKernelSchemas() {
         const mod = await server.ssrLoadModule('/src/kernel/schema-manifest.ts');
         const tools = mod.buildKernelToolManifest();
         mkdirSync(dirname(outFile), { recursive: true });
-        writeFileSync(outFile, JSON.stringify({ tools }, null, 2) + '\n', 'utf8');
+        const generated = JSON.stringify({ tools, actions: mod.getRegisteredActionSchemas() }, null, 2) + '\n';
+        // Watch builds import this file. Avoid retriggering the watcher when
+        // only handler code changed and the schema is identical.
+        if (!existsSync(outFile) || readFileSync(outFile, 'utf8') !== generated) writeFileSync(outFile, generated, 'utf8');
         return tools.length;
     } finally {
         await server.close();

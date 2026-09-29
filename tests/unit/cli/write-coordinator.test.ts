@@ -21,3 +21,26 @@ describe('deriveKernelEndpointUrl', () => {
         expect(deriveKernelEndpointUrl('')).toBeUndefined();
     });
 });
+
+import { selectWriteCoordinatorSettings } from '@/cli/runtime';
+import { selectOfficialTools } from '@/core/official-mcp-tools';
+
+it('selects the kernel as sole owner even when the Node listener is off', () => {
+    const settings = selectWriteCoordinatorSettings({ enabled: false, kernelEndpointEnabled: true }, 'http://example:6806', 'api-token');
+    expect(settings).toEqual({ owner: 'kernel', endpoints: [{ url: 'http://example:6806/plugin/private/siyuan-plugins-mcp-sisyphus/mcp', token: 'api-token' }] });
+    expect(selectWriteCoordinatorSettings({ enabled: true, kernelEndpointEnabled: true }, 'http://example:6806')?.endpoints).toHaveLength(1);
+    expect(selectWriteCoordinatorSettings({ enabled: false }, 'http://example:6806')).toBeUndefined();
+});
+
+it('recognizes native MCP annotations and intersects optional capability metadata', () => {
+    const tools = selectOfficialTools([
+        { name: 'opaque', inputSchema: { type: 'object' }, annotations: { readOnlyHint: true } },
+        { name: 'self', inputSchema: { type: 'object' } },
+    ], [
+        { name: 'opaque', source: 'plugin', ownerId: 'other' },
+        { name: 'hidden', source: 'plugin' },
+        { name: 'self', source: 'plugin', ownerId: 'siyuan-plugins-mcp-sisyphus' },
+    ]);
+    expect(tools).toHaveLength(1);
+    expect(tools[0]).toMatchObject({ name: 'opaque', source: 'plugin', readOnlyHint: true });
+});

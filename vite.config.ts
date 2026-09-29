@@ -296,9 +296,12 @@ function createKernelConfig() {
         name: "kernel-node-shims",
         enforce: "pre" as const,
         resolveId(source: string, importer?: string) {
+            if (source.endsWith('/action-schema-runtime')) {
+                return resolve(__dirname, 'src/kernel/baked-action-schemas.ts');
+            }
             // Intercept bare node:* imports inside the bundled sources and
             // point them at the goja shims.
-            if (/^node:(fs|path|crypto)$/.test(source)) {
+            if (/^(?:node:)?(fs|path|crypto)$/.test(source)) {
                 return kernelShimPath;
             }
             // Redirect the indirection layer itself so its own node: imports
@@ -319,7 +322,7 @@ function createKernelConfig() {
                 "@": resolve(__dirname, "src"),
             },
         },
-        plugins: [kernelSchemaCodegen, kernelNodeShimPlugin],
+        plugins: [kernelSchemaCodegen, kernelNodeShimPlugin, mcpAppHtmlModule()],
         define: {
             "process.env.DEV_MODE": JSON.stringify(isDev),
             "process.env.NODE_ENV": JSON.stringify(env.NODE_ENV),

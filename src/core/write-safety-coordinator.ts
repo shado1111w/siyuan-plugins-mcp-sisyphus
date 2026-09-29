@@ -1,3 +1,4 @@
+import { getStagedUpload } from './upload-source';
 import { normalizeAvIdArgs } from './argument-aliases';
 import { withAvIdWarning } from '../tools/internal/av-id-warning';
 import { verifyAvCellsReadback } from './av-cell-readback';
@@ -26,7 +27,7 @@ import {
     USER_RULES_VIRTUAL_PATH,
     type ToolCategory,
 } from './config';
-import { canonicalizeWriteState, hashWriteBytes, hashWriteState, parseWriteHashCredential } from './write-safety-hash';
+import { canonicalizeWriteState, hashWriteBytes, hashWriteBytesAsync, hashWriteState, parseWriteHashCredential } from './write-safety-hash';
 import {
     WritePreflightLeasePool,
     type WritePreflightLease,
@@ -51,6 +52,8 @@ export interface WriteSafetyExecution {
     action: string;
     args: Record<string, unknown>;
     strictMode: boolean;
+    /** Synchronous cancellation barrier before any executing ledger entry or side effect. */
+    beforeCommit?: () => void;
     validateArgs?: (args: Record<string, unknown>) => void;
     execute(args: Record<string, unknown>): Promise<ToolResult>;
 }
@@ -111,6 +114,7 @@ export class WriteSafetyCoordinator {
                     'This action has an external or local side effect that cannot be verified by the strict write coordinator. Nothing was executed.',
                 );
             }
+            execution.beforeCommit?.();
             return addSafetyMetadata(await execution.execute(stripSafetyFields(execution.args)), {
                 writeSafetyMode: execution.strictMode ? 'strict' : 'legacy',
                 writeSafetyGuaranteed: false,
@@ -124,6 +128,7 @@ export class WriteSafetyCoordinator {
                     'Strict safe writes are disabled. The preflight did not execute the mutation.',
                 );
             }
+            execution.beforeCommit?.();
             return addSafetyMetadata(await execution.execute(stripSafetyFields(execution.args)), {
                 writeSafetyMode: 'legacy',
                 writeSafetyGuaranteed: false,
@@ -240,6 +245,7 @@ export class WriteSafetyCoordinator {
             });
         }
 
+        try { execution.beforeCommit?.(); } catch (error) { return fromSafetyError(error); }
         const targetIds = before?.targetIds ?? collectTargetSelectors(args);
         try {
             await this.ledger.record({
@@ -541,7 +547,7 @@ async function probeUploadedResult(client: SiYuanClient, result: ToolResult, sou
         ? uploadedPath
         : `/data/${uploadedPath.replace(/^\/+/, '')}`;
     const bytes = await client.readFileBinary(workspacePath);
-    const uploadedHash = hashWriteBytes(bytes);
+    const uploadedHash = await hashWriteBytesAsync(bytes);
     if (uploadedHash !== source.hash) {
         throw safetyError('readback_mismatch', 'The uploaded asset digest does not match the validated source file.');
     }
@@ -561,6 +567,10 @@ async function probeCurrentState(
     policy: Extract<ActionSafetyPolicy, { mode: 'mutation' }>,
 ): Promise<StateProbe> {
     if (policy.precondition === 'source') {
+        if (typeof args.uploadSource === 'string') {
+            const source = getStagedUpload(client, args.uploadSource);
+            return { hash: source.hash, targetIds: [args.uploadSource], summary: { sourceSize: source.bytes.byteLength } };
+        }
         const localFilePath = typeof args.localFilePath === 'string' ? args.localFilePath : '';
         if (!localFilePath) throw safetyError('precondition_required', 'localFilePath is required to fingerprint the upload source.');
         const bytes = await nodeFs().promises.readFile(localFilePath);
@@ -672,22 +682,30 @@ async function probeCurrentState(
         }
     } else if (category === 'flashcard') {
         if (typeof args.deckID === 'string') {
-            const cards = await client.requestRead<Record<string, unknown>>('/api/riff/getRiffCards', {
-                id: args.deckID,
-                page: 1,
-                pageSize: 999,
-            });
+            // Native getRiffCards returns paginated blocks with riffCardID.
+            // Read the complete deck before selecting targets; an empty first
+            // page must never turn a later card into an empty precondition.
+            const rows: unknown[] = [];
+            let pageCount = 1;
+            for (let page = 1; page <= pageCount; page++) {
+                const cards = await client.requestRead<Record<string, unknown>>('/api/riff/getRiffCards', {
+                    id: args.deckID, page, pageSize: 512,
+                });
+                const count = cards.pageCount ?? 1;
+                if (!Number.isInteger(count) || (count as number) < 0 || (count as number) > 128) {
+                    throw safetyError('precondition_required', 'Cannot read a complete bounded flashcard deck snapshot.');
+                }
+                pageCount = Math.max(1, count as number);
+                const batch = Array.isArray(cards.cards) ? cards.cards : Array.isArray(cards.blocks) ? cards.blocks : null;
+                if (!batch) throw safetyError('precondition_required', 'Invalid flashcard deck snapshot.');
+                rows.push(...batch);
+            }
             const cardID = typeof args.cardID === 'string' ? args.cardID : undefined;
             const blockIDs = Array.isArray(args.blockIDs)
                 ? args.blockIDs.filter((item): item is string => typeof item === 'string')
                 : [];
-            const rows = Array.isArray(cards.cards)
-                ? cards.cards
-                : Array.isArray(cards.blocks)
-                    ? cards.blocks
-                    : [];
             const selectedRows = cardID
-                ? rows.filter((item) => item && typeof item === 'object' && (item as Record<string, unknown>).cardID === cardID)
+                ? rows.filter((item) => item && typeof item === 'object' && ((item as Record<string, unknown>).riffCardID ?? (item as Record<string, unknown>).cardID) === cardID)
                 : blockIDs.length > 0
                     ? rows.filter((item) => {
                         if (!item || typeof item !== 'object') return false;
@@ -696,6 +714,9 @@ async function probeCurrentState(
                         return blockIDs.includes(blockID);
                     })
                     : rows;
+            if (cardID && selectedRows.length !== 1) {
+                throw safetyError('precondition_required', 'The requested review card is missing or ambiguous in the deck snapshot.');
+            }
             state.flashcards = normalizeFlashcardState(selectedRows);
         } else {
             const blockIDs = Array.isArray(args.blockIDs)
@@ -841,6 +862,7 @@ async function appendFileState(
             const source = await readTemplateSource(client, args.path);
             state.template = { path: normalizeTemplatePath(args.path).relativePath, markdown: source.markdown };
         } catch (error) {
+            if ((error as { reason?: string })?.reason !== 'template_not_found') throw error;
             state.template = { path: normalizeTemplatePath(args.path).relativePath, missing: true };
         }
         return;
@@ -850,7 +872,8 @@ async function appendFileState(
         try {
             const source = await readTemplateSource(client, relativePath);
             state.destinationTemplate = { path: relativePath, markdown: source.markdown };
-        } catch {
+        } catch (error) {
+            if ((error as { reason?: string })?.reason !== 'template_not_found') throw error;
             state.destinationTemplate = { path: relativePath, missing: true };
         }
         await appendBlockRows(client, args, state);
@@ -871,7 +894,7 @@ async function appendFileState(
             : `/data/${assetPath.replace(/^\/+/, '')}`;
         try {
             const bytes = await client.readFileBinary(workspacePath);
-            state.asset = { path: workspacePath, hash: hashWriteBytes(bytes), size: bytes.byteLength };
+            state.asset = { path: workspacePath, hash: await hashWriteBytesAsync(bytes), size: bytes.byteLength };
         } catch {
             state.asset = { path: workspacePath, missing: true };
         }
@@ -1056,7 +1079,7 @@ function normalizeFlashcardState(value: unknown): unknown {
         // The kernel derives a fresh sub-second due timestamp on every read
         // for new cards. Identity, deck binding, reps/state, and lastReview
         // are stable mutation preconditions; the computed due is not.
-        if (key === 'due') continue;
+        if (key === 'due' && (value as Record<string, unknown>).state === 0) continue;
         normalized[key] = normalizeFlashcardState(nested);
     }
     return normalizeLiveBlockState(normalized);

@@ -1,3 +1,5 @@
+import { saveDownloadExport } from '../../core/export-download';
+import { getStagedUpload } from '../../core/upload-source';
 import { nodeFs, nodePath } from '../../core/node-loader';
 import { getInvocationTransport } from '../../core/runtime';
 import type { SiYuanClient } from '../../api/client';
@@ -64,27 +66,18 @@ function kernelEndpointResult(reason: string, details: Record<string, unknown>):
         success: false,
         transport: 'kernel',
         reason,
-        hint: 'The kernel endpoint runs inside the SiYuan goja sandbox without host filesystem or multipart-upload access. Drive the official SiYuan HTTP API directly for this step.',
+        hint: 'The kernel endpoint cannot access the caller filesystem. Use CLI/Node file transfer or the authenticated transfer/download API.',
         officialApiDoc: KERNEL_OFFICIAL_API_DOC,
         ...details,
     });
 }
 
 function kernelUploadAssetGuidance(parsed: { localFilePath: string; assetsDirPath?: string }): ToolResult {
-    return kernelEndpointResult('kernel_no_multipart_upload', {
+    return kernelEndpointResult('kernel_local_file_unavailable', {
         requestedLocalFilePath: parsed.localFilePath,
         assetsDirPath: parsed.assetsDirPath ?? '/assets/',
-        officialApi: {
-            endpoint: '/api/asset/upload',
-            method: 'POST',
-            contentType: 'multipart/form-data',
-            fields: {
-                'assetsDirPath': parsed.assetsDirPath ?? '/assets/',
-                'file[]': '@' + parsed.localFilePath,
-            },
-            curlExample: 'curl -F "assetsDirPath=' + (parsed.assetsDirPath ?? '/assets/') + '" -F "file[]=@' + parsed.localFilePath + '" http://127.0.0.1:6806/api/asset/upload -H "Authorization: Token <api-token>"',
-        },
-        nextStep: 'Run the upload against the SiYuan HTTP API (e.g. via curl or the siyuan-sisyphus CLI in local mode), then reference the returned assets/ path in the document.',
+        transferEndpoint: '/plugin/private/siyuan-plugins-mcp-sisyphus/transfer/upload',
+        nextStep: 'POST {fileName,dataBase64} to the authenticated transfer endpoint, then preflight upload_asset with uploadSource instead of localFilePath. CLI/Node handle staging automatically; maximum 10 MiB.',
     });
 }
 
@@ -286,15 +279,16 @@ async function resolveTemplateAfterWrite(
 const handleUploadAsset = (thresholdMB: number, largeUploadThresholdBytes: number): ToolActionHandler =>
     async ({ client, rawArgs }) => {
         const parsed = FileUploadAssetSchema.parse(rawArgs);
-        if (getInvocationTransport() === 'kernel') {
-            // The official upload endpoint is multipart/form-data; the goja
-            // sandbox fetch accepts string bodies only, so the bytes cannot
-            // cross the boundary here, and there is no host filesystem to
-            // stage localFilePath from. Hand the model the exact official API
-            // call instead of a cryptic fs/FormData failure.
-            return kernelUploadAssetGuidance(parsed);
+        if (parsed.uploadSource) {
+            const source = getStagedUpload(client, parsed.uploadSource);
+            if (source.bytes.byteLength > largeUploadThresholdBytes && parsed.confirmLargeFile !== true) {
+                return createJsonResult({ success: false, requiresConfirmation: true, reason: 'file_too_large', fileSizeBytes: source.bytes.byteLength, thresholdMB });
+            }
+            const result = await fileApi.uploadAsset(client, parsed.assetsDirPath, source.bytes, source.fileName);
+            return createJsonResult({ ...result, uploadedFileName: source.fileName, uploadSource: parsed.uploadSource });
         }
-        const localFilePath = resolveLocalInputPath(parsed.localFilePath);
+        if (getInvocationTransport() === 'kernel') return kernelUploadAssetGuidance({ localFilePath: parsed.localFilePath! });
+        const localFilePath = resolveLocalInputPath(parsed.localFilePath!);
         if (!nodeFs().existsSync(localFilePath)) {
             throw new Error(`Local file does not exist: ${localFilePath}`);
         }
@@ -751,6 +745,10 @@ const handleExportResources: ToolActionHandler = async ({ client, rawArgs }) => 
         throw new Error(`Failed to export resources. original_paths=${JSON.stringify(parsed.paths)} normalized_paths=${JSON.stringify(normalizedPaths)} cause=${message}`);
     }
 
+    if (getInvocationTransport() === 'kernel' && parsed.delivery === 'download') {
+        return createJsonResult({ ...result, transport: 'kernel', delivery: 'download', downloadPath: result.path });
+    }
+
     if (parsed.outputPath) {
         if (getInvocationTransport() === 'kernel') {
             // No host filesystem in the kernel sandbox: the exported ZIP is
@@ -781,15 +779,7 @@ const handleExportResources: ToolActionHandler = async ({ client, rawArgs }) => 
                 nextStep: 'Decode dataBase64 on the client side and write it to the requested output path.',
             });
         }
-        const localOutputPath = resolveLocalOutputPath(parsed.outputPath);
-        const binary = await client.readFileBinary(result.path);
-        nodeFs().mkdirSync(nodePath().dirname(localOutputPath), { recursive: true });
-        nodeFs().writeFileSync(localOutputPath, binary);
-        return createJsonResult({
-            ...result,
-            outputPath: localOutputPath,
-            bytes: binary.byteLength,
-        });
+        return saveDownloadExport(client, parsed, createJsonResult({ ...result, transport: getInvocationTransport(), delivery: 'download', downloadPath: result.path, success: true }));
     }
     return createJsonResult(result);
 };
@@ -951,12 +941,19 @@ const handleExtractDoc: ToolActionHandler = async ({ client, rawArgs }) => {
         const assets: Array<Record<string, unknown>> = [];
         let inlineCount = 0;
         let pointerCount = 0;
+        let inlineRemaining = KERNEL_BASE64_PAYLOAD_BYTES;
         for (const match of assetRefs) {
             const assetRelPath = match[1];
             const workspacePath = `data/assets/${assetRelPath}`;
+            if (parsed.delivery === 'download' || inlineRemaining <= 0) {
+                assets.push({ path: assetRelPath, encoding: 'official-api' });
+                pointerCount++;
+                continue;
+            }
             try {
                 const data = await client.readFileBinary(workspacePath);
-                if (data.byteLength <= KERNEL_BASE64_PAYLOAD_BYTES) {
+                if (data.byteLength <= inlineRemaining) {
+                    inlineRemaining -= data.byteLength;
                     assets.push({
                         path: assetRelPath,
                         bytes: data.byteLength,
@@ -978,8 +975,10 @@ const handleExtractDoc: ToolActionHandler = async ({ client, rawArgs }) => {
             }
         }
         return createJsonResult({
-            success: true,
+            success: assets.every(asset => !asset.error),
+            complete: assets.every(asset => !asset.error),
             transport: 'kernel',
+            delivery: parsed.delivery ?? 'inline',
             docId: parsed.id,
             docName,
             hPath,
@@ -992,56 +991,10 @@ const handleExtractDoc: ToolActionHandler = async ({ client, rawArgs }) => {
         });
     }
 
-    const idSuffix = parsed.id.slice(-7);
-    const folderName = `${docName}-${idSuffix}`;
-
-    const homeDir = process.env.USERPROFILE || process.env.HOME || '';
-    const outputRoot = parsed.outputDir
-        ? nodePath().resolve(parsed.outputDir)
-        : nodePath().join(homeDir, 'siyuan-extracted');
-    const defaultOutputDirUsed = !parsed.outputDir;
-    const targetDir = nodePath().join(outputRoot, folderName);
-    const assetsDir = nodePath().join(targetDir, 'assets');
-
-    if (nodeFs().existsSync(outputRoot)) {
-        nodeFs().rmSync(outputRoot, { recursive: true, force: true });
-    }
-    nodeFs().mkdirSync(assetsDir, { recursive: true });
-
-    const docMdPath = nodePath().join(targetDir, `${docName}.md`);
-    nodeFs().writeFileSync(docMdPath, markdown, 'utf-8');
-
-    const structure = [`${docName}.md`];
-    let extractedCount = 0;
-    let skippedCount = 0;
-
-    for (const match of assetRefs) {
-        const assetRelPath = match[1];
-        const assetFullPath = nodePath().join(assetsDir, assetRelPath);
-
-        try {
-            nodeFs().mkdirSync(nodePath().dirname(assetFullPath), { recursive: true });
-            const data = await client.readFileBinary(`data/assets/${assetRelPath}`);
-            nodeFs().writeFileSync(assetFullPath, data);
-            structure.push(`assets/${assetRelPath}`);
-            extractedCount++;
-        } catch {
-            skippedCount++;
-        }
-    }
-
-    return createJsonResult({
-        outputRoot,
-        defaultOutputDirUsed,
-        extractedDir: targetDir,
-        docMdFile: `${docName}.md`,
-        extractedAssetCount: extractedCount,
-        skippedAssetCount: skippedCount,
-        structure,
-        hint: defaultOutputDirUsed
-            ? 'No outputDir was provided, so extract_doc used the default ~/siyuan-extracted/ output root. Pass outputDir explicitly when you need a specific location such as /private/tmp.'
-            : 'extract_doc wrote to the explicit outputDir root.',
-    });
+    return saveDownloadExport(client, parsed, createJsonResult({
+        success: true, transport: getInvocationTransport(), delivery: 'download', docId: parsed.id, docName,
+        hPath, markdown, assets: assetRefs.map(match => ({ path: match[1], encoding: 'official-api' })),
+    }));
 };
 
 export function createFileActionHandlers(thresholdMB: number, largeUploadThresholdBytes: number): Record<FileAction, ToolActionHandler> {

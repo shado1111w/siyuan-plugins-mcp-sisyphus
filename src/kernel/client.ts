@@ -1,3 +1,7 @@
+import { normalizeKernelOptions, type KernelOptions } from '../core/kernel-options';
+import type { ExternalResponse } from '../core/external-fetch';
+import { UploadStagingStore, MAX_TRANSFER_FILE_BYTES } from '../core/upload-source';
+import { randomUUID } from './node-shims';
 /*
  * KernelSiYuanClient — a SiYuanClient-compatible adapter backed by the
  * kernel petal's siyuan.client.fetch API.
@@ -9,8 +13,8 @@
  * Response, so we normalize it here.
  *
  * Only the methods that WriteSafetyCoordinator + tool handlers actually
- * call are implemented. Multipart upload (putFile) and host filesystem
- * access are not available in the kernel sandbox.
+ * call are implemented. Workspace writes use bounded multipart bodies; host filesystem access
+ * remains unavailable in the kernel sandbox.
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -30,6 +34,53 @@ export class KernelResponseError extends Error {
 
 export class KernelSiYuanClient {
     private token = '';
+    private options = normalizeKernelOptions(undefined);
+    private checkpoint = () => {};
+    private retryCheckpoint = () => {};
+    configure(options: KernelOptions) { this.options = options; }
+    forTask(checkpoint: () => void, retryCheckpoint = () => {}): KernelSiYuanClient {
+        const scoped = Object.create(this) as KernelSiYuanClient;
+        scoped.checkpoint = checkpoint;
+        scoped.retryCheckpoint = retryCheckpoint;
+        scoped.options = { ...this.options };
+        return scoped;
+    }
+    private async retryRead<T>(run: () => Promise<T>): Promise<T> {
+        for (let attempt = 0;; attempt++) {
+            this.checkpoint();
+            if (attempt > 0) this.retryCheckpoint();
+            try { const result = await run(); this.checkpoint(); return result; }
+            catch (error) {
+                this.checkpoint();
+                // Retry transport failures and transient HTTP errors, never API/schema/size errors.
+                if (attempt >= this.options.readRetries || (error instanceof KernelResponseError && !error.retryable)) throw error;
+                await new Promise(resolve => setTimeout(resolve, Math.min(100 * 2 ** attempt, 1000)));
+            }
+        }
+    }
+    async fetchExternal(url: string, init: { method?: string; headers?: Record<string, string>; body?: string }, timeoutMs: number): Promise<ExternalResponse> {
+        const target = new URL(url);
+        if (!['http:', 'https:'].includes(target.protocol) || target.username || target.password) throw new Error('External request requires an HTTP(S) URL without credentials');
+        // Existing authenticated SiYuan proxy enforces destination and response-size policy.
+        // External submissions are never retried: a lost response may follow a successful POST.
+        const result = await this.requestWrite<{ status: number; body: string }>('/api/network/forwardProxy', {
+            url, method: init.method ?? 'GET', timeout: Math.max(1000, Math.min(30000, timeoutMs)),
+            headers: Object.entries(init.headers ?? {}).map(([key, value]) => ({ [key]: value })),
+            contentType: init.headers?.['Content-Type'] ?? 'application/json',
+            payload: Buffer.from(init.body ?? '', 'utf8').toString('base64'), payloadEncoding: 'base64', responseEncoding: 'text', redirect: false,
+        });
+        if (!result || typeof result.status !== 'number' || typeof result.body !== 'string') throw new Error('Invalid network proxy response');
+        return { ok: result.status >= 200 && result.status < 300, status: result.status, text: async () => result.body };
+    }
+    readonly uploads = new UploadStagingStore();
+    getUploadSource(id: string) { return this.uploads.getUploadSource(id); }
+    async uploadAssetBytes<T>(assetsDirPath: string, bytes: Uint8Array, fileName: string): Promise<T> {
+        if (bytes.byteLength > MAX_TRANSFER_FILE_BYTES) throw new Error('Kernel upload exceeds 10 MiB');
+        return this.sendMultipart<T>('/api/asset/upload', [
+            { name: 'assetsDirPath', value: assetsDirPath },
+            { name: 'file[]', filename: fileName, value: bytes },
+        ], MAX_TRANSFER_FILE_BYTES + 64 * 1024);
+    }
 
     setToken(token: string): void {
         // The kernel injects the plugin token automatically; storing it is
@@ -45,9 +96,17 @@ export class KernelSiYuanClient {
         return {};
     }
 
+    async requestResource(path: string) {
+        return this.retryRead(async () => {
+            const response = await this.doFetch(path, { method: 'GET' });
+            if (!response.ok && (response.status === 429 || response.status >= 500)) throw new KernelResponseError(`HTTP error: ${response.status}`, response.status, true);
+            return { ...response, statusText: '' };
+        });
+    }
+
     private async doFetch(
         path: string,
-        init: { method?: string; headers?: Record<string, string>; body?: string },
+        init: { method?: string; headers?: Record<string, string>; body?: string | ArrayBuffer },
     ): Promise<{ ok: boolean; status: number; text: () => Promise<string>; json: () => Promise<unknown>; arrayBuffer: () => Promise<unknown> }> {
         const resp = await siyuan.client.fetch(path, {
             method: init.method ?? 'GET',
@@ -65,8 +124,8 @@ export class KernelSiYuanClient {
 
     private async readData<T>(
         path: string,
-        init: { method?: string; headers?: Record<string, string>; body?: string },
-        _maxResponseBytes?: number,
+        init: { method?: string; headers?: Record<string, string>; body?: string | ArrayBuffer },
+        maxResponseBytes?: number,
     ): Promise<T> {
         const resp = await this.doFetch(path, init);
         if (!resp.ok) {
@@ -79,6 +138,9 @@ export class KernelSiYuanClient {
             );
         }
         const rawText = await resp.text();
+        if (maxResponseBytes !== undefined && new TextEncoder().encode(rawText).byteLength > maxResponseBytes) {
+            throw new KernelResponseError(`Response exceeds ${maxResponseBytes} bytes`, resp.status, false);
+        }
         if (rawText.trim() === '') return null as T;
         let result: { code?: number; msg?: string; data?: T };
         try {
@@ -101,11 +163,11 @@ export class KernelSiYuanClient {
     }
 
     async requestRead<T>(endpoint: string, data?: object, maxResponseBytes?: number): Promise<T> {
-        return this.readData<T>(endpoint, {
+        return this.retryRead(() => this.readData<T>(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data ?? {}),
-        }, maxResponseBytes);
+        }, maxResponseBytes));
     }
 
     async requestWrite<T>(endpoint: string, data?: object): Promise<T> {
@@ -121,9 +183,9 @@ export class KernelSiYuanClient {
         return this.requestWrite(endpoint, data);
     }
 
-    async requestApi(endpoint: string, method: string, body?: string): Promise<unknown> {
+    async requestApi(endpoint: string, method: string, body?: string | ArrayBuffer): Promise<unknown> {
         const upper = method.toUpperCase();
-        const init: { method: string; headers: Record<string, string>; body?: string } = {
+        const init: { method: string; headers: Record<string, string>; body?: string | ArrayBuffer } = {
             method: upper,
             headers: { 'Content-Type': 'application/json' },
         };
@@ -131,7 +193,8 @@ export class KernelSiYuanClient {
         return this.readData<unknown>(endpoint, init);
     }
 
-    async readFile(path: string): Promise<string> {
+    async readFile(path: string): Promise<string> { return this.retryRead(() => this.readFileOnce(path)); }
+    private async readFileOnce(path: string): Promise<string> {
         // storage/petal paths resolve via siyuan.storage; workspace paths go
         // through the kernel getFile API. A missing petal file surfaces from
         // goja as "open <path>: no such file or directory", which callers like
@@ -152,10 +215,12 @@ export class KernelSiYuanClient {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ path }),
         });
+        if (!resp.ok) throw new KernelResponseError(`HTTP error: ${resp.status} reading ${path}`, resp.status, resp.status === 429 || resp.status >= 500);
         return await resp.text();
     }
 
-    async readFileBinary(path: string): Promise<Uint8Array> {
+    async readFileBinary(path: string): Promise<Uint8Array> { return this.retryRead(() => this.readFileBinaryOnce(path)); }
+    private async readFileBinaryOnce(path: string): Promise<Uint8Array> {
         if (isPetalPath(path)) {
             try {
                 const obj = await siyuan.storage.get(petalRelative(path));
@@ -172,6 +237,7 @@ export class KernelSiYuanClient {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ path }),
         });
+        if (!resp.ok) throw new KernelResponseError(`HTTP error: ${resp.status} reading ${path}`, resp.status, resp.status === 429 || resp.status >= 500);
         const ab = await resp.arrayBuffer();
         return new Uint8Array(ab as ArrayBuffer);
     }
@@ -181,26 +247,40 @@ export class KernelSiYuanClient {
             await siyuan.storage.put(petalRelative(path), content);
             return;
         }
-        // Workspace files: putFile expects multipart; kernel mode writes via
-        // base64 JSON upload is not part of the kernel API. Fall back to a
-        // clear error rather than corrupting the workspace.
-        throw new KernelResponseError(
-            `kernel sandbox: writeFile('${path}') outside storage/petal is not supported`,
-            501,
-            false,
-        );
+        const bytes = new TextEncoder().encode(content);
+        const template = /^\/?data\/templates\//.test(path);
+        const templateLimit = this.options.templateMaxMiB * 1024 * 1024;
+        if (template && bytes.byteLength > templateLimit) throw new Error(`Template exceeds ${this.options.templateMaxMiB} MiB`);
+        await this.sendMultipart('/api/file/putFile', [
+            { name: 'path', value: path },
+            { name: 'isDir', value: 'false' },
+            { name: 'modTime', value: String(Date.now()) },
+            { name: 'file', filename: 'content', value: bytes },
+        ], template ? templateLimit + 64 * 1024 : MAX_MULTIPART_BYTES);
     }
 
-    async requestFormDataRead<T>(endpoint: string, _formData: unknown): Promise<T> {
-        return this.requestRead<T>(endpoint, {});
+    private async sendMultipart<T>(endpoint: string, fields: MultipartField[], maxBytes = MAX_MULTIPART_BYTES): Promise<T> {
+        const body = encodeMultipart(fields, maxBytes);
+        return this.readData<T>(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': `multipart/form-data; boundary=${body.boundary}` },
+            body: body.bytes.buffer as ArrayBuffer,
+        });
     }
 
-    async requestFormDataWrite<T>(_endpoint: string, _formData: unknown): Promise<T> {
-        throw new KernelResponseError(
-            'kernel sandbox: multipart form-data writes are not supported',
-            501,
-            false,
-        );
+    async requestFormDataRead<T>(endpoint: string, formData: unknown): Promise<T> {
+        return this.retryRead(() => this.requestFormDataWrite<T>(endpoint, formData));
+    }
+
+    async requestFormDataWrite<T>(endpoint: string, formData: any): Promise<T> {
+        if (typeof formData?.entries !== 'function') throw new Error('Expected iterable multipart form data');
+        const fields: MultipartField[] = [];
+        for (const [name, value] of formData.entries()) {
+            fields.push(typeof value === 'string'
+                ? { name, value }
+                : { name, filename: value.name || 'file', value: new Uint8Array(await value.arrayBuffer()) });
+        }
+        return this.sendMultipart<T>(endpoint, fields);
     }
 
     async requestFormData<T>(endpoint: string, formData: unknown): Promise<T> {
@@ -224,4 +304,34 @@ function petalRelative(path: string): string {
 function isMissingFileError(error: unknown): boolean {
     const msg = error instanceof Error ? error.message : String(error);
     return /no such file or directory|not exist|file does not exist|cannot find/i.test(msg);
+}
+
+interface MultipartField { name: string; filename?: string; value: string | Uint8Array }
+const MAX_MULTIPART_BYTES = 8 * 1024 * 1024;
+
+/** Native siyuan.client.fetch accepts ArrayBuffer; no Blob/FormData globals needed. */
+function encodeMultipart(fields: MultipartField[], maxBytes: number): { boundary: string; bytes: Uint8Array } {
+    const encoder = new TextEncoder();
+    const boundary = `sisyphus-${randomUUID()}`;
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    const append = (chunk: string | Uint8Array) => {
+        const bytes = typeof chunk === 'string' ? encoder.encode(chunk) : chunk;
+        size += bytes.byteLength;
+        if (size > maxBytes) throw new Error(`Kernel multipart body exceeds ${maxBytes / 1024 / 1024} MiB including framing.`);
+        chunks.push(bytes);
+    };
+    for (const field of fields) {
+        if (/[\r\n"\\]/.test(field.name) || (field.filename && /[\r\n"\\]/.test(field.filename))) {
+            throw new Error('Invalid multipart field name');
+        }
+        append(`--${boundary}\r\nContent-Disposition: form-data; name="${field.name}"${field.filename ? `; filename="${field.filename}"` : ''}\r\n${field.filename ? 'Content-Type: application/octet-stream\r\n' : ''}\r\n`);
+        append(field.value);
+        append('\r\n');
+    }
+    append(`--${boundary}--\r\n`);
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    return { boundary, bytes };
 }

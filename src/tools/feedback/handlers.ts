@@ -1,3 +1,4 @@
+import { externalFetch } from '../../core/external-fetch';
 import type { FeedbackAction } from '../../core/config';
 import { submitFeedback } from '../../core/feedback';
 import { FeedbackSubmitSchema } from '../../core/types';
@@ -9,7 +10,7 @@ import { createJsonResult } from '../internal/shared';
  * the z.toJSONSchema variant construction in index.ts.
  */
 export const FEEDBACK_ACTION_HANDLERS: Record<FeedbackAction, ToolActionHandler> = {
-        submit: async ({ rawArgs }) => {
+        submit: async ({ client, rawArgs }) => {
             const parsed = FeedbackSubmitSchema.parse(rawArgs);
             const result = await submitFeedback({
                 description: parsed.description,
@@ -17,7 +18,7 @@ export const FEEDBACK_ACTION_HANDLERS: Record<FeedbackAction, ToolActionHandler>
                 suggestion: parsed.suggestion,
                 agent: parsed.agent,
                 source: parsed.source,
-            });
+            }, externalFetch(client));
             return createJsonResult({
                 action: 'submit',
                 ...result,
