@@ -936,5 +936,10 @@
     "extension_include_native_desc": "<strong>⚠️ 安全边界提示：</strong>开启后，原生工具将直接按当前思源管理员会话或 API Token 的权限执行，不经过 Sisyphus 的笔记本权限、action 禁用和危险操作确认，可能读取或修改当前身份可访问的全部工作空间数据。",
     "extension_source_plugin": "插件",
     "extension_source_native": "思源原生",
-    "extension_exposed_count": "个已暴露"
+    "extension_exposed_count": "个已暴露",
+    "kernelEndpointTitle": "内核端点",
+    "kernelEndpointDesc": "通过内核的 /plugin/private/<plugin>/mcp 路由提供写入协调器。适用于 Docker 与远程部署等无法开放独立 MCP 端口的场景。",
+    "kernelEndpointEnabled": "启用",
+    "kernelEndpointHint": "复用内核自身的端口，无需额外监听或防火墙规则。启用后远程 CLI 会自动探测到此端点，立即生效（无需重启）。",
+    "kernelEndpointDockerHint": "Docker / 浏览器环境下无法启动独立 HTTP 服务，可改用下方「内核端点」承载写入协调器，复用内核端口。"
 }

@@ -221,6 +221,16 @@ CLI 和 SiYuan 插件（`siyuan-plugins-mcp-sisyphus`）底层共用同一套 to
 
 CLI 会遵守与 MCP 客户端相同的插件 UI 配置：被禁用的 tool/action 不会出现在 `list`/`help` 中，也不能被执行。笔记本级权限同样通过 API 读取同一份 `/data/storage/petal/...` 配置并强制执行。
 
+## 内核端点的文件传输
+
+启用内核端点后，`file upload_asset --local-file-path ...` 会自动暂存文件字节，再由同一个内核协调器进行严格预检与提交；沿用 `--validate-only` 返回的 requestId 和 expectedSourceHash。单文件上限 10 MiB，暂存有效期 10 分钟；预检也返回 uploadSource，可用于不再次读取本地文件的重放（与 localFilePath 二选一）。修改源文件后必须重新预检。
+
+`file export_resources --paths-json '["assets/example.png"]' --output-path ./export.zip` 和 `file extract_doc --id <文档ID> --output-dir ./exports` 自动从内核下载并保存，返回 SHA-256；已有目标不会覆盖，同级文件保留。导出是外部副作用，不支持执行型 validateOnly，也不宣称严格写入保证。
+
+委托内核时支持 Ctrl-C 协作式取消：提交前停止，提交开始后等待真实结果。导出边下载边落盘并增量计算 SHA-256，取消/失败清理本次未完成输出（导出上限 512 MiB，单文件 120 秒）。上传按摘要查询复用内核已验证的暂存内容。
+
+内核委托分配传输 taskId；响应丢失后查询该任务的短期缓存结果，不重复提交业务调用。无法恢复时，outcome_unknown 携带 taskId，仍应使用原业务 requestId 核对。内核普通只读 action 累计预算为 128 次 API 调用 / 8 MiB，遇到 read_budget_exceeded 应缩小查询范围或页大小。
+
 ## 许可证
 
 MIT © Taihong Yang
