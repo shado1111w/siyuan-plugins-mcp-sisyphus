@@ -1,4 +1,4 @@
-import { nodeFs } from '../../core/node-loader';
+import apiCatalog from '../../../api-catalog.json';
 import type { SiYuanClient } from '../../api/client';
 import * as notificationApi from '../../api/notification';
 import * as systemApi from '../../api/system';
@@ -240,30 +240,12 @@ const handleWhoami: ToolActionHandler = async ({ client, rawArgs }) => {
 const VALID_METHODS = new Set(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD']);
 const DEFAULT_METHOD = 'POST';
 
-let catalogCache: Record<string, CatalogEntry> | null = null;
-
 type CatalogParam = { name: string; jsonType: string; required: boolean; default?: unknown; enum?: string[]; example?: unknown; src?: string };
 type CatalogEntry = { method: string; handler: string; sourceRef?: string; params: CatalogParam[]; note?: string; dynamic?: boolean };
 
 function loadCatalog(): Record<string, CatalogEntry> {
-    if (catalogCache) return catalogCache;
-    const candidates = [
-        // bundled: cli/dist/api-catalog.json sits beside cli.cjs
-        new URL('./api-catalog.json', import.meta.url),
-        new URL('../api-catalog.json', import.meta.url),
-        // source layout: src/tools/system -> repo root
-        new URL('../../../api-catalog.json', import.meta.url),
-        new URL('../../api-catalog.json', import.meta.url),
-    ];
-    for (const u of candidates) {
-        try {
-            const raw = JSON.parse(nodeFs().readFileSync(u, 'utf-8')) as { endpoints?: Record<string, CatalogEntry> };
-            catalogCache = raw.endpoints ?? {};
-            return catalogCache;
-        } catch { }
-    }
-    catalogCache = {};
-    return catalogCache;
+    // Build-time data shared by Node and goja; no browser URL or local FS needed.
+    return apiCatalog.endpoints as Record<string, CatalogEntry>;
 }
 
 function findEndpoint(catalog: Record<string, CatalogEntry>, path: string, method?: string) {

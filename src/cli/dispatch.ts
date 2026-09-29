@@ -157,11 +157,18 @@ function applyPositionalActionArgs(category: ToolCategory, action: string, rest:
     if (positionals.length === 0) return rest;
 
     if (category === 'system' && action === 'api') {
-        // `system api --describe/--body-template/--match <path>`: the trailing
-        // bare path is the kernel endpoint path, not a value for the flag.
-        const nonFlags = positionals.filter((t) => t.startsWith('/'));
-        const target = nonFlags[0] ?? positionals[0];
-        if (target && !hasFlag(rest, 'path')) return prependMissingFlag(rest, 'path', target);
+        // Only an unconsumed positional path is an endpoint. In particular,
+        // --match version must keep its value instead of becoming --path version.
+        const booleanFlags = new Set(['describe', 'bodytemplate', 'list', 'write', 'novalidate']);
+        for (let i = 0; i < rest.length; i++) {
+            const token = rest[i];
+            if (token.startsWith('-')) {
+                const name = token.replace(/^--?/, '').split('=')[0].replace(/[-_]/g, '').toLowerCase();
+                if (!token.includes('=') && !booleanFlags.has(name) && !booleanFlags.has(name.replace(/^no/, ''))) i++;
+                continue;
+            }
+            if (token.startsWith('/') && !hasFlag(rest, 'path')) return prependMissingFlag(rest, 'path', token);
+        }
         return rest;
     }
     if (category === 'fs') {

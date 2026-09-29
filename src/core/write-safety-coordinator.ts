@@ -1,3 +1,4 @@
+import { renderDailyNoteHPath } from '../tools/internal/helpers/dailynote-path';
 import { getStagedUpload } from './upload-source';
 import { normalizeAvIdArgs } from './argument-aliases';
 import { withAvIdWarning } from '../tools/internal/av-id-warning';
@@ -463,6 +464,9 @@ function derivePostWriteProbeArgs(
     if (category === 'document' && action === 'duplicate' && payload && typeof payload.id === 'string') {
         return { ...args, id: payload.id };
     }
+    if (category === 'document' && action === 'copy' && payload && typeof payload.copyID === 'string') {
+        return { ...args, id: payload.copyID };
+    }
     if (category === 'document' && action === 'ensure_link_targets' && payload && isRecord(payload.linkMap)) {
         const resolvedTargetIds = Object.values(payload.linkMap)
             .flatMap((value) => isRecord(value) && typeof value.id === 'string' ? [value.id] : []);
@@ -594,6 +598,25 @@ async function probeCurrentState(
         targetIds = reorder.targetIds;
     } else if (category === 'fs') {
         await appendHumanPathState(client, args, state);
+    } else if (category === 'dailynote' && action === 'delete') {
+        const notebook = typeof args.notebook === 'string' ? args.notebook : '';
+        const date = typeof args.date === 'string' ? args.date : '';
+        if (!notebook || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            throw safetyError('precondition_required', 'Daily-note deletion requires notebook and date.');
+        }
+        const response = await client.requestRead<{ conf?: { dailyNoteSavePath?: string } }>('/api/notebook/getNotebookConf', { notebook });
+        const template = response?.conf?.dailyNoteSavePath;
+        const hPath = template && template !== '/' ? renderDailyNoteHPath(template, date) : null;
+        if (!hPath) throw safetyError('precondition_required', 'Cannot resolve the daily-note path without a write. Use document.remove with a verified document ID.');
+        const ids = await client.requestRead<string[]>('/api/filetree/getIDsByHPath', { notebook, path: hPath });
+        if (!Array.isArray(ids) || ids.length > 1 || ids.some(id => !/^\d{14}-[a-z0-9]{7}$/.test(id))) {
+            throw safetyError('precondition_required', 'Daily-note deletion target is missing a unique valid identity.');
+        }
+        // Include both path resolution and live document contents in the lease.
+        // Looking only at the notebook selector would miss edits to this date.
+        state.dailyNote = { notebook, date, template, hPath, ids };
+        targetIds = [notebook, ...ids].sort();
+        await appendBlockRows(client, { ids }, state);
     } else if (category === 'mascot') {
         state.mascot = await readPuppyStats(client);
     } else if (category === 'notebook') {

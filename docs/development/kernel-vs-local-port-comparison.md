@@ -2,7 +2,7 @@
 
 核对日期：2026-09-29。基于 `feat/kernel-endpoint` 提交 `2888d0b`、第五批插件优化及余项补验后的超时修复构建；静态清单来自 TOOL_CATEGORIES / ACTIONS_BY_CATEGORY，14 类、143 个 action，另加各类 help、动态扩展、MCP App 及传输/运行时能力。
 
-合并范围说明：本表保留上述 feature 提交的 143 个 action 对照范围。`test/comprehensive-coverage` 另有日记等扩展 action，已在合并时保留并重新生成 schema，但尚未纳入本表逐项比较。合并后的 1915 项通过、16 项跳过及构建/Goja 检查结果见 [验收记录的合并验证](kernel-endpoint-verification.md#合并到测试分支后的验证-2026-09-29)；下文容器证据仍对应原 feature 产物。
+合并范围说明：本表保留上述 feature 提交的 143 个 action 对照范围。`test/comprehensive-coverage` 另有日记等扩展 action，已在合并时保留并重新生成 schema，它们的常用链路现已完成单独容器补验并修复发现的问题，见 [测试分支补验](test-branch-kernel-verification.md)；本表仍保留原 feature 的对照范围。合并后的 1915 项通过、16 项跳过及构建/Goja 检查结果见 [验收记录的合并验证](kernel-endpoint-verification.md#合并到测试分支后的验证-2026-09-29)；下文容器证据仍对应原 feature 产物。
 
 **该范围内的结论：143 个静态 action 均有实现；其中 5 个存在内核专属的部分限制（√），其余 138 个未发现 action 级专属缺失（X）。** 5 个受限 action 对应附件上传、创建/更新超大模板、ZIP 导出和文档提取，并非这 5 个功能完全不可用。通用读取预算、宿主请求中断和接入方式另外列出，不能用“138 个 X”推导任意数据规模、任意客户端都与 Node 完全等价。
 

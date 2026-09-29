@@ -4,9 +4,9 @@
  * captures artifacts for browser verification.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import * as searchApi from "@/api/search";
+import { tmpdir } from "node:os";
 import { SiYuanClient } from "@/api/client";
 import * as notebookApi from "@/api/notebook";
 import * as documentApi from "@/api/document";
@@ -30,7 +30,7 @@ import { createMockPermissionManager } from "../helpers/mock-permissions";
 import { scenarios } from "../../skills/source/scenarios.mjs";
 
 const SIYUAN_URL = process.env.SIYUAN_E2E_URL ?? "http://127.0.0.1:6807";
-const SIYUAN_TOKEN = process.env.SIYUAN_E2E_TOKEN ?? "zrk1rs7459ml0ecm";
+const SIYUAN_TOKEN = process.env.SIYUAN_E2E_TOKEN ?? "";
 const SKIP_LIVE = process.env.SIYUAN_E2E_SKIP === "1";
 const REPORT_DIR = process.env.SKILL_EVAL_DIR ?? "/tmp/skill-eval";
 
@@ -163,15 +163,17 @@ describe.skipIf(SKIP_LIVE)("Skill execution evaluation", () => {
     const reports: ScenarioReport[] = [];
 
     const runId = Date.now().toString(36);
+    let exportDir: string;
     const seedDocPath = `/skill-eval-seed-${runId}`;
     const writeDocPath = `/skill-eval-write-${runId}`;
 
     beforeAll(async () => {
         client = new SiYuanClient({ baseUrl: SIYUAN_URL, timeout: 20000 });
         client.setToken(SIYUAN_TOKEN);
-        const nbs = await notebookApi.listNotebooks(client);
-        notebookId = nbs.notebooks[0].id;
-        notebookName = nbs.notebooks[0].name;
+        expect(["127.0.0.1", "localhost"]).toContain(new URL(SIYUAN_URL).hostname);
+        notebookName = `Sisyphus-Skill-Eval-${runId}`;
+        notebookId = (await notebookApi.createNotebook(client, notebookName)).notebook.id;
+        exportDir = mkdtempSync(join(tmpdir(), 'sisyphus-skill-eval-'));
 
         // Seed a document with content for read/search scenarios
         // Include "draft" text for block.replace testing
@@ -179,11 +181,10 @@ describe.skipIf(SKIP_LIVE)("Skill execution evaluation", () => {
             client, notebookId, seedDocPath,
             "# Skill Evaluation\n\nThis document exists for skill evaluation.\n\n## Section A\n\nParagraph with keyword evaluation-target.\n\nDraft paragraph with keyword draft.\n\n- Item one\n- Item two\n"
         );
-        const children = await searchApi.fullTextSearchBlock(client, { query: "evaluation-target", page: 1, pageSize: 1 });
-        seedBlockId = (children as any)?.blocks?.[0]?.id ?? seedDocId;
+        const children = await blockApi.getChildBlocks(client, seedDocId) as Array<{ id: string; content?: string }>;
+        seedBlockId = children.find(b => b.content?.includes("evaluation-target"))!.id;
         // Get the block containing "draft" for block.replace testing
-        const draftBlocks = await searchApi.fullTextSearchBlock(client, { query: "draft", page: 1, pageSize: 1 });
-        seedDraftBlockId = (draftBlocks as any)?.blocks?.[0]?.id ?? seedBlockId;
+        seedDraftBlockId = children.find(b => b.content?.includes("draft"))!.id;
 
         try { mkdirSync(REPORT_DIR, { recursive: true }); } catch {}
     }, 30000);
@@ -206,10 +207,13 @@ describe.skipIf(SKIP_LIVE)("Skill execution evaluation", () => {
             },
         }, null, 2));
 
-        // Cleanup seed doc
-        if (seedDocId) {
-            try { await documentApi.removeDocByID(client, seedDocId); } catch {}
+        // Every scenario writes into this run-owned notebook, including daily notes.
+        if (notebookId) {
+            const nbs = await notebookApi.listNotebooks(client);
+            expect(nbs.notebooks.find(n => n.id === notebookId)?.name).toBe(notebookName);
+            await notebookApi.removeNotebook(client, notebookId);
         }
+        if (exportDir) rmSync(exportDir, { recursive: true, force: true });
     });
 
     function buildCtx(overrides: Record<string, string> = {}): Record<string, string> {
@@ -223,6 +227,9 @@ describe.skipIf(SKIP_LIVE)("Skill execution evaluation", () => {
             "/Notebook/Project/Notes": `/${notebookName}${writeDocPath}`,
             "/Notebook/Project": `/${notebookName}`,
             "/Notebook": `/${notebookName}`,
+            "/tmp/siyuan-extract": exportDir,
+            "old-tag": `old-tag-${runId}`,
+            "new-tag": `new-tag-${runId}`,
             ...overrides,
         };
     }
@@ -315,6 +322,14 @@ describe.skipIf(SKIP_LIVE)("Skill execution evaluation", () => {
                 continue;
             }
 
+            // Snapshot mutations and external notifications are outside this isolated
+            // scenario evaluation; exclude before invoking the handler, not on failure.
+            if ((call.tool === 'timeline' && !['list_nodes', 'compare_node'].includes(call.action))
+                || (call.tool === 'system' && ['notify', 'perform_sync'].includes(call.action))) {
+                calls.push({ key, tool: call.tool, action: call.action, args, durationMs: 0, isError: false,
+                    outputSize: 0, expectedSkip: true, skipReason: 'snapshot/external side effect excluded' });
+                continue;
+            }
             const unresolved = JSON.stringify(args).includes("__UNRESOLVED__");
             if (unresolved) {
                 calls.push({ key, tool: call.tool, action: call.action, args, durationMs: 0, isError: true, errorMessage: "placeholder", outputSize: 0 });

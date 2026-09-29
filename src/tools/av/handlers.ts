@@ -4133,7 +4133,8 @@ async function handleCreateTable({ client, permMgr, rawArgs }: ToolHandlerContex
 function extractRowValueByType(value: unknown, keyType: string): unknown {
     if (!value || typeof value !== 'object') return value;
     const record = value as Record<string, unknown>;
-    const sub = record[keyType];
+    // SiYuan stores both select and mSelect values in the mSelect member.
+    const sub = record[keyType === 'select' ? 'mSelect' : keyType];
     if (sub === undefined || sub === null) return undefined;
     if (typeof sub === 'object' && !Array.isArray(sub)) {
         const subRecord = sub as Record<string, unknown>;

@@ -4947,6 +4947,7 @@ describe('av tool', () => {
                     { key: { id: 'key-pk', name: 'Primary Key', type: 'block' }, values: [{ id: 'v1', blockID: 'row-1', isDetached: true, block: { content: 'task-1' } }] },
                     { key: { id: 'key-task', name: 'Task', type: 'text' }, values: [{ id: 'v2', blockID: 'row-1', text: { content: 'Write report' } }] },
                     { key: { id: 'key-done', name: 'Done', type: 'checkbox' }, values: [{ id: 'v3', blockID: 'row-1', checkbox: { checked: true } }] },
+                    { key: { id: 'key-status', name: 'Status', type: 'select' }, values: [{ id: 'v4', blockID: 'row-1', type: 'select', mSelect: [{ content: 'done', color: '' }] }] },
                 ],
                 views: [{ id: 'view-1', type: 'table' }],
             },
@@ -4960,6 +4961,8 @@ describe('av tool', () => {
         expect(payload).toMatchObject({ avID: 'av-1', rowID: 'row-1' });
         expect(payload.cells).toMatchObject({ 'Primary Key': 'task-1', Task: 'Write report', Done: true });
         expect(payload.cellsByColumnId['key-task']).toBe('Write report');
+        expect(payload.cells.Status).toEqual([{ content: 'done', color: '' }]);
+        expect(payload.cellsByColumnId['key-status']).toEqual(payload.cells.Status);
     });
 
     it('get_row reports row_not_found for an absent rowID', async () => {

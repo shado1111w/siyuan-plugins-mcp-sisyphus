@@ -141,3 +141,9 @@ Owned ordinary read-only kernel actions allow at most 128 scoped API calls and 8
 Authenticated /health includes events, taskResults and readBudget counters without task IDs, authentication values or content. Drain committing writes before rollback/reload, then rediscover capabilities and repeat preflight. Result caches, SSE connections and upload staging do not survive reload.
 
 See [kernel options](kernel-options.md) for image/template budgets, read retries, pagination and Origin configuration. Node-only exports now use the same exclusive streaming saver.
+
+### Daily-note deletion and document copying
+
+`dailynote.delete` resolves the date to one document and includes the notebook's daily-note path template, resolved identity, and live document contents in its lease. Editing the note or changing the path configuration invalidates the old credential. Custom templates that cannot be resolved without a write are rejected during preflight; use `document.remove` with a verified document ID instead. Preflight never creates a daily note to resolve its target.
+
+`document.copy` checks the returned `copyID` after dispatch, so creating a copy is not reported as `no_change` merely because the source document stayed unchanged.

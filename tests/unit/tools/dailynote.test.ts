@@ -39,7 +39,10 @@ describe("dailynote handlers", () => {
         expect(calls.some(([e]) => e === '/api/filetree/createDailyNote')).toBe(true);
     });
 
-    it("create for past date renders template and creates doc", async () => {
+    it("create for past date renders template and creates doc without Intl", async () => {
+        const intl = globalThis.Intl;
+        vi.stubGlobal("Intl", undefined);
+        try {
         const calls: Array<[string, unknown]> = [];
         const cl = createMockClient({
             request: vi.fn(async (ep: string, body: unknown) => {
@@ -58,6 +61,7 @@ describe("dailynote handlers", () => {
         // Should have looked up the rendered hPath first
         const lookup = calls.find(([e]) => e === '/api/filetree/getIDsByHPath');
         expect(lookup?.[1]).toMatchObject({ path: '/daily note/2026/09/2026-09-25', notebook: NB });
+        } finally { vi.stubGlobal("Intl", intl); }
     });
 
     it("create returns existed when note already exists", async () => {

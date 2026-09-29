@@ -322,6 +322,21 @@ describe('cli/dispatch', () => {
         io.restore();
     });
 
+    it.each([
+        { rest: ['--list', '--match', 'version'], expected: { list: true, match: 'version' } },
+        { rest: ['--list', '--match', '/api/block'], expected: { list: true, match: '/api/block' } },
+        { rest: ['--describe', '/api/system/version'], expected: { describe: true, path: '/api/system/version' } },
+    ])('preserves API flag values and maps bare endpoint paths: $rest', async ({ rest, expected }) => {
+        const io = captureStdIO();
+        try {
+            const spy = vi.spyOn(TOOL_REGISTRY.system, 'callTool').mockResolvedValue(okResult());
+            const code = await runDispatch({ command: 'dispatch', tool: 'system', action: 'api', rest,
+                url: 'http://127.0.0.1:6806', json: true, debug: false } as ParsedArgs);
+            expect(code).toBe(0);
+            expect(spy.mock.calls[0]?.[1]).toEqual({ action: 'api', ...expected });
+        } finally { io.restore(); }
+    });
+
     it('maps fs path positionals and list alias before dispatch', async () => {
         const io = captureStdIO();
         const callToolSpy = vi.spyOn(TOOL_REGISTRY.fs, 'callTool').mockResolvedValue(okResult());

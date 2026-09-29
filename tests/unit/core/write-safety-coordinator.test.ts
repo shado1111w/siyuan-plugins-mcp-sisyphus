@@ -713,7 +713,7 @@ describe('write safety coordinator', () => {
         expect(permMgr.canDelete).not.toHaveBeenCalled();
     });
 
-    it('reads back the newly created document when duplicating a source document', async () => {
+    it.each(['duplicate', 'copy'])('reads back the newly created document for %s', async (action) => {
         const sourceID = '20260812000000-source1';
         const duplicateID = '20260812000001-copy001';
         const client = {
@@ -732,24 +732,61 @@ describe('write safety coordinator', () => {
         const permMgr = createMockPermissionManager({ canWrite: () => true, canDelete: () => true });
         permMgr.getAll = vi.fn(() => ({ 'nb-1': 'rwd' }));
         const coordinator = new WriteSafetyCoordinator(client);
-        const baseArgs = { action: 'duplicate', id: sourceID };
+        const baseArgs = { action, id: sourceID };
         const preflight = parseResult(await coordinator.run({
-            client, permMgr, category: 'document', action: 'duplicate',
+            client, permMgr, category: 'document', action,
             args: { ...baseArgs, validateOnly: true }, strictMode: true, execute: vi.fn(),
         }));
         const result = parseResult(await coordinator.run({
-            client, permMgr, category: 'document', action: 'duplicate',
+            client, permMgr, category: 'document', action,
             args: {
                 ...baseArgs,
                 requestId: preflight.requestId,
                 expectedStateHash: preflight.expectedStateHash,
             },
             strictMode: true,
-            execute: vi.fn(async () => success({ success: true, sourceID, id: duplicateID })),
+            execute: vi.fn(async () => success({ success: true, sourceID, [action === 'copy' ? 'copyID' : 'id']: duplicateID })),
         }));
 
         expect(result.safety).toMatchObject({ writeExecuted: true, transactionState: 'committed' });
         expect(client.requestRead).toHaveBeenCalledWith('/api/block/getBlockInfo', { id: duplicateID });
+    });
+
+    it('leases daily-note deletion against the resolved document, rejecting intervening edits', async () => {
+        const notebook = '20260929000000-book001';
+        const id = '20260929000000-note001';
+        let exists = true;
+        let markdown = 'original daily note';
+        const client = {
+            readFile: vi.fn(async () => { throw new Error('HTTP error: 404 Not Found'); }),
+            writeFile: vi.fn(async () => undefined),
+            requestRead: vi.fn(async (endpoint: string, body?: Record<string, unknown>) => {
+                if (endpoint === '/api/notebook/getNotebookConf') return { conf: { dailyNoteSavePath: '/Daily/{{now | date "2006-01-02"}}' } };
+                if (endpoint === '/api/filetree/getIDsByHPath') return exists ? [id] : [];
+                if (endpoint === '/api/block/checkBlockExist') return exists && body?.id === id;
+                if (endpoint === '/api/block/getBlockInfo') return { id, box: notebook };
+                if (endpoint === '/api/block/getBlockKramdown') return { kramdown: markdown };
+                if (endpoint === '/api/block/getChildBlocks' || endpoint === '/api/query/sql') return [];
+                return {};
+            }),
+        } as never;
+        const permMgr = createMockPermissionManager();
+        permMgr.getAll = vi.fn(() => ({ [notebook]: 'rwd' }));
+        const coordinator = new WriteSafetyCoordinator(client);
+        const args = { action: 'delete', notebook, date: '2026-09-25' };
+        const execute = vi.fn(async () => { exists = false; return success({ success: true, id }); });
+        const preflight = async () => parseResult(await coordinator.run({ client, permMgr, category: 'dailynote', action: 'delete', args: { ...args, validateOnly: true }, strictMode: true, execute }));
+        const commit = async (pre: any) => parseResult(await coordinator.run({ client, permMgr, category: 'dailynote', action: 'delete', args: { ...args, requestId: pre.requestId, expectedStateHash: pre.expectedStateHash }, strictMode: true, execute }));
+        const stale = await preflight();
+        expect(execute).not.toHaveBeenCalled();
+        markdown = 'edited after preflight';
+        expect(await commit(stale)).toMatchObject({ error: { code: 'state_changed' }, writeAttempted: false });
+        expect(execute).not.toHaveBeenCalled();
+        const fresh = await preflight();
+        expect((await commit(fresh)).safety).toMatchObject({ transactionState: 'committed', writeExecuted: true });
+        expect(await commit(fresh)).toMatchObject({ replayed: true, writeAttempted: false });
+        expect(execute).toHaveBeenCalledTimes(1);
+        expect((client as any).requestRead).toHaveBeenCalledWith('/api/filetree/getIDsByHPath', { notebook, path: '/Daily/2026-09-25' });
     });
 
     it('preflights, rejects stale state, commits once, and replays requestIds', async () => {

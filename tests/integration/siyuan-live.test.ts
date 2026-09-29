@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { SiYuanClient } from "@/api/client";
 import * as notebookApi from "@/api/notebook";
 import * as documentApi from "@/api/document";
@@ -7,19 +7,28 @@ import * as searchApi from "@/api/search";
 import * as systemApi from "@/api/system";
 
 const SIYUAN_URL = process.env.SIYUAN_E2E_URL ?? "http://127.0.0.1:6807";
-const SIYUAN_TOKEN = process.env.SIYUAN_E2E_TOKEN ?? "zrk1rs7459ml0ecm";
+const SIYUAN_TOKEN = process.env.SIYUAN_E2E_TOKEN ?? "";
 const SKIP_LIVE = process.env.SIYUAN_E2E_SKIP === "1";
 
 describe.skipIf(SKIP_LIVE)("SiYuan Live E2E", () => {
     let client: SiYuanClient;
     let notebookId: string;
+    const notebookName = `Sisyphus-Live-E2E-${Date.now()}`;
 
     beforeAll(async () => {
         client = new SiYuanClient({ baseUrl: SIYUAN_URL, timeout: 15000 });
         client.setToken(SIYUAN_TOKEN);
         const result = await notebookApi.listNotebooks(client);
         expect(result.notebooks.length).toBeGreaterThan(0);
-        notebookId = result.notebooks[0].id;
+        expect(["127.0.0.1", "localhost"]).toContain(new URL(SIYUAN_URL).hostname);
+        notebookId = (await notebookApi.createNotebook(client, notebookName)).notebook.id;
+    });
+
+    afterAll(async () => {
+        if (!notebookId) return;
+        const result = await notebookApi.listNotebooks(client);
+        expect(result.notebooks.find(n => n.id === notebookId)?.name).toBe(notebookName);
+        await notebookApi.removeNotebook(client, notebookId);
     });
 
     it("returns version", async () => {
