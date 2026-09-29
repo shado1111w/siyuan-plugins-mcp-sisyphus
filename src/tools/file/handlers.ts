@@ -1,4 +1,5 @@
 import { nodeFs, nodePath } from '../../core/node-loader';
+import { getInvocationTransport } from '../../core/runtime';
 import type { SiYuanClient } from '../../api/client';
 import * as fileApi from '../../api/file';
 import * as templateApi from '../../api/template';
@@ -50,6 +51,42 @@ import {
 export const FILE_TOOL_NAME = 'file';
 export const DEFAULT_LARGE_UPLOAD_THRESHOLD_MB = 10;
 export const MAX_INLINE_IMAGE_BYTES = 20 * 1024 * 1024;
+const KERNEL_BASE64_PAYLOAD_BYTES = 8 * 1024 * 1024;
+
+const KERNEL_OFFICIAL_API_DOC = 'https://github.com/siyuan-note/siyuan/blob/master/API.md';
+
+function bytesToBase64(data: Uint8Array): string {
+    return Buffer.from(data).toString('base64');
+}
+
+function kernelEndpointResult(reason: string, details: Record<string, unknown>): ToolResult {
+    return createJsonResult({
+        success: false,
+        transport: 'kernel',
+        reason,
+        hint: 'The kernel endpoint runs inside the SiYuan goja sandbox without host filesystem or multipart-upload access. Drive the official SiYuan HTTP API directly for this step.',
+        officialApiDoc: KERNEL_OFFICIAL_API_DOC,
+        ...details,
+    });
+}
+
+function kernelUploadAssetGuidance(parsed: { localFilePath: string; assetsDirPath?: string }): ToolResult {
+    return kernelEndpointResult('kernel_no_multipart_upload', {
+        requestedLocalFilePath: parsed.localFilePath,
+        assetsDirPath: parsed.assetsDirPath ?? '/assets/',
+        officialApi: {
+            endpoint: '/api/asset/upload',
+            method: 'POST',
+            contentType: 'multipart/form-data',
+            fields: {
+                'assetsDirPath': parsed.assetsDirPath ?? '/assets/',
+                'file[]': '@' + parsed.localFilePath,
+            },
+            curlExample: 'curl -F "assetsDirPath=' + (parsed.assetsDirPath ?? '/assets/') + '" -F "file[]=@' + parsed.localFilePath + '" http://127.0.0.1:6806/api/asset/upload -H "Authorization: Token <api-token>"',
+        },
+        nextStep: 'Run the upload against the SiYuan HTTP API (e.g. via curl or the siyuan-sisyphus CLI in local mode), then reference the returned assets/ path in the document.',
+    });
+}
 
 interface NormalizedImageAssetPath {
     assetPath: string;
@@ -249,6 +286,13 @@ async function resolveTemplateAfterWrite(
 const handleUploadAsset = (thresholdMB: number, largeUploadThresholdBytes: number): ToolActionHandler =>
     async ({ client, rawArgs }) => {
         const parsed = FileUploadAssetSchema.parse(rawArgs);
+        if (getInvocationTransport() === 'kernel') {
+            // The official upload endpoint is multipart/form-data; the goja
+            // sandbox fetch accepts string bodies only, so the bytes cannot
+            // cross the boundary here. Hand the model the exact official API
+            // call instead of a cryptic fs/FormData failure.
+            return kernelUploadAssetGuidance(parsed);
+        }
         const localFilePath = resolveLocalInputPath(parsed.localFilePath);
         if (!nodeFs().existsSync(localFilePath)) {
             throw new Error(`Local file does not exist: ${localFilePath}`);
@@ -707,6 +751,35 @@ const handleExportResources: ToolActionHandler = async ({ client, rawArgs }) => 
     }
 
     if (parsed.outputPath) {
+        if (getInvocationTransport() === 'kernel') {
+            // No host filesystem in the kernel sandbox: the exported ZIP is
+            // reachable via the official getFile endpoint, so stream it back
+            // as base64 for the client to persist (bounded to keep the MCP
+            // response reasonable), or point the client at the official API.
+            const binary = await client.readFileBinary(result.path);
+            if (binary.byteLength > KERNEL_BASE64_PAYLOAD_BYTES) {
+                return kernelEndpointResult('kernel_export_too_large_for_inline', {
+                    ...result,
+                    bytes: binary.byteLength,
+                    inlineLimitBytes: KERNEL_BASE64_PAYLOAD_BYTES,
+                    officialApi: {
+                        endpoint: '/api/file/getFile',
+                        method: 'POST',
+                        body: { path: result.path },
+                        note: 'Response body is the raw ZIP bytes; save them verbatim to the desired output path.',
+                    },
+                    nextStep: 'Fetch the exported ZIP through the official getFile endpoint and write it to disk on the client side.',
+                });
+            }
+            return createJsonResult({
+                ...result,
+                requestedOutputPath: parsed.outputPath,
+                bytes: binary.byteLength,
+                encoding: 'base64',
+                dataBase64: bytesToBase64(binary),
+                nextStep: 'Decode dataBase64 on the client side and write it to the requested output path.',
+            });
+        }
         const localOutputPath = resolveLocalOutputPath(parsed.outputPath);
         const binary = await client.readFileBinary(result.path);
         nodeFs().mkdirSync(nodePath().dirname(localOutputPath), { recursive: true });
@@ -866,6 +939,58 @@ const handleExtractDoc: ToolActionHandler = async ({ client, rawArgs }) => {
     const hPath = typeof mdResult.hPath === 'string' ? mdResult.hPath : '';
 
     const docName = hPath.split('/').filter(Boolean).pop()?.replace(/\.sy$/, '') || parsed.id;
+    const assetRefs = [...markdown.matchAll(/\]\(assets\/([^\s)"']+)(?:\s+"[^"]*")?\)/g)];
+
+    if (getInvocationTransport() === 'kernel') {
+        // Same data path as local extraction (exportMdContent + getFile),
+        // but nothing can be written to the host filesystem inside the
+        // kernel sandbox. Return the markdown inline plus an asset manifest
+        // — small assets ride along as base64, large ones carry the exact
+        // official getFile call the client can replay.
+        const assets: Array<Record<string, unknown>> = [];
+        let inlineCount = 0;
+        let pointerCount = 0;
+        for (const match of assetRefs) {
+            const assetRelPath = match[1];
+            const workspacePath = `data/assets/${assetRelPath}`;
+            try {
+                const data = await client.readFileBinary(workspacePath);
+                if (data.byteLength <= KERNEL_BASE64_PAYLOAD_BYTES) {
+                    assets.push({
+                        path: assetRelPath,
+                        bytes: data.byteLength,
+                        encoding: 'base64',
+                        dataBase64: bytesToBase64(data),
+                    });
+                    inlineCount++;
+                } else {
+                    assets.push({
+                        path: assetRelPath,
+                        bytes: data.byteLength,
+                        encoding: 'official-api',
+                        officialApi: { endpoint: '/api/file/getFile', method: 'POST', body: { path: workspacePath } },
+                    });
+                    pointerCount++;
+                }
+            } catch {
+                assets.push({ path: assetRelPath, error: 'unreadable' });
+            }
+        }
+        return createJsonResult({
+            success: true,
+            transport: 'kernel',
+            docId: parsed.id,
+            docName,
+            hPath,
+            markdown,
+            assets,
+            extractedAssetCount: inlineCount,
+            pointerAssetCount: pointerCount,
+            skippedAssetCount: assets.length - inlineCount - pointerCount,
+            nextStep: 'Write markdown to <docName>.md and decode each base64 asset into assets/ on the client side. Assets marked official-api exceed the inline cap — fetch them via the listed official getFile call.',
+        });
+    }
+
     const idSuffix = parsed.id.slice(-7);
     const folderName = `${docName}-${idSuffix}`;
 
@@ -885,7 +1010,6 @@ const handleExtractDoc: ToolActionHandler = async ({ client, rawArgs }) => {
     const docMdPath = nodePath().join(targetDir, `${docName}.md`);
     nodeFs().writeFileSync(docMdPath, markdown, 'utf-8');
 
-    const assetRefs = [...markdown.matchAll(/\]\(assets\/([^\s)"']+)(?:\s+"[^"]*")?\)/g)];
     const structure = [`${docName}.md`];
     let extractedCount = 0;
     let skippedCount = 0;
