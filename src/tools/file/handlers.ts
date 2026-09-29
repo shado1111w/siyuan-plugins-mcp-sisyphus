@@ -1,4 +1,7 @@
+import { saveDownloadExport } from '../../core/export-download';
+import { getStagedUpload } from '../../core/upload-source';
 import { nodeFs, nodePath } from '../../core/node-loader';
+import { getInvocationTransport } from '../../core/runtime';
 import type { SiYuanClient } from '../../api/client';
 import * as fileApi from '../../api/file';
 import * as templateApi from '../../api/template';
@@ -51,6 +54,33 @@ import {
 export const FILE_TOOL_NAME = 'file';
 export const DEFAULT_LARGE_UPLOAD_THRESHOLD_MB = 10;
 export const MAX_INLINE_IMAGE_BYTES = 20 * 1024 * 1024;
+const KERNEL_BASE64_PAYLOAD_BYTES = 8 * 1024 * 1024;
+
+const KERNEL_OFFICIAL_API_DOC = 'https://github.com/siyuan-note/siyuan/blob/master/API.md';
+
+function bytesToBase64(data: Uint8Array): string {
+    return Buffer.from(data).toString('base64');
+}
+
+function kernelEndpointResult(reason: string, details: Record<string, unknown>): ToolResult {
+    return createJsonResult({
+        success: false,
+        transport: 'kernel',
+        reason,
+        hint: 'The kernel endpoint cannot access the caller filesystem. Use CLI/Node file transfer or the authenticated transfer/download API.',
+        officialApiDoc: KERNEL_OFFICIAL_API_DOC,
+        ...details,
+    });
+}
+
+function kernelUploadAssetGuidance(parsed: { localFilePath: string; assetsDirPath?: string }): ToolResult {
+    return kernelEndpointResult('kernel_local_file_unavailable', {
+        requestedLocalFilePath: parsed.localFilePath,
+        assetsDirPath: parsed.assetsDirPath ?? '/assets/',
+        transferEndpoint: '/plugin/private/siyuan-plugins-mcp-sisyphus/transfer/upload',
+        nextStep: 'POST {fileName,dataBase64} to the authenticated transfer endpoint, then preflight upload_asset with uploadSource instead of localFilePath. CLI/Node handle staging automatically; maximum 10 MiB.',
+    });
+}
 
 interface NormalizedImageAssetPath {
     assetPath: string;
@@ -250,7 +280,16 @@ async function resolveTemplateAfterWrite(
 const handleUploadAsset = (thresholdMB: number, largeUploadThresholdBytes: number): ToolActionHandler =>
     async ({ client, rawArgs }) => {
         const parsed = FileUploadAssetSchema.parse(rawArgs);
-        const localFilePath = resolveLocalInputPath(parsed.localFilePath);
+        if (parsed.uploadSource) {
+            const source = getStagedUpload(client, parsed.uploadSource);
+            if (source.bytes.byteLength > largeUploadThresholdBytes && parsed.confirmLargeFile !== true) {
+                return createJsonResult({ success: false, requiresConfirmation: true, reason: 'file_too_large', fileSizeBytes: source.bytes.byteLength, thresholdMB });
+            }
+            const result = await fileApi.uploadAsset(client, parsed.assetsDirPath, source.bytes, source.fileName);
+            return createJsonResult({ ...result, uploadedFileName: source.fileName, uploadSource: parsed.uploadSource });
+        }
+        if (getInvocationTransport() === 'kernel') return kernelUploadAssetGuidance({ localFilePath: parsed.localFilePath! });
+        const localFilePath = resolveLocalInputPath(parsed.localFilePath!);
         if (!nodeFs().existsSync(localFilePath)) {
             throw new Error(`Local file does not exist: ${localFilePath}`);
         }
@@ -728,16 +767,41 @@ const handleExportResources: ToolActionHandler = async ({ client, rawArgs }) => 
         throw new Error(`Failed to export resources. original_paths=${JSON.stringify(parsed.paths)} normalized_paths=${JSON.stringify(normalizedPaths)} cause=${message}`);
     }
 
+    if (getInvocationTransport() === 'kernel' && parsed.delivery === 'download') {
+        return createJsonResult({ ...result, transport: 'kernel', delivery: 'download', downloadPath: result.path });
+    }
+
     if (parsed.outputPath) {
-        const localOutputPath = resolveLocalOutputPath(parsed.outputPath);
-        const binary = await client.readFileBinary(result.path);
-        nodeFs().mkdirSync(nodePath().dirname(localOutputPath), { recursive: true });
-        nodeFs().writeFileSync(localOutputPath, binary);
-        return createJsonResult({
-            ...result,
-            outputPath: localOutputPath,
-            bytes: binary.byteLength,
-        });
+        if (getInvocationTransport() === 'kernel') {
+            // No host filesystem in the kernel sandbox: the exported ZIP is
+            // reachable via the official getFile endpoint, so stream it back
+            // as base64 for the client to persist (bounded to keep the MCP
+            // response reasonable), or point the client at the official API.
+            const binary = await client.readFileBinary(result.path);
+            if (binary.byteLength > KERNEL_BASE64_PAYLOAD_BYTES) {
+                return kernelEndpointResult('kernel_export_too_large_for_inline', {
+                    ...result,
+                    bytes: binary.byteLength,
+                    inlineLimitBytes: KERNEL_BASE64_PAYLOAD_BYTES,
+                    officialApi: {
+                        endpoint: '/api/file/getFile',
+                        method: 'POST',
+                        body: { path: result.path },
+                        note: 'Response body is the raw ZIP bytes; save them verbatim to the desired output path.',
+                    },
+                    nextStep: 'Fetch the exported ZIP through the official getFile endpoint and write it to disk on the client side.',
+                });
+            }
+            return createJsonResult({
+                ...result,
+                requestedOutputPath: parsed.outputPath,
+                bytes: binary.byteLength,
+                encoding: 'base64',
+                dataBase64: bytesToBase64(binary),
+                nextStep: 'Decode dataBase64 on the client side and write it to the requested output path.',
+            });
+        }
+        return saveDownloadExport(client, parsed, createJsonResult({ ...result, transport: getInvocationTransport(), delivery: 'download', downloadPath: result.path, success: true }));
     }
     return createJsonResult(result);
 };
@@ -888,57 +952,71 @@ const handleExtractDoc: ToolActionHandler = async ({ client, rawArgs }) => {
     const hPath = typeof mdResult.hPath === 'string' ? mdResult.hPath : '';
 
     const docName = hPath.split('/').filter(Boolean).pop()?.replace(/\.sy$/, '') || parsed.id;
-    const idSuffix = parsed.id.slice(-7);
-    const folderName = `${docName}-${idSuffix}`;
-
-    const homeDir = process.env.USERPROFILE || process.env.HOME || '';
-    const outputRoot = parsed.outputDir
-        ? nodePath().resolve(parsed.outputDir)
-        : nodePath().join(homeDir, 'siyuan-extracted');
-    const defaultOutputDirUsed = !parsed.outputDir;
-    const targetDir = nodePath().join(outputRoot, folderName);
-    const assetsDir = nodePath().join(targetDir, 'assets');
-
-    if (nodeFs().existsSync(outputRoot)) {
-        nodeFs().rmSync(outputRoot, { recursive: true, force: true });
-    }
-    nodeFs().mkdirSync(assetsDir, { recursive: true });
-
-    const docMdPath = nodePath().join(targetDir, `${docName}.md`);
-    nodeFs().writeFileSync(docMdPath, markdown, 'utf-8');
-
     const assetRefs = [...markdown.matchAll(/\]\(assets\/([^\s)"']+)(?:\s+"[^"]*")?\)/g)];
-    const structure = [`${docName}.md`];
-    let extractedCount = 0;
-    let skippedCount = 0;
 
-    for (const match of assetRefs) {
-        const assetRelPath = match[1];
-        const assetFullPath = nodePath().join(assetsDir, assetRelPath);
-
-        try {
-            nodeFs().mkdirSync(nodePath().dirname(assetFullPath), { recursive: true });
-            const data = await client.readFileBinary(`data/assets/${assetRelPath}`);
-            nodeFs().writeFileSync(assetFullPath, data);
-            structure.push(`assets/${assetRelPath}`);
-            extractedCount++;
-        } catch {
-            skippedCount++;
+    if (getInvocationTransport() === 'kernel') {
+        // Same data path as local extraction (exportMdContent + getFile),
+        // but nothing can be written to the host filesystem inside the
+        // kernel sandbox. Return the markdown inline plus an asset manifest
+        // — small assets ride along as base64, large ones carry the exact
+        // official getFile call the client can replay.
+        const assets: Array<Record<string, unknown>> = [];
+        let inlineCount = 0;
+        let pointerCount = 0;
+        let inlineRemaining = KERNEL_BASE64_PAYLOAD_BYTES;
+        for (const match of assetRefs) {
+            const assetRelPath = match[1];
+            const workspacePath = `data/assets/${assetRelPath}`;
+            if (parsed.delivery === 'download' || inlineRemaining <= 0) {
+                assets.push({ path: assetRelPath, encoding: 'official-api' });
+                pointerCount++;
+                continue;
+            }
+            try {
+                const data = await client.readFileBinary(workspacePath);
+                if (data.byteLength <= inlineRemaining) {
+                    inlineRemaining -= data.byteLength;
+                    assets.push({
+                        path: assetRelPath,
+                        bytes: data.byteLength,
+                        encoding: 'base64',
+                        dataBase64: bytesToBase64(data),
+                    });
+                    inlineCount++;
+                } else {
+                    assets.push({
+                        path: assetRelPath,
+                        bytes: data.byteLength,
+                        encoding: 'official-api',
+                        officialApi: { endpoint: '/api/file/getFile', method: 'POST', body: { path: workspacePath } },
+                    });
+                    pointerCount++;
+                }
+            } catch {
+                assets.push({ path: assetRelPath, error: 'unreadable' });
+            }
         }
+        return createJsonResult({
+            success: assets.every(asset => !asset.error),
+            complete: assets.every(asset => !asset.error),
+            transport: 'kernel',
+            delivery: parsed.delivery ?? 'inline',
+            docId: parsed.id,
+            docName,
+            hPath,
+            markdown,
+            assets,
+            extractedAssetCount: inlineCount,
+            pointerAssetCount: pointerCount,
+            skippedAssetCount: assets.length - inlineCount - pointerCount,
+            nextStep: 'Write markdown to <docName>.md and decode each base64 asset into assets/ on the client side. Assets marked official-api exceed the inline cap — fetch them via the listed official getFile call.',
+        });
     }
 
-    return createJsonResult({
-        outputRoot,
-        defaultOutputDirUsed,
-        extractedDir: targetDir,
-        docMdFile: `${docName}.md`,
-        extractedAssetCount: extractedCount,
-        skippedAssetCount: skippedCount,
-        structure,
-        hint: defaultOutputDirUsed
-            ? 'No outputDir was provided, so extract_doc used the default ~/siyuan-extracted/ output root. Pass outputDir explicitly when you need a specific location such as /private/tmp.'
-            : 'extract_doc wrote to the explicit outputDir root.',
-    });
+    return saveDownloadExport(client, parsed, createJsonResult({
+        success: true, transport: getInvocationTransport(), delivery: 'download', docId: parsed.id, docName,
+        hPath, markdown, assets: assetRefs.map(match => ({ path: match[1], encoding: 'official-api' })),
+    }));
 };
 
 export function createFileActionHandlers(thresholdMB: number, largeUploadThresholdBytes: number): Record<FileAction, ToolActionHandler> {

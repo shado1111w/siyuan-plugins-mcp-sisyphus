@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildDefaultToolConfig } from '@/core/config';
 import { callFileTool, listFileTools } from '@/tools/file';
@@ -815,101 +815,116 @@ describe('file tool asset actions', () => {
         });
     });
 
-    it('exports resources to a local outputPath and reports the written byte count', async () => {
+    it('streams exports, preserves existing output and cleans only failed owned directories', async () => {
         const fs = (await import('node:fs')).default;
-        const readFileBinary = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
-        const localClient = createMockClient({ readFileBinary });
-        const mkdirSpy = vi.spyOn(fs, 'mkdirSync').mockImplementation((() => undefined) as typeof fs.mkdirSync);
-        const writeSpy = vi.spyOn(fs, 'writeFileSync').mockImplementation((() => undefined) as typeof fs.writeFileSync);
-
-        const result = await callFileTool(localClient, {
-            action: 'export_resources',
-            paths: ['assets/demo.txt'],
-            outputPath: 'tmp/export.zip',
-        }, config.file, {} as never);
-
-        expect(readFileBinary).toHaveBeenCalledWith('/temp/export.zip');
-        expect(mkdirSpy).toHaveBeenCalled();
-        expect(writeSpy).toHaveBeenCalled();
-        expect(parseResult(result)).toEqual({
-            path: '/temp/export.zip',
-            outputPath: expect.stringMatching(/[\\/]tmp[\\/]export\.zip$/),
-            bytes: 3,
-        });
+        const os = (await import('node:os')).default;
+        const path = (await import('node:path')).default;
+        const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'file-export-gap-'));
+        const streamFile = vi.fn(async (_remote: string, consume: (chunk: Uint8Array) => Promise<void>) => { await consume(new Uint8Array([1, 2, 3])); return 3; });
+        const localClient = createMockClient({ streamFile });
+        try {
+            fs.writeFileSync(path.join(outputDir, 'keep.txt'), 'keep');
+            const outputPath = path.join(outputDir, 'export.zip');
+            const zip = await callFileTool(localClient, { action: 'export_resources', paths: ['assets/demo.txt'], outputPath }, config.file, {} as never);
+            expect(parseResult(zip).bytes).toBe(3);
+            expect(fs.readFileSync(outputPath)).toEqual(Buffer.from([1, 2, 3]));
+            expect((await callFileTool(localClient, { action: 'export_resources', paths: ['assets/demo.txt'], outputPath }, config.file, {} as never)).isError).toBe(true);
+            const args = { action: 'extract_doc', id: '20260128210016-dw9cpey', outputDir };
+            const doc = parseResult(await callFileTool(localClient, args, config.file, {} as never));
+            expect(doc.extractedAssetCount).toBe(1);
+            expect(fs.readFileSync(path.join(doc.extractedDir, 'assets/cover.png'))).toEqual(Buffer.from([1, 2, 3]));
+            expect((await callFileTool(localClient, args, config.file, {} as never)).isError).toBe(true);
+            const fileApi = await import('@/api/file');
+            vi.mocked(fileApi.exportMdContent).mockResolvedValue({ content: '![alt](assets/cover.png "title")', hPath: '/Failure' });
+            streamFile.mockRejectedValue(new Error('lost download'));
+            expect((await callFileTool(localClient, args, config.file, {} as never)).isError).toBe(true);
+            expect(fs.existsSync(path.join(outputDir, 'Failure-dw9cpey'))).toBe(false);
+            expect(fs.readFileSync(path.join(outputDir, 'keep.txt'), 'utf8')).toBe('keep');
+            expect(fs.existsSync(doc.extractedDir)).toBe(true);
+        } finally { fs.rmSync(outputDir, { recursive: true, force: true }); }
     });
 
-    it('extracts a document and its assets into an uncompressed folder', async () => {
-        const fs = (await import('node:fs')).default;
-        const readFileBinary = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
-        const localClient = createMockClient({ readFileBinary });
-        const existsSyncSpy = vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-        const rmSyncSpy = vi.spyOn(fs, 'rmSync').mockImplementation((() => undefined) as typeof fs.rmSync);
-        const mkdirSpy = vi.spyOn(fs, 'mkdirSync').mockImplementation((() => undefined) as typeof fs.mkdirSync);
-        const writeSpy = vi.spyOn(fs, 'writeFileSync').mockImplementation((() => undefined) as typeof fs.writeFileSync);
+    describe('kernel transport', () => {
+        const ORIGINAL_TRANSPORT = process.env.SIYUAN_MCP_TRANSPORT;
 
-        const result = await callFileTool(localClient, {
-            action: 'extract_doc',
-            id: '20260128210016-dw9cpey',
-        }, config.file, {} as never);
-
-        const parsed = parseResult(result);
-        expect(parsed.outputRoot).toContain('siyuan-extracted');
-        expect(parsed.defaultOutputDirUsed).toBe(true);
-        expect(parsed.hint).toContain('~/siyuan-extracted');
-        expect(parsed.extractedDir).toContain('My Document-dw9cpey');
-        expect(parsed.docMdFile).toBe('My Document.md');
-        expect(parsed.extractedAssetCount).toBe(1);
-        expect(parsed.skippedAssetCount).toBe(0);
-        expect(parsed.structure).toContain('My Document.md');
-        expect(parsed.structure).toContain('assets/cover.png');
-        expect(readFileBinary).toHaveBeenCalledWith('data/assets/cover.png');
-        expect(existsSyncSpy).toHaveBeenCalled();
-        expect(rmSyncSpy).toHaveBeenCalled();
-        expect(mkdirSpy).toHaveBeenCalled();
-        expect(writeSpy).toHaveBeenCalledTimes(2);
-    });
-
-    it('skips missing assets and reports them', async () => {
-        const readFileBinary = vi.fn().mockRejectedValue(new Error('not found'));
-        const localClient = createMockClient({ readFileBinary });
-        const fs = (await import('node:fs')).default;
-        vi.spyOn(fs, 'mkdirSync').mockImplementation((() => undefined) as typeof fs.mkdirSync);
-        vi.spyOn(fs, 'writeFileSync').mockImplementation((() => undefined) as typeof fs.writeFileSync);
-
-        const result = await callFileTool(localClient, {
-            action: 'extract_doc',
-            id: '20260128210016-dw9cpey',
-        }, config.file, {} as never);
-
-        const parsed = parseResult(result);
-        expect(parsed.extractedAssetCount).toBe(0);
-        expect(parsed.skippedAssetCount).toBe(1);
-    });
-
-    it('extracts images with titles correctly', async () => {
-        const fileApi = await import('@/api/file');
-        vi.mocked(fileApi.exportMdContent).mockResolvedValue({
-            content: '![alt](assets/cover.png "image title")\n\nSome text\n',
-            hPath: '/My Document',
+        beforeEach(() => {
+            process.env.SIYUAN_MCP_TRANSPORT = 'kernel';
         });
 
-        const readFileBinary = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
-        const localClient = createMockClient({ readFileBinary });
-        const fs = (await import('node:fs')).default;
-        vi.spyOn(fs, 'existsSync').mockReturnValue(false);
-        vi.spyOn(fs, 'rmSync').mockImplementation((() => undefined) as typeof fs.rmSync);
-        vi.spyOn(fs, 'mkdirSync').mockImplementation((() => undefined) as typeof fs.mkdirSync);
-        vi.spyOn(fs, 'writeFileSync').mockImplementation((() => undefined) as typeof fs.writeFileSync);
+        afterEach(() => {
+            if (ORIGINAL_TRANSPORT === undefined) delete process.env.SIYUAN_MCP_TRANSPORT;
+            else process.env.SIYUAN_MCP_TRANSPORT = ORIGINAL_TRANSPORT;
+        });
 
-        const result = await callFileTool(localClient, {
-            action: 'extract_doc',
-            id: '20260128210016-dw9cpey',
-        }, config.file, {} as never);
+        it('upload_asset returns official multipart API guidance instead of touching fs', async () => {
+            const fs = (await import('node:fs')).default;
+            const existsSpy = vi.spyOn(fs, 'existsSync');
+            const localClient = createMockClient({});
 
-        const parsed = parseResult(result);
-        expect(parsed.extractedAssetCount).toBe(1);
-        expect(parsed.skippedAssetCount).toBe(0);
-        expect(readFileBinary).toHaveBeenCalledWith('data/assets/cover.png');
+            const result = await callFileTool(localClient, {
+                action: 'upload_asset',
+                localFilePath: '/tmp/pic.png',
+                assetsDirPath: '/assets/',
+            }, config.file, {} as never);
+
+            const parsed = parseResult(result);
+            expect(parsed.success).toBe(false);
+            expect(parsed.transport).toBe('kernel');
+            expect(parsed.reason).toBe('kernel_local_file_unavailable');
+            expect(parsed.transferEndpoint).toBe('/plugin/private/siyuan-plugins-mcp-sisyphus/transfer/upload');
+            expect(parsed.nextStep).toContain('uploadSource');
+            expect(existsSpy).not.toHaveBeenCalled();
+        });
+
+        it('export_resources streams the ZIP back as base64 instead of writing to disk', async () => {
+            const fs = (await import('node:fs')).default;
+            const payload = new Uint8Array([1, 2, 3, 4]);
+            const readFileBinary = vi.fn().mockResolvedValue(payload);
+            const localClient = createMockClient({ readFileBinary });
+            const writeSpy = vi.spyOn(fs, 'writeFileSync');
+
+            const result = await callFileTool(localClient, {
+                action: 'export_resources',
+                paths: ['assets/demo.txt'],
+                outputPath: 'tmp/export.zip',
+            }, config.file, {} as never);
+
+            const parsed = parseResult(result);
+            expect(readFileBinary).toHaveBeenCalledWith('/temp/export.zip');
+            expect(parsed.encoding).toBe('base64');
+            expect(parsed.dataBase64).toBe(Buffer.from(payload).toString('base64'));
+            expect(parsed.bytes).toBe(4);
+            expect(parsed.requestedOutputPath).toBe('tmp/export.zip');
+            expect(writeSpy).not.toHaveBeenCalled();
+        });
+
+        it('extract_doc returns markdown + base64 asset manifest without filesystem writes', async () => {
+            const fs = (await import('node:fs')).default;
+            const assetBytes = new Uint8Array([9, 8, 7]);
+            const readFileBinary = vi.fn().mockResolvedValue(assetBytes);
+            const localClient = createMockClient({ readFileBinary });
+            const writeSpy = vi.spyOn(fs, 'writeFileSync');
+            const mkdirSpy = vi.spyOn(fs, 'mkdirSync');
+
+            const result = await callFileTool(localClient, {
+                action: 'extract_doc',
+                id: '20260128210016-dw9cpey',
+            }, config.file, {} as never);
+
+            const parsed = parseResult(result);
+            expect(parsed.success).toBe(true);
+            expect(parsed.transport).toBe('kernel');
+            expect(parsed.markdown).toContain('assets/cover.png');
+            expect(parsed.extractedAssetCount).toBe(1);
+            expect(parsed.assets).toEqual([{
+                path: 'cover.png',
+                bytes: 3,
+                encoding: 'base64',
+                dataBase64: Buffer.from(assetBytes).toString('base64'),
+            }]);
+            expect(writeSpy).not.toHaveBeenCalled();
+            expect(mkdirSpy).not.toHaveBeenCalled();
+        });
     });
 
     it('export_md --with-frontmatter prepends a YAML block from doc attrs', async () => {

@@ -33,3 +33,9 @@ describe('HTTP server settings storage', () => {
 
     ;
 });
+
+it('preserves normalized kernel options when saving unrelated HTTP settings', () => {
+    const settings = normalizeHttpServerSettings({ kernelOptions: { readMaxMiB: 24, readRetries: 2, allowedOrigins: ['https://client.example'] } });
+    const next = normalizeHttpServerSettings({ ...settings, port: 39001 });
+    expect(next.kernelOptions).toMatchObject({ readMaxMiB: 24, readRetries: 2, allowedOrigins: ['https://client.example'] });
+});

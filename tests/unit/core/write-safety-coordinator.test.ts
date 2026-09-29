@@ -1378,6 +1378,54 @@ describe('write safety coordinator', () => {
         expect(second.expectedStateHash).toBe(first.expectedStateHash);
     });
 
+    it('detects native riffCardID review state changes on later pages', async () => {
+        let reps = 0;
+        const client = {
+            readFile: vi.fn(async () => { throw new Error('HTTP error: 404'); }),
+            writeFile: vi.fn(async () => {}),
+            requestRead: vi.fn(async (endpoint: string, body: any) => endpoint === '/api/riff/getRiffCards'
+                ? { pageCount: 2, blocks: body.page === 1 ? [] : [{ id: '20260812000000-abcdefg', riffCardID: 'review-target', box: 'nb-1', riffCard: { reps, state: 1, due: 'stable', lastReview: reps } }] }
+                : null),
+        } as any;
+        const permMgr = createMockPermissionManager({ canWrite: () => true });
+        permMgr.getAll = vi.fn(() => ({ 'nb-1': 'rwd' }));
+        const coordinator = new WriteSafetyCoordinator(client);
+        const args = { action: 'review_card', deckID: 'deck', cardID: 'review-target', rating: 3 };
+        const execute = vi.fn(async () => { reps++; return success({ ok: true }); });
+        const run = (args: any) => coordinator.run({ client, permMgr, category: 'flashcard', action: 'review_card', args, strictMode: true, execute });
+        const first = parseResult(await run({ ...args, validateOnly: true }));
+        expect(first.expectedStateHash).toEqual(expect.any(String));
+        reps++;
+        const stale = parseResult(await run({ ...args, requestId: first.requestId, expectedStateHash: first.expectedStateHash }));
+        expect(stale.error.code).toBe('state_changed');
+        expect(execute).not.toHaveBeenCalled();
+        const fresh = parseResult(await run({ ...args, validateOnly: true }));
+        const committed = parseResult(await run({ ...args, requestId: fresh.requestId, expectedStateHash: fresh.expectedStateHash }));
+        expect(committed.safety.transactionState).toBe('committed');
+        expect(committed.safety.resultHash).not.toBe(committed.safety.previousHash);
+    });
+
+    it.each([
+        { pageCount: 129, blocks: [] },
+        { pageCount: 1, blocks: [] },
+        { pageCount: 1 },
+    ])('refuses incomplete or missing review snapshots: %j', async (snapshot) => {
+        const client = {
+            readFile: vi.fn(async () => { throw new Error('HTTP error: 404'); }),
+            writeFile: vi.fn(async () => {}),
+            requestRead: vi.fn(async () => snapshot),
+        } as any;
+        const permMgr = createMockPermissionManager({ canWrite: () => true });
+        permMgr.getAll = vi.fn(() => ({ 'nb-1': 'rwd' }));
+        const execute = vi.fn();
+        const result = parseResult(await new WriteSafetyCoordinator(client).run({
+            client, permMgr, category: 'flashcard', action: 'review_card', strictMode: true,
+            args: { action: 'review_card', deckID: 'deck', cardID: 'missing', rating: 3, validateOnly: true }, execute,
+        }));
+        expect(result.error.code).toBe('precondition_required');
+        expect(execute).not.toHaveBeenCalled();
+    });
+
     it('marks a digest-verified upload as committed even when source and destination hashes match', async () => {
         const sourcePath = '/private/tmp/source.txt';
         const bytes = new Uint8Array([1, 2, 3]);
@@ -1832,4 +1880,26 @@ describe('write safety coordinator', () => {
         expect(result.error.code).toBe('readback_mismatch');
         expect(result.error.cause).toContain('requested complete order');
     });
+});
+
+it('cancellation before commit does not mark the ledger executing or consume the request', async () => {
+    const files = new Map<string, string>();
+    const client = {
+        readFile: vi.fn(async (path: string) => files.get(path) ?? ''),
+        writeFile: vi.fn(async (path: string, data: string) => { files.set(path, data); }),
+        requestRead: vi.fn(async (path: string) => path === '/api/notebook/lsNotebooks' ? { notebooks: [{ id: 'new-notebook', name: 'cancel-fixture' }] } : {}),
+    } as any;
+    const coord = new WriteSafetyCoordinator(client);
+    const permMgr = createMockPermissionManager({ canWrite: () => true });
+    const args = { action: 'create', name: 'cancel-fixture' };
+    const execute = vi.fn(async () => success({ id: 'new-notebook' }));
+    const common = { client, permMgr, category: 'notebook' as const, action: 'create', strictMode: true, execute };
+    const pre = parseResult(await coord.run({ ...common, args: { ...args, validateOnly: true } }));
+    const commit = { ...args, requestId: pre.requestId };
+    const reject = () => { throw Object.assign(new Error('cancelled'), { code: 'request_cancelled' }); };
+    const cancelled = parseResult(await coord.run({ ...common, args: commit, beforeCommit: reject }));
+    expect(cancelled.error.code).toBe('request_cancelled'); expect(execute).not.toHaveBeenCalled();
+    expect(client.writeFile.mock.calls.some(([, body]) => String(body).includes('"state":"executing"'))).toBe(false);
+    const accepted = parseResult(await coord.run({ ...common, args: commit }));
+    expect(accepted.safety.transactionState).toBe('committed'); expect(execute).toHaveBeenCalledTimes(1);
 });

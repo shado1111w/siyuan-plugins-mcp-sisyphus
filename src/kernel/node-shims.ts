@@ -13,7 +13,7 @@
  *   randomBytes/randomUUID via crypto.getRandomValues when present.
  */
 
-import { sha256 } from './sha256';
+import { Sha256 } from './sha256';
 
 /* ---------- fs ---------- */
 
@@ -107,7 +107,9 @@ function toBytes(data: unknown, encoding?: string): Uint8Array {
             for (let i = 0; i < out.length; i++) out[i] = parseInt(data.slice(i * 2, i * 2 + 2), 16);
             return out;
         }
-        // utf8 encode
+        // Native goja Buffer avoids a boxed JS number per UTF-8 byte on large templates.
+        if (typeof (globalThis as any).Buffer === 'function') return (globalThis as any).Buffer.from(data, 'utf8');
+        // utf8 fallback for minimal sandboxes
         const out: number[] = [];
         for (let i = 0; i < data.length; i++) {
             let cp = data.charCodeAt(i);
@@ -139,18 +141,13 @@ function bytesToHex(b: Uint8Array): string {
 }
 
 class HashShim {
-    private chunks: Uint8Array[] = [];
+    private hash = new Sha256();
     update(data: unknown, encoding?: string): this {
-        this.chunks.push(toBytes(data, encoding));
+        this.hash.update(toBytes(data, encoding));
         return this;
     }
     digest(encoding?: string): string | Uint8Array {
-        let total = 0;
-        for (const c of this.chunks) total += c.length;
-        const merged = new Uint8Array(total);
-        let off = 0;
-        for (const c of this.chunks) { merged.set(c, off); off += c.length; }
-        const hash = sha256(merged);
+        const hash = this.hash.digest();
         if (encoding === 'hex' || !encoding) return bytesToHex(hash);
         return hash;
     }
@@ -191,3 +188,5 @@ const cryptoFacade = {
 export function nodeFs(): typeof fsShim { return fsShim; }
 export function nodePath(): typeof pathShim { return pathShim; }
 export function nodeCrypto(): typeof cryptoFacade { return cryptoFacade; }
+
+export function randomUUID(): string { return cryptoFacade.randomUUID(); }

@@ -1,3 +1,4 @@
+import { isKernelExport } from './kernel-file-transfer';
 import {
     ACTIONS_BY_CATEGORY,
     TOOL_CATEGORIES,
@@ -41,6 +42,9 @@ export async function runDispatch(cli: ParsedArgs): Promise<number> {
         throw formatUnknownActionError(category, normalizedAction);
     }
 
+    const cancellation = new AbortController();
+    const interrupt = () => cancellation.abort();
+    let handlesInterrupt = false;
     const previousTransport = process.env.SIYUAN_MCP_TRANSPORT;
     process.env.SIYUAN_MCP_TRANSPORT = 'cli';
 
@@ -93,8 +97,15 @@ export async function runDispatch(cli: ParsedArgs): Promise<number> {
                 permMgr,
                 officialMcpRuntime,
             );
-            const invoke = toolConfig.writeSafety.strictMode && policy.mode === 'mutation'
-                ? () => callCliWriteCoordinator(writeCoordinator, tool, payload)
+            if (!handlesInterrupt && writeCoordinator?.owner === 'kernel'
+                && (isKernelExport(tool, payload) || (toolConfig.writeSafety.strictMode && policy.mode === 'mutation'))) {
+                process.on('SIGINT', interrupt);
+                handlesInterrupt = true;
+            }
+            const invoke = writeCoordinator?.owner === 'kernel' && isKernelExport(tool, payload)
+                ? () => callCliWriteCoordinator(writeCoordinator, tool, payload, client, cancellation.signal)
+                : toolConfig.writeSafety.strictMode && policy.mode === 'mutation'
+                ? () => callCliWriteCoordinator(writeCoordinator, tool, payload, client, cancellation.signal)
                 : toolConfig.writeSafety.strictMode && policy.mode === 'external'
                     ? () => new WriteSafetyCoordinator(client).run({
                         client,
@@ -132,6 +143,7 @@ export async function runDispatch(cli: ParsedArgs): Promise<number> {
         renderCliError(error, { debug: cli.debug });
         return 1;
     } finally {
+        process.removeListener('SIGINT', interrupt);
         if (previousTransport === undefined) {
             delete process.env.SIYUAN_MCP_TRANSPORT;
         } else {
@@ -284,4 +296,3 @@ function formatUnknownActionError(category: ToolCategory, action: string, dynami
         `Available actions: ${actions}. Try "${PRIMARY_CLI_COMMAND} help ${category}".`,
     );
 }
-

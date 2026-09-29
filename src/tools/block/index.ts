@@ -53,7 +53,7 @@ export const BLOCK_VARIANTS: ActionVariant<BlockAction>[] = [
     createZodActionVariant('recent_updated', BlockRecentUpdatedSchema, 'Get recently updated blocks.'),
     createZodActionVariant('word_count', BlockWordCountSchema, 'Get word-count statistics for blocks.'),
     createZodActionVariant('add_to_daily_note', BlockAddToDailyNoteSchema, 'Add a block to today\'s daily note, creating the note if needed.'),
-    createZodActionVariant('docs_info', BlockDocsInfoSchema, 'Get document info for one or more documents.'),
+    createZodActionVariant('docs_info', BlockDocsInfoSchema, 'Get document info for one or more documents. Optional offset/limit pages input IDs and returns data plus page.nextOffset.'),
     createZodActionVariant('update_task_marker', BlockUpdateTaskMarkerSchema, 'Set the checked state of a task (todo) block without rewriting its content. Pass id for one task list/item or ids[] for a batch. checked=true marks done, false marks todo.'),
     createZodActionVariant('text', BlockTextSchema, 'Read a block as plain readable text with HTML and markup stripped. Use this instead of dom or get_kramdown when you only need the words.'),
 ];
