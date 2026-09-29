@@ -163,6 +163,19 @@
           }
         },
         "additionalProperties": true
+      },
+      "title": "SiYuan Filesystem",
+      "outputSchema": {
+        "type": "object",
+        "description": "JSON object corresponding to the tool result. Non-object values are wrapped under value.",
+        "additionalProperties": true
+      },
+      "annotations": {
+        "title": "SiYuan Filesystem",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     },
     {
@@ -251,6 +264,19 @@
           }
         },
         "additionalProperties": true
+      },
+      "title": "SiYuan Notebooks",
+      "outputSchema": {
+        "type": "object",
+        "description": "JSON object corresponding to the tool result. Non-object values are wrapped under value.",
+        "additionalProperties": true
+      },
+      "annotations": {
+        "title": "SiYuan Notebooks",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     },
     {
@@ -529,6 +555,19 @@
           }
         },
         "additionalProperties": true
+      },
+      "title": "SiYuan Documents",
+      "outputSchema": {
+        "type": "object",
+        "description": "JSON object corresponding to the tool result. Non-object values are wrapped under value.",
+        "additionalProperties": true
+      },
+      "annotations": {
+        "title": "SiYuan Documents",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     },
     {
@@ -810,6 +849,19 @@
           }
         },
         "additionalProperties": true
+      },
+      "title": "SiYuan Blocks",
+      "outputSchema": {
+        "type": "object",
+        "description": "JSON object corresponding to the tool result. Non-object values are wrapped under value.",
+        "additionalProperties": true
+      },
+      "annotations": {
+        "title": "SiYuan Blocks",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     },
     {
@@ -2074,6 +2126,19 @@
           }
         },
         "additionalProperties": true
+      },
+      "title": "SiYuan Databases",
+      "outputSchema": {
+        "type": "object",
+        "description": "JSON object corresponding to the tool result. Non-object values are wrapped under value.",
+        "additionalProperties": true
+      },
+      "annotations": {
+        "title": "SiYuan Databases",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     },
     {
@@ -2266,6 +2331,19 @@
           }
         },
         "additionalProperties": true
+      },
+      "title": "SiYuan Assets and Exports",
+      "outputSchema": {
+        "type": "object",
+        "description": "JSON object corresponding to the tool result. Non-object values are wrapped under value.",
+        "additionalProperties": true
+      },
+      "annotations": {
+        "title": "SiYuan Assets and Exports",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     },
     {
@@ -2480,6 +2558,19 @@
           }
         },
         "additionalProperties": true
+      },
+      "title": "SiYuan Search",
+      "outputSchema": {
+        "type": "object",
+        "description": "JSON object corresponding to the tool result. Non-object values are wrapped under value.",
+        "additionalProperties": true
+      },
+      "annotations": {
+        "title": "SiYuan Search",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     },
     {
@@ -2536,6 +2627,19 @@
           }
         },
         "additionalProperties": true
+      },
+      "title": "SiYuan Tags",
+      "outputSchema": {
+        "type": "object",
+        "description": "JSON object corresponding to the tool result. Non-object values are wrapped under value.",
+        "additionalProperties": true
+      },
+      "annotations": {
+        "title": "SiYuan Tags",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     },
     {
@@ -2599,6 +2703,19 @@
           }
         },
         "additionalProperties": true
+      },
+      "title": "SiYuan History",
+      "outputSchema": {
+        "type": "object",
+        "description": "JSON object corresponding to the tool result. Non-object values are wrapped under value.",
+        "additionalProperties": true
+      },
+      "annotations": {
+        "title": "SiYuan History",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     },
     {
@@ -2685,6 +2802,19 @@
           }
         },
         "additionalProperties": true
+      },
+      "title": "SiYuan System",
+      "outputSchema": {
+        "type": "object",
+        "description": "JSON object corresponding to the tool result. Non-object values are wrapped under value.",
+        "additionalProperties": true
+      },
+      "annotations": {
+        "title": "SiYuan System",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     },
     {
@@ -2800,6 +2930,19 @@
           }
         },
         "additionalProperties": true
+      },
+      "title": "SiYuan Flashcards",
+      "outputSchema": {
+        "type": "object",
+        "description": "JSON object corresponding to the tool result. Non-object values are wrapped under value.",
+        "additionalProperties": true
+      },
+      "annotations": {
+        "title": "SiYuan Flashcards",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     },
     {
@@ -2828,6 +2971,19 @@
           }
         },
         "additionalProperties": true
+      },
+      "title": "Sisyphus Mascot",
+      "outputSchema": {
+        "type": "object",
+        "description": "JSON object corresponding to the tool result. Non-object values are wrapped under value.",
+        "additionalProperties": true
+      },
+      "annotations": {
+        "title": "Sisyphus Mascot",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     },
     {
@@ -2876,6 +3032,19 @@
           }
         },
         "additionalProperties": true
+      },
+      "title": "Sisyphus Feedback",
+      "outputSchema": {
+        "type": "object",
+        "description": "JSON object corresponding to the tool result. Non-object values are wrapped under value.",
+        "additionalProperties": true
+      },
+      "annotations": {
+        "title": "Sisyphus Feedback",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     }
   ]

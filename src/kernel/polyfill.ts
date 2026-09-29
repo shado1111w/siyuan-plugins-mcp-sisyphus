@@ -139,4 +139,76 @@ if (typeof g.crypto!.getRandomValues !== 'function') {
     };
 }
 
+/* ---------- Buffer / base64 ----------
+ * file(action="read_image") and analytics byte accounting touch Buffer.
+ * Provide the small surface used in the codebase: byteLength, from(bytes)
+ * .toString('base64'). Backed by the bundled UTF-8 codec + a manual base64
+ * encoder (goja has no atob/btoa for binary).
+ */
+
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+function base64Encode(bytes: Uint8Array): string {
+    let out = '';
+    for (let i = 0; i < bytes.length; i += 3) {
+        const a = bytes[i], b = bytes[i + 1], c = bytes[i + 2];
+        out += B64[a >> 2];
+        out += B64[((a & 3) << 4) | (i + 1 < bytes.length ? (b as number) >> 4 : 0)];
+        out += i + 1 < bytes.length ? B64[((b as number & 15) << 2) | (i + 2 < bytes.length ? (c as number) >> 6 : 0)] : '=';
+        out += i + 2 < bytes.length ? B64[(c as number) & 63] : '=';
+    }
+    return out;
+}
+function base64Decode(str: string): Uint8Array {
+    const clean = str.replace(/[^A-Za-z0-9+/=]/g, '');
+    const out: number[] = [];
+    for (let i = 0; i < clean.length; i += 4) {
+        const n = (B64.indexOf(clean[i]) << 18)
+            | (B64.indexOf(clean[i + 1]) << 12)
+            | ((clean[i + 2] === '=' ? 0 : B64.indexOf(clean[i + 2])) << 6)
+            | (clean[i + 3] === '=' ? 0 : B64.indexOf(clean[i + 3]));
+        out.push((n >> 16) & 0xff);
+        if (clean[i + 2] !== '=') out.push((n >> 8) & 0xff);
+        if (clean[i + 3] !== '=') out.push(n & 0xff);
+    }
+    return new Uint8Array(out);
+}
+
+class KernelBuffer extends Uint8Array {
+    toString(encoding?: string): string {
+        if (encoding === 'base64') return base64Encode(this);
+        return utf8DecodeBytes(this);
+    }
+}
+
+if (typeof (g as any).Buffer === 'undefined') {
+    (g as any).Buffer = {
+        byteLength(text: string, encoding?: string): number {
+            if (encoding === 'base64' || encoding === 'base64url') {
+                return base64Decode(text).length;
+            }
+            return utf8EncodeString(text).length;
+        },
+        from(data: unknown, encoding?: string): KernelBuffer {
+            if (typeof data === 'string') {
+                if (encoding === 'base64' || encoding === 'base64url') return KernelBuffer.from(base64Decode(data));
+                return KernelBuffer.from(utf8EncodeString(data));
+            }
+            if (data instanceof Uint8Array) return KernelBuffer.from(data);
+            if (Array.isArray(data)) return KernelBuffer.from(data);
+            if (data && typeof data === 'object' && 'length' in (data as any)) {
+                return KernelBuffer.from(Array.from(data as ArrayLike<number>));
+            }
+            return new KernelBuffer(0);
+        },
+        concat(chunks: Uint8Array[]): KernelBuffer {
+            const total = chunks.reduce((n, c) => n + c.length, 0);
+            const out = new KernelBuffer(total);
+            let off = 0;
+            for (const c of chunks) { out.set(c, off); off += c.length; }
+            return out;
+        },
+        isBuffer(v: unknown): boolean { return v instanceof KernelBuffer; },
+    };
+}
+
 export {};

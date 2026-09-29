@@ -27,13 +27,20 @@ process.env.SIYUAN_MCP_TRANSPORT = 'kernel';
 import { KernelSiYuanClient } from './client';
 import { PermissionManager } from '../core/permissions';
 import { WriteSafetyCoordinator } from '../core/write-safety-coordinator';
-import { buildDefaultToolConfig } from '../core/config';
+import { buildDefaultToolConfig, isDangerousAction } from '../core/config';
 import { runToolCall } from '../core/tool-lifecycle';
 import { translateError } from '../tools/internal/errorTranslation';
 import type { ToolResult } from '../tools/internal/shared';
 // Plain JSON baked at build time by scripts/gen-kernel-schemas.mjs — the goja
 // sandbox never runs z.toJSONSchema; it only embeds this static data.
 import kernelSchemas from './generated/kernel-schemas.json';
+import {
+    kernelGetPrompt,
+    kernelListPrompts,
+    kernelListResources,
+    kernelListResourceTemplates,
+    kernelReadResource,
+} from './resources';
 
 import { NOTEBOOK_ACTION_HANDLERS } from '../tools/notebook/handlers';
 import { FS_ACTION_HANDLERS } from '../tools/fs/handlers';
@@ -82,20 +89,26 @@ let coordinator: WriteSafetyCoordinator | null = null;
 let config: any = null;
 let handlerMap: Record<string, HandlerMap> | null = null;
 
-async function ensureRuntime() {
+async function ensureRuntime(refreshConfig = false) {
     if (!client) {
         client = new KernelSiYuanClient();
         permMgr = new PermissionManager(client as any);
         try { await permMgr.load(); } catch { /* default rwd */ }
         coordinator = new WriteSafetyCoordinator(client as any);
+    }
+    // Re-read the tool config on every call so that tools/list and callTool
+    // reflect per-category / per-action enable toggles immediately, without
+    // relying on a server->client list-changed notification the kernel
+    // endpoint cannot emit.
+    if (refreshConfig || config === null) {
         try {
             const raw = await client.readFile('/data/storage/petal/' + PLUGIN_NAME + '/mcpToolsConfig');
             config = normalizeConfig(raw ? JSON.parse(raw) : null);
         } catch {
-            config = buildDefaultToolConfig();
+            config = config ?? buildDefaultToolConfig();
         }
-        handlerMap = buildHandlerMap(config);
     }
+    if (!handlerMap) handlerMap = buildHandlerMap(config);
     return { client, permMgr: permMgr!, coordinator: coordinator!, config, handlerMap: handlerMap! };
 }
 
@@ -163,6 +176,7 @@ function enqueueKernelWork<T>(fn: () => Promise<T>): Promise<T> {
 const OFFICIAL_MCP_PROTOCOL = '2025-03-26';
 let officialSessionId: string | null = null;
 let officialSessionInit: Promise<string> | null = null;
+let officialToolHints: Map<string, { readOnlyHint: boolean }> | null = null;
 
 function headerValue(headers: unknown, name: string): string | null {
     if (!headers || typeof headers !== 'object') return null;
@@ -274,8 +288,40 @@ function isActionEnabled(cfg: any, category: string, action: string): boolean {
     return flag !== false;
 }
 
+function stripConfirmField(args: Record<string, unknown>): Record<string, unknown> {
+    if (!('confirm' in args)) return args;
+    const out = { ...args };
+    delete out.confirm;
+    return out;
+}
+
+/*
+ * Lazily cache the official tools/list readOnlyHint table so extension
+ * tools/call can apply the same read-only bypass the desktop server uses
+ * (readOnlyHint===true skips confirmation). A failed lookup returns null and
+ * the caller treats the tool as write-capable -> confirm gate applies.
+ */
+async function getExtensionReadOnlyHint(toolName: string): Promise<boolean | null> {
+    try {
+        if (!officialToolHints) {
+            const res = await forwardOfficialMcp('tools/list', {}) as any;
+            const tools = res?.result?.tools ?? res?.tools ?? [];
+            officialToolHints = new Map();
+            for (const t of Array.isArray(tools) ? tools : []) {
+                if (t && typeof t.name === 'string') {
+                    officialToolHints.set(t.name, { readOnlyHint: t.readOnlyHint === true });
+                }
+            }
+        }
+        const entry = officialToolHints.get(toolName);
+        return entry ? entry.readOnlyHint : null;
+    } catch {
+        return null;
+    }
+}
+
 async function callTool(name: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const { client: c, permMgr: pm, coordinator: coord, config: cfg, handlerMap: hm } = await ensureRuntime();
+    const { client: c, permMgr: pm, coordinator: coord, config: cfg, handlerMap: hm } = await ensureRuntime(true);
     const category = TOOL_TO_CATEGORY[name];
     const action = typeof args?.action === 'string' ? args.action : '';
     const errResult = (code: string, message: string): Record<string, unknown> => ({
@@ -286,7 +332,33 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<Re
     // extension tools are registered dynamically on the kernel /mcp endpoint;
     // there is no static handler map for them, forward instead.
     if (category === 'extension') {
-        const forwarded = await forwardOfficialMcp('tools/call', { name: action || name, arguments: args?.arguments ?? {} });
+        const toolName = action || name;
+        // Read-only extension tools (per the kernel /mcp tools/list hint) skip
+        // the confirm gate; write-capable or unknown ones require an explicit
+        // confirm:true resend, matching the desktop readOnlyHint contract.
+        const hint = await getExtensionReadOnlyHint(toolName);
+        const isReadOnly = hint === true;
+        if (!isReadOnly && args?.validateOnly !== true && args?.confirm !== true) {
+            const preview = JSON.stringify(args ?? {});
+            return {
+                isError: true,
+                content: [{
+                    type: 'text',
+                    text: JSON.stringify({
+                        success: false,
+                        requiresConfirmation: true,
+                        code: 'dangerous_action_requires_confirmation',
+                        message: [
+                            `Extension tool "${toolName}" was not executed.`,
+                            `Arguments: ${preview.length > 1800 ? preview.slice(0, 1800) + '…' : preview}`,
+                            'Resend the same arguments with "confirm": true to execute (or with "readOnlyHint" verified read-only).',
+                        ].join('\n'),
+                    }),
+                }],
+            };
+        }
+        const cleanArgs = stripConfirmField(args ?? {});
+        const forwarded = await forwardOfficialMcp('tools/call', { name: toolName, arguments: cleanArgs?.arguments ?? cleanArgs });
         return (forwarded ?? { isError: true, content: [{ type: 'text', text: '{}' }] }) as Record<string, unknown>;
     }
 
@@ -296,6 +368,37 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<Re
     if (!action || !handler) return errResult('unknown_action', `Unknown action '${action}' on tool '${name}'`);
     if (!isActionEnabled(cfg, category, action)) {
         return errResult('action_disabled', `Action '${action}' on tool '${name}' is disabled in Sisyphus settings.`);
+    }
+
+    // Kernel endpoint has no MCP session, so there is no server->client
+    // elicitation channel for the protocol-level confirmation the desktop
+    // server uses for dangerous actions. We degrade to a parameter-level
+    // double-submit gate: the first call returns requires_confirmation with
+    // an argument preview; the caller must resend the identical args plus
+    // confirm=true to actually execute. This keeps the explicit two-step
+    // approval semantics without any session state.
+    if (
+        isDangerousAction(category as any, action)
+        && args?.validateOnly !== true
+        && args?.confirm !== true
+    ) {
+        const preview = JSON.stringify(args ?? {});
+        return {
+            isError: true,
+            content: [{
+                type: 'text',
+                text: JSON.stringify({
+                    success: false,
+                    requiresConfirmation: true,
+                    code: 'dangerous_action_requires_confirmation',
+                    message: [
+                        `High-risk action ${name}(action="${action}") was not executed.`,
+                        `Arguments: ${preview.length > 1800 ? preview.slice(0, 1800) + '…' : preview}`,
+                        'Resend the same arguments with "confirm": true to execute.',
+                    ].join('\n'),
+                }),
+            }],
+        };
     }
 
     const strictMode = !!cfg?.writeSafety?.strictMode;
@@ -316,7 +419,10 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<Re
                 permMgr: pm,
                 category: category as any,
                 action,
-                args: args ?? {},
+                // Strip the parameter-level confirm gate token before handing
+                // to the handler — it is a transport-level marker, not part of
+                // the action schema, and zod would reject it as unknown.
+                args: stripConfirmField(args ?? {}),
                 strictMode,
                 execute: (safeArgs) => handler({ client: c, rawArgs: safeArgs, permMgr: pm }),
             }),
@@ -348,7 +454,7 @@ async function handleMcp(request: any): Promise<any> {
         case 'initialize':
             return jsonRpcResult(id, {
                 protocolVersion: params?.protocolVersion ?? PROTOCOL_VERSION,
-                capabilities: { tools: {} },
+                capabilities: { tools: {}, resources: {}, prompts: {} },
                 serverInfo: { name: 'siyuan-sisyphus-kernel', version: siyuan.plugin?.version ?? '0.0.0' },
             });
         case 'notifications/initialized':
@@ -357,13 +463,20 @@ async function handleMcp(request: any): Promise<any> {
         case 'ping':
             return jsonRpcResult(id, {});
         case 'tools/list': {
-            const { config: cfg } = await ensureRuntime();
+            const { config: cfg } = await ensureRuntime(true);
             // Static categories come from the build-time schema manifest
             // (plain JSON — no zod reflection in the sandbox). Filter by the
             // per-category enabled flag just like the desktop listTools does.
             const tools = (kernelSchemas?.tools ?? [])
                 .filter((t: any) => cfg?.[TOOL_TO_CATEGORY[t.name]]?.enabled !== false)
-                .map((t: any) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema }));
+                .map((t: any) => ({
+                    name: t.name,
+                    title: t.title,
+                    description: t.description,
+                    inputSchema: t.inputSchema,
+                    ...(t.outputSchema ? { outputSchema: t.outputSchema } : {}),
+                    ...(t.annotations ? { annotations: t.annotations } : {}),
+                }));
             // extension tools are runtime-discovered; surface them live from
             // the kernel /mcp endpoint so clients see the full set. A discovery
             // failure must not break the static list.
@@ -373,7 +486,14 @@ async function handleMcp(request: any): Promise<any> {
                 if (cfg?.extension?.enabled !== false && Array.isArray(extTools)) {
                     for (const t of extTools) {
                         if (t && typeof t.name === 'string') {
-                            tools.push({ name: t.name, description: t.description, inputSchema: t.inputSchema });
+                            tools.push({
+                                name: t.name,
+                                title: t.title,
+                                description: t.description,
+                                inputSchema: t.inputSchema,
+                                ...(t.outputSchema ? { outputSchema: t.outputSchema } : {}),
+                                ...(t.annotations ? { annotations: t.annotations } : {}),
+                            } as any);
                         }
                     }
                 }
@@ -392,6 +512,30 @@ async function handleMcp(request: any): Promise<any> {
                     content: [{ type: 'text', text: JSON.stringify({ success: false, error: { code: 'internal', message: err instanceof Error ? err.message : String(err) } }) }],
                 });
             }
+        }
+        case 'resources/list': {
+            return jsonRpcResult(id, { resources: kernelListResources() });
+        }
+        case 'resources/templates/list': {
+            return jsonRpcResult(id, { resourceTemplates: kernelListResourceTemplates() });
+        }
+        case 'resources/read': {
+            const uri = params?.uri;
+            if (typeof uri !== 'string') return jsonRpcError(id, -32602, 'resources/read requires params.uri');
+            const { config: cfg } = await ensureRuntime(true);
+            const content = kernelReadResource(uri, cfg?.userRulesText ?? '');
+            if (!content) return jsonRpcError(id, -32602, `Unknown resource: ${uri}`);
+            return jsonRpcResult(id, { contents: [content] });
+        }
+        case 'prompts/list': {
+            return jsonRpcResult(id, { prompts: kernelListPrompts() });
+        }
+        case 'prompts/get': {
+            const name = params?.name;
+            if (typeof name !== 'string') return jsonRpcError(id, -32602, 'prompts/get requires params.name');
+            const prompt = kernelGetPrompt(name, params?.arguments?.task);
+            if (!prompt) return jsonRpcError(id, -32602, `Unknown prompt: ${name}`);
+            return jsonRpcResult(id, prompt);
         }
         default:
             return jsonRpcError(id, -32601, `Method not found: ${String(method)}`);

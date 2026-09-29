@@ -9,14 +9,34 @@
  * schema reflection itself.
  */
 
-import { buildDefaultToolConfig, TOOL_CATEGORIES } from '../core/config';
-import { TOOL_REGISTRY } from '../core/tool-registry';
+import { buildDefaultToolConfig, TOOL_CATEGORIES, isDangerousAction } from '../core/config';
+import { TOOL_REGISTRY, GENERIC_TOOL_OUTPUT_SCHEMA } from '../core/tool-registry';
 
 export interface KernelToolDescriptor {
     name: string;
     description?: string;
     inputSchema?: Record<string, unknown>;
+    title?: string;
+    outputSchema?: Record<string, unknown>;
+    annotations?: Record<string, unknown>;
 }
+
+const TOOL_TITLES: Record<string, string> = {
+    fs: 'SiYuan Filesystem',
+    notebook: 'SiYuan Notebooks',
+    document: 'SiYuan Documents',
+    block: 'SiYuan Blocks',
+    av: 'SiYuan Databases',
+    file: 'SiYuan Assets and Exports',
+    feedback: 'Sisyphus Feedback',
+    search: 'SiYuan Search',
+    tag: 'SiYuan Tags',
+    timeline: 'SiYuan History',
+    system: 'SiYuan System',
+    flashcard: 'SiYuan Flashcards',
+    extension: 'SiYuan Extension Tools',
+    mascot: 'Sisyphus Mascot',
+};
 
 /**
  * Collect the aggregated tool descriptors for every statically-known category.
@@ -31,14 +51,25 @@ export function buildKernelToolManifest(): KernelToolDescriptor[] {
         const module = TOOL_REGISTRY[category];
         if (!module || typeof module.listTools !== 'function') continue;
         const descriptors = module.listTools(config[category]);
+        const hasDangerous = Object.keys(config[category]?.actions ?? {})
+            .some((a) => isDangerousAction(category as any, a));
         for (const descriptor of descriptors) {
+            const title = descriptor.title ?? TOOL_TITLES[category];
             out.push({
                 name: descriptor.name,
                 description: descriptor.description,
                 inputSchema: descriptor.inputSchema as Record<string, unknown> | undefined,
+                title,
+                outputSchema: (descriptor.outputSchema as Record<string, unknown> | undefined) ?? { ...GENERIC_TOOL_OUTPUT_SCHEMA },
+                annotations: (descriptor.annotations as Record<string, unknown> | undefined) ?? {
+                    title,
+                    readOnlyHint: false,
+                    destructiveHint: hasDangerous,
+                    idempotentHint: false,
+                    openWorldHint: true,
+                },
             });
         }
     }
     return out;
 }
-
