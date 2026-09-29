@@ -105,18 +105,16 @@
             const { readAnalyticsEvents, computeAnalyticsSummary, getRecentAnalyticsEvents } = await import("../../../core/analytics");
             const events = await readAnalyticsEvents({
                 readFile: async (path: string) => {
-                    return new Promise<string>((resolve, reject) => {
-                        fetchPost("/api/file/getFile", { path }, (resp: any) => {
-                            if (typeof resp === "string") {
-                                resolve(resp);
-                            } else if (resp?.data && typeof resp.data === "string") {
-                                resolve(resp.data);
-                            } else {
-                                // getFile returns raw text on success; on failure resp may have code !== 0
-                                reject(new Error("Failed to read file"));
-                            }
-                        });
+                    // getFile streams raw file bytes; fetchPost forces resp.json()
+                    // which throws on non-JSON bodies (analytics.jsonl). Use a
+                    // plain fetch + text() so multi-line JSONL loads correctly.
+                    const resp = await fetch("/api/file/getFile", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ path }),
                     });
+                    if (!resp.ok) throw new Error(`Failed to read file: ${resp.status}`);
+                    return await resp.text();
                 },
                 writeFile: async () => { /* not used in read path */ },
                 request: async () => { throw new Error("not implemented"); },
@@ -167,11 +165,14 @@
         try {
             const { ANALYTICS_PATH, ANALYTICS_ROTATED_PATH, computeAnalyticsSummary, parseJsonl } = await import("../../../core/analytics");
             const readFile = (path: string): Promise<string> => new Promise((resolve, reject) => {
-                fetchPost("/api/file/getFile", { path }, (resp: any) => {
-                    if (typeof resp === "string") resolve(resp);
-                    else if (resp?.data && typeof resp.data === "string") resolve(resp.data);
-                    else reject(new Error("Failed to read file"));
-                });
+                fetch("/api/file/getFile", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ path }),
+                }).then(async (resp) => {
+                    if (!resp.ok) throw new Error(`Failed to read file: ${resp.status}`);
+                    resolve(await resp.text());
+                }).catch(reject);
             });
             const parts: string[] = [];
             try { parts.push(await readFile(ANALYTICS_PATH)); } catch { /* ignore */ }
@@ -201,13 +202,13 @@
             const { buildTelemetryPayload } = await import("../../../core/telemetry");
             const client = {
                 readFile: async (path: string) => {
-                    return new Promise<string>((resolve, reject) => {
-                        fetchPost("/api/file/getFile", { path }, (resp: any) => {
-                            if (typeof resp === "string") resolve(resp);
-                            else if (resp?.data && typeof resp.data === "string") resolve(resp.data);
-                            else reject(new Error("Failed to read file"));
-                        });
+                    const resp = await fetch("/api/file/getFile", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ path }),
                     });
+                    if (!resp.ok) throw new Error(`Failed to read file: ${resp.status}`);
+                    return await resp.text();
                 },
                 writeFile: async () => {},
                 request: async () => { throw new Error("not implemented"); },
