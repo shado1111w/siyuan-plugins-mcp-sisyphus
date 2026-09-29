@@ -289,7 +289,8 @@ const handleUploadAsset = (thresholdMB: number, largeUploadThresholdBytes: numbe
         if (getInvocationTransport() === 'kernel') {
             // The official upload endpoint is multipart/form-data; the goja
             // sandbox fetch accepts string bodies only, so the bytes cannot
-            // cross the boundary here. Hand the model the exact official API
+            // cross the boundary here, and there is no host filesystem to
+            // stage localFilePath from. Hand the model the exact official API
             // call instead of a cryptic fs/FormData failure.
             return kernelUploadAssetGuidance(parsed);
         }

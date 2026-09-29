@@ -41,6 +41,12 @@ import {
     kernelListResourceTemplates,
     kernelReadResource,
 } from './resources';
+import {
+    getSepSkill,
+    listSepSkillResources,
+    listSepSkills,
+    readSepSkillResource,
+} from '../core/skills';
 
 import { NOTEBOOK_ACTION_HANDLERS } from '../tools/notebook/handlers';
 import { FS_ACTION_HANDLERS } from '../tools/fs/handlers';
@@ -59,6 +65,7 @@ import { FEEDBACK_ACTION_HANDLERS } from '../tools/feedback/handlers';
 const CONFIG_PATH = 'mcpHttpSettings';
 const PLUGIN_NAME = 'siyuan-plugins-mcp-sisyphus';
 const PROTOCOL_VERSION = '2025-03-26';
+const SKILLS_EXTENSION_ID = 'io.modelcontextprotocol/skills';
 
 type HandlerMap = Record<string, (ctx: any) => Promise<ToolResult>>;
 
@@ -454,7 +461,14 @@ async function handleMcp(request: any): Promise<any> {
         case 'initialize':
             return jsonRpcResult(id, {
                 protocolVersion: params?.protocolVersion ?? PROTOCOL_VERSION,
-                capabilities: { tools: {}, resources: {}, prompts: {} },
+                capabilities: {
+                    tools: {},
+                    resources: {},
+                    prompts: {},
+                    extensions: {
+                        [SKILLS_EXTENSION_ID]: { directoryRead: false },
+                    },
+                },
                 serverInfo: { name: 'siyuan-sisyphus-kernel', version: siyuan.plugin?.version ?? '0.0.0' },
             });
         case 'notifications/initialized':
@@ -514,7 +528,7 @@ async function handleMcp(request: any): Promise<any> {
             }
         }
         case 'resources/list': {
-            return jsonRpcResult(id, { resources: kernelListResources() });
+            return jsonRpcResult(id, { resources: [...kernelListResources(), ...listSepSkillResources()] });
         }
         case 'resources/templates/list': {
             return jsonRpcResult(id, { resourceTemplates: kernelListResourceTemplates() });
@@ -523,9 +537,23 @@ async function handleMcp(request: any): Promise<any> {
             const uri = params?.uri;
             if (typeof uri !== 'string') return jsonRpcError(id, -32602, 'resources/read requires params.uri');
             const { config: cfg } = await ensureRuntime(true);
-            const content = kernelReadResource(uri, cfg?.userRulesText ?? '');
+            const content = kernelReadResource(uri, cfg?.userRulesText ?? '') ?? readSepSkillResource(uri);
             if (!content) return jsonRpcError(id, -32602, `Unknown resource: ${uri}`);
             return jsonRpcResult(id, { contents: [content] });
+        }
+        case 'skills/list': {
+            return jsonRpcResult(id, {
+                skills: listSepSkills(),
+                ttlMs: 300_000,
+                cacheScope: 'public',
+            });
+        }
+        case 'skills/get': {
+            const uri = params?.uri;
+            if (typeof uri !== 'string') return jsonRpcError(id, -32602, 'skills/get requires params.uri');
+            const skill = getSepSkill(uri);
+            if (!skill) return jsonRpcError(id, -32602, `Unknown skill URI: ${uri}`);
+            return jsonRpcResult(id, { skill });
         }
         case 'prompts/list': {
             return jsonRpcResult(id, { prompts: kernelListPrompts() });
